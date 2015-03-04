@@ -28,6 +28,10 @@ struct vmpressure {
 };
 
 struct mem_cgroup;
+struct notifier_block;
+
+extern int vmpressure_notifier_register(struct notifier_block *nb);
+extern int vmpressure_notifier_unregister(struct notifier_block *nb);
 
 #ifdef CONFIG_MEMCG
 extern void vmpressure(gfp_t gfp, struct mem_cgroup *memcg, bool tree,
