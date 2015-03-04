@@ -19,6 +19,7 @@
 #include <linux/slab.h>
 #include <linux/swap.h>
 #include <linux/printk.h>
+#include <linux/notifier.h>
 #include <linux/vmpressure.h>
 
 /*
@@ -45,6 +46,23 @@ static const unsigned long vmpressure_win = SWAP_CLUSTER_MAX * 16;
  */
 static const unsigned int vmpressure_level_med = 60;
 static const unsigned int vmpressure_level_critical = 95;
+
+static BLOCKING_NOTIFIER_HEAD(vmpressure_notifier);
+
+int vmpressure_notifier_register(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_register(&vmpressure_notifier, nb);
+}
+
+int vmpressure_notifier_unregister(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_unregister(&vmpressure_notifier, nb);
+}
+
+static void vmpressure_notify(unsigned long pressure)
+{
+	blocking_notifier_call_chain(&vmpressure_notifier, pressure, NULL);
+}
 
 /*
  * When there are too little pages left to scan, vmpressure() may miss the
@@ -117,7 +135,7 @@ static enum vmpressure_levels vmpressure_level(unsigned long pressure)
 	return VMPRESSURE_LOW;
 }
 
-static enum vmpressure_levels vmpressure_calc_level(unsigned long scanned,
+static unsigned long vmpressure_calc_pressure(unsigned long scanned,
 						    unsigned long reclaimed)
 {
 	unsigned long scale = scanned + reclaimed;
@@ -144,7 +162,7 @@ out:
 	pr_debug("%s: %3lu  (s: %lu  r: %lu)\n", __func__, pressure,
 		 scanned, reclaimed);
 
-	return vmpressure_level(pressure);
+	return pressure;
 }
 
 struct vmpressure_event {
@@ -182,6 +200,7 @@ static void vmpressure_work_fn(struct work_struct *work)
 	struct vmpressure *vmpr = work_to_vmpressure(work);
 	unsigned long scanned;
 	unsigned long reclaimed;
+	unsigned long pressure;
 	enum vmpressure_levels level;
 	bool ancestor = false;
 	bool signalled = false;
@@ -206,7 +225,12 @@ static void vmpressure_work_fn(struct work_struct *work)
 	vmpr->tree_reclaimed = 0;
 	spin_unlock(&vmpr->sr_lock);
 
-	level = vmpressure_calc_level(scanned, reclaimed);
+	pressure = vmpressure_calc_pressure(scanned, reclaimed);
+	level = vmpressure_level(pressure);
+
+	/* The root vmpressure carries global reclaim; tell in-kernel clients */
+	if (vmpr == memcg_to_vmpressure(NULL))
+		vmpressure_notify(pressure);
 
 	do {
 		if (vmpressure_event(vmpr, level, ancestor, signalled))
@@ -305,7 +329,7 @@ void vmpressure(gfp_t gfp, struct mem_cgroup *memcg, bool tree,
 		vmpr->scanned = vmpr->reclaimed = 0;
 		spin_unlock(&vmpr->sr_lock);
 
-		level = vmpressure_calc_level(scanned, reclaimed);
+		level = vmpressure_level(vmpressure_calc_pressure(scanned, reclaimed));
 
 		if (level > VMPRESSURE_LOW) {
 			/*
