@@ -50,7 +50,6 @@
 #include <linux/printk.h>
 #include <linux/dax.h>
 #include <linux/psi.h>
-#include <linux/simple_lmk.h>
 #include <linux/pagewalk.h>
 #include <linux/shmem_fs.h>
 #include <linux/ctype.h>
@@ -7600,7 +7599,6 @@ restart:
 		bool balanced;
 		bool ret;
 
-		simple_lmk_decide_reclaim(sc.priority);
 		sc.reclaim_idx = highest_zoneidx;
 
 		/*
