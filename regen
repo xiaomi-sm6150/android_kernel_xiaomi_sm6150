@@ -1,0 +1,6 @@
+export ARCH=arm64
+echo -n "Choose Device Defconfig :"
+read CONFIG_FILE
+make ${CONFIG_FILE}
+cp .config arch/arm64/configs/${CONFIG_FILE}
+git commit -am "defconfig: regenerate"
