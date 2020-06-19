@@ -1,0 +1,4 @@
+export ARCH=arm64
+make phoenix_defconfig
+cp .config arch/arm64/configs/phoenix_defconfig
+git commit -am "defconfig: regenerate"
