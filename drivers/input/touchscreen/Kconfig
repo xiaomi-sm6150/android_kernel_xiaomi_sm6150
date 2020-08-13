@@ -27,6 +27,12 @@ config TOUCHSCREEN_NVT_F7B
 	  To compile this driver as a module, choose M here: the
 	  module will be called nvt.
 
+config TOUCHSCREEN_TDDI_DBCLK
+        bool "TDDI IC enable double click"
+        help
+          Say Y here if you have a tddi ic and want keep avdd,avee
+          when suspend.
+
 config TOUCHSCREEN_PROPERTIES
 	def_tristate INPUT
 	depends on INPUT
