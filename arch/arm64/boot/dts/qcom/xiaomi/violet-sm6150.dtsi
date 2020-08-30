@@ -40,3 +40,18 @@
 &sdhc_2 {
     cd-gpios = <&tlmm 99 0>;
 };
+
+&pm6150l_rgb_led {
+	red {
+		label = "white";
+	};
+
+	green {
+		label = "disabled";
+	};
+
+	blue {
+		label = "disabled";
+	};
+};
+
