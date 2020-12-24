@@ -27,6 +27,7 @@
 #include <linux/sysfs.h>
 #include <linux/workqueue.h>
 #include <linux/pm_qos.h>
+#include <linux/spi/spi-geni-qcom.h>
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
@@ -179,7 +180,8 @@ struct nvt_ts_data {
 	int gesture_command_delayed;
 	bool dev_pm_suspend;
 	struct completion dev_pm_suspend_completion;
-	struct pm_qos_request pm_qos_req;
+	struct pm_qos_request pm_spi_req;
+	struct pm_qos_request pm_touch_req;
 	bool palm_sensor_changed;
 	bool palm_sensor_switch;
 	bool first_load_done;
