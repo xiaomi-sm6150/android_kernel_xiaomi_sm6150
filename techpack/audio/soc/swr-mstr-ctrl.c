@@ -1,4 +1,5 @@
 /* Copyright (c) 2015-2019, The Linux Foundation. All rights reserved.
+ * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -9,7 +10,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-
+#define DEBUG
 #include <linux/irq.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -1918,6 +1919,17 @@ static int swrm_probe(struct platform_device *pdev)
 		goto err_pdata_fail;
 	}
 
+	/* Make inband tx interrupts as wakeup capable for slave irq */
+#ifdef CONFIG_MACH_XIAOMI_SDMMAGPIE
+	swrm->swr_tx_wakeup_capable = false;
+	if (of_property_read_bool(swrm->dev->of_node,
+			"qcom,swr-mstr-tx-wakeup-capable")) {
+		swrm->swr_tx_wakeup_capable = true;
+		irq_set_irq_wake(swrm->irq, 1);
+	} else
+		dev_dbg(swrm->dev, "%s: swrm tx wakeup capable not defined",
+			__func__);
+#endif
 	for (i = 0; i < map_length; i++) {
 		port_num = temp[3 * i];
 		port_type = temp[3 * i + 1];
@@ -2058,7 +2070,11 @@ static int swrm_probe(struct platform_device *pdev)
 				   (void *) "swrm_reg_dump",
 				   &swrm_debug_ops);
 	}
-
+	/* Make inband tx interrupts as wakeup capable for slave irq */
+#ifdef CONFIG_MACH_XIAOMI_SDMMAGPIE
+	if (swrm->master_id == MASTER_ID_TX)
+		irq_set_irq_wake(swrm->irq, 1);
+#endif
 	ret = device_init_wakeup(swrm->dev, true);
 	if (ret) {
 		dev_err(swrm->dev, "Device wakeup init failed: %d\n", ret);
