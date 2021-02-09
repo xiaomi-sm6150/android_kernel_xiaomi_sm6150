@@ -32,7 +32,9 @@
 #include "wcd-mbhc-v2.h"
 #include "pdata.h"
 
-#if defined(CONFIG_TARGET_PRODUCT_K9A)
+#ifdef CONFIG_MACH_XIAOMI_VIOLET
+#define WCD_MBHC_ADC_HS_THRESHOLD_MV    2550
+#elif defined CONFIG_TARGET_PRODUCT_K9A
 #define WCD_MBHC_ADC_HS_THRESHOLD_MV    1600
 #else
 #define WCD_MBHC_ADC_HS_THRESHOLD_MV    1700

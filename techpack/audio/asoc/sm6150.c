@@ -5235,6 +5235,15 @@ static void *def_wcd_mbhc_cal(void)
 		(sizeof(btn_cfg->_v_btn_low[0]) * btn_cfg->num_btn);
 
 	btn_high[0] = 75;
+#ifdef CONFIG_MACH_XIAOMI_VIOLET
+	btn_high[1] = 225;
+	btn_high[2] = 450;
+	btn_high[3] = 500;
+	btn_high[4] = 500;
+	btn_high[5] = 500;
+	btn_high[6] = 500;
+	btn_high[7] = 500;
+#else
 	btn_high[1] = 260;
 	btn_high[2] = 750;
 	btn_high[3] = 750;
@@ -5242,6 +5251,7 @@ static void *def_wcd_mbhc_cal(void)
 	btn_high[5] = 750;
 	btn_high[6] = 750;
 	btn_high[7] = 750;
+#endif
 
 	return wcd_mbhc_cal;
 }
@@ -7669,7 +7679,10 @@ static struct snd_soc_dai_link msm_mi2s_be_dai_links[] = {
 		.stream_name = "Primary MI2S Playback",
 		.cpu_dai_name = "msm-dai-q6-mi2s.0",
 		.platform_name = "msm-pcm-routing",
-#ifdef CONFIG_SND_SOC_AWINIC_AW882XX
+#ifdef CONFIG_SND_SOC_TAS2563
+		.codec_name = "tas2563.3-004c",
+		.codec_dai_name = "tas2563 ASI1",
+#elif defined CONFIG_SND_SOC_AWINIC_AW882XX
 		.num_codecs = ARRAY_SIZE(awinic_codecs),
 		.codecs = awinic_codecs,
 #elif defined(CONFIG_TARGET_PRODUCT_K9A)
@@ -7692,7 +7705,10 @@ static struct snd_soc_dai_link msm_mi2s_be_dai_links[] = {
 		.stream_name = "Primary MI2S Capture",
 		.cpu_dai_name = "msm-dai-q6-mi2s.0",
 		.platform_name = "msm-pcm-routing",
-#ifdef CONFIG_SND_SOC_AWINIC_AW882XX
+#ifdef CONFIG_SND_SOC_TAS2563
+		.codec_name = "tas2563.3-004c",
+		.codec_dai_name = "tas2563 ASI1",
+#elif defined CONFIG_SND_SOC_AWINIC_AW882XX
 		.num_codecs = ARRAY_SIZE(awinic_codecs),
 		.codecs = awinic_codecs,
 #else
@@ -8398,7 +8414,9 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 	u32 wcn_btfm_intf = 0;
 	const struct of_device_id *match;
 	u32 tasha_codec = 0;
+#ifndef CONFIG_MACH_XIAOMI_VIOLET
 	int hw_platform;
+#endif
 
 	match = of_match_node(sm6150_asoc_machine_of_match, dev->of_node);
 	if (!match) {
@@ -8512,6 +8530,7 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 				__func__);
 		} else {
 			if (mi2s_audio_intf) {
+#ifndef CONFIG_MACH_XIAOMI_VIOLET
 				hw_platform = get_hw_version_platform();
 				dev_info(dev, "%s: hw_platform is %d.\n", __func__, hw_platform);
 				if (HARDWARE_PLATFORM_COURBET == hw_platform) {
@@ -8543,6 +8562,7 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 					msm_mi2s_be_dai_links[1].codec_dai_name = "msm-stub-tx";
 
 				}
+#endif
 				memcpy(msm_sm6150_dai_links + total_links,
 					msm_mi2s_be_dai_links,
 					sizeof(msm_mi2s_be_dai_links));
