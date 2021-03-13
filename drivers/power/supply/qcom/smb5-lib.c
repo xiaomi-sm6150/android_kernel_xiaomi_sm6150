@@ -2407,7 +2407,11 @@ int smblib_get_prop_batt_status(struct smb_charger *chg,
 	union power_supply_propval batt_capa = {0, };
 	bool usb_online, dc_online;
 	u8 stat;
+#ifdef CONFIG_MACH_XIAOMI_VIOLET
+	int batt_health, rc, suspend = 0;
+#else
 	int rc, suspend = 0;
+#endif
 
 	if (chg->use_bq_pump && (get_client_vote_locked(chg->usb_icl_votable,
 					MAIN_CHG_VOTER) == MAIN_CHARGER_STOP_ICL)) {
@@ -2467,6 +2471,16 @@ int smblib_get_prop_batt_status(struct smb_charger *chg,
 		return rc;
 	}
 	dc_online = (bool)pval.intval;
+
+#ifdef CONFIG_MACH_XIAOMI_VIOLET
+	rc = smblib_get_prop_batt_health(chg, &pval);
+	if (rc < 0) {
+		smblib_err(chg, "Couldn't get batt health property rc=%d\n",
+			rc);
+		return rc;
+	}
+	batt_health = pval.intval;
+#endif
 
 	rc = smblib_read(chg, BATTERY_CHARGER_STATUS_1_REG, &stat);
 	if (rc < 0) {
@@ -2528,6 +2542,15 @@ int smblib_get_prop_batt_status(struct smb_charger *chg,
 		val->intval = POWER_SUPPLY_STATUS_UNKNOWN;
 		break;
 	}
+
+#ifdef CONFIG_MACH_XIAOMI_VIOLET
+	if ((POWER_SUPPLY_HEALTH_WARM == batt_health
+		|| POWER_SUPPLY_HEALTH_OVERHEAT == batt_health)
+		&& (val->intval == POWER_SUPPLY_STATUS_FULL)) {
+		val->intval = POWER_SUPPLY_STATUS_CHARGING;
+		return 0;
+	}
+#endif
 
 	if (is_charging_paused(chg)) {
 		val->intval = POWER_SUPPLY_STATUS_CHARGING;
@@ -5246,10 +5269,15 @@ int smblib_set_prop_pd_current_max(struct smb_charger *chg,
 static int smblib_handle_usb_current(struct smb_charger *chg,
 					int usb_current)
 {
+#ifdef CONFIG_MACH_XIAOMI_VIOLET
+	int rc = 0, rp_ua;
+#else
 	int rc = 0, typec_mode;
 	bool is_float = false;
+#endif
 	union power_supply_propval val = {0, };
 
+#ifndef CONFIG_MACH_XIAOMI_VIOLET
 	if (chg->real_charger_type == POWER_SUPPLY_TYPE_USB_FLOAT
 				&& (usb_current == SUSPEND_CURRENT_UA))
 		is_float = true;
@@ -5259,19 +5287,47 @@ static int smblib_handle_usb_current(struct smb_charger *chg,
 	{
 		usb_current = USBIN_500MA;
 	}
-
+#endif
 	if (chg->real_charger_type == POWER_SUPPLY_TYPE_USB_FLOAT) {
+#ifdef CONFIG_MACH_XIAOMI_VIOLET
+		if (usb_current == -ETIMEDOUT) {
+			if ((chg->float_cfg & FLOAT_OPTIONS_MASK)
+						== FORCE_FLOAT_SDP_CFG_BIT) {
+				/*
+				 * Confiugure USB500 mode if Float charger is
+				 * configured for SDP mode.
+				 */
+				rc = vote(chg->usb_icl_votable,
+					SW_ICL_MAX_VOTER, true, USBIN_500MA);
+				if (rc < 0)
+					smblib_err(chg,
+						"Couldn't set SDP ICL rc=%d\n",
+						rc);
+				return rc;
+			}
+#else
 		if (usb_current == -ETIMEDOUT || is_float) {
+#endif
 
 			if (chg->connector_type ==
 					POWER_SUPPLY_CONNECTOR_TYPEC) {
+#ifdef CONFIG_MACH_XIAOMI_VIOLET
+				rp_ua = NONSTANDARD_CURRENT_UA;
+				smblib_dbg(chg, PR_MISC,
+						"force set FLOAT charger ICL rp_ua=%d\n",rp_ua);
+#else
 				/*
 				 * Valid FLOAT charger, report the current
 				 * based of Rp.
 				 */
 				typec_mode = smblib_get_prop_typec_mode(chg);
+#endif
 				rc = vote(chg->usb_icl_votable,
+#ifdef CONFIG_MACH_XIAOMI_VIOLET
+						SW_ICL_MAX_VOTER, true, rp_ua);
+#else
 						SW_ICL_MAX_VOTER, true, FLOAT_CHARGER_UA);
+#endif
 				if (rc < 0)
 					return rc;
 			} else {
@@ -5286,6 +5342,12 @@ static int smblib_handle_usb_current(struct smb_charger *chg,
 			 * charge with the requested current and update the
 			 * real_charger_type
 			 */
+#ifdef CONFIG_MACH_XIAOMI_VIOLET
+			usb_current = NONSTANDARD_CURRENT_UA;
+			smblib_dbg(chg, PR_MISC,
+				"force set FLOAT charger ICL usb_current=%d\n",
+					usb_current);
+#endif
 			chg->real_charger_type = POWER_SUPPLY_TYPE_USB;
 			chg->usb_psy_desc.type = POWER_SUPPLY_TYPE_USB;
 			rc = vote(chg->usb_icl_votable, USB_PSY_VOTER,
@@ -5962,9 +6024,16 @@ int smblib_get_charge_current(struct smb_charger *chg,
 			break;
 		case DCP_CHARGER_BIT:
 		case OCP_CHARGER_BIT:
+#ifndef CONFIG_MACH_XIAOMI_VIOLET
 		case FLOAT_CHARGER_BIT:
+#endif
 			current_ua = DCP_CURRENT_UA;
 			break;
+#ifdef CONFIG_MACH_XIAOMI_VIOLET
+		case FLOAT_CHARGER_BIT:
+			current_ua = NONSTANDARD_CURRENT_UA;
+			break;
+#endif
 		default:
 			current_ua = 0;
 			break;
@@ -5982,9 +6051,16 @@ int smblib_get_charge_current(struct smb_charger *chg,
 			break;
 		case DCP_CHARGER_BIT:
 		case OCP_CHARGER_BIT:
+#ifndef CONFIG_MACH_XIAOMI_VIOLET
 		case FLOAT_CHARGER_BIT:
+#endif
 			current_ua = chg->default_icl_ua;
 			break;
+#ifdef CONFIG_MACH_XIAOMI_VIOLET
+		case FLOAT_CHARGER_BIT:
+			current_ua = NONSTANDARD_CURRENT_UA;
+			break;
+#endif
 		default:
 			current_ua = 0;
 			break;
@@ -7304,7 +7380,11 @@ static void update_sw_icl_max(struct smb_charger *chg, int pst)
 		 */
 		if (!chg->recheck_charger)
 			vote(chg->usb_icl_votable, SW_ICL_MAX_VOTER, true,
+#ifdef CONFIG_MACH_XIAOMI_VIOLET
+					FLOAT_ADD_1000_MA);
+#else
 						SDP_100_MA);
+#endif
 		else
 			vote(chg->usb_icl_votable, SW_ICL_MAX_VOTER, true,
 						FLOAT_CHARGER_UA);

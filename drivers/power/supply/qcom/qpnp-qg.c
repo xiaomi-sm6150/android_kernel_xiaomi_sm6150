@@ -3769,9 +3769,26 @@ static int qg_setup_battery(struct qpnp_qg *chip)
 		/* battery present */
 		rc = get_batt_id_ohm(chip, &chip->batt_id_ohm);
 		if (rc < 0) {
+#ifdef CONFIG_MACH_XIAOMI_VIOLET
+			pr_err("Failed to detect batt_id rc=%d, will use default id 68K to match profile \n", rc);
+			chip->batt_id_ohm = 68000;
+		}
+
+		rc = qg_load_battery_profile(chip);
+		if (rc < 0) {
+			pr_err("Failed to load battery-profile rc=%d\n",
+							rc);
+#else
 			pr_err("Failed to detect batt_id rc=%d\n", rc);
+#endif
 			chip->profile_loaded = false;
+#ifdef CONFIG_MACH_XIAOMI_VIOLET
+			chip->soc_reporting_ready = true;
+#endif
 		} else {
+#ifdef CONFIG_MACH_XIAOMI_VIOLET
+			chip->profile_loaded = true;
+#else
 			rc = qg_load_battery_profile(chip);
 			if (rc < 0) {
 				pr_err("Failed to load battery-profile rc=%d\n",
@@ -3781,6 +3798,7 @@ static int qg_setup_battery(struct qpnp_qg *chip)
 			} else {
 				chip->profile_loaded = true;
 			}
+#endif
 		}
 	}
 
