@@ -4,15 +4,15 @@ And public attribution of xiaomi platforms(like F3 and so and)
 */
 
 #include "davinci-sdmmagpie-pinctrl.dtsi"
-#include "sdmmagpie.dtsi"
+#include "xiaomi-sdmmagpie-common.dtsi"
 #include "davinci-sdmmagpie-camera-sensor.dtsi"
 
 &soc {
-	mtp_batterydata: qcom,battery-data {
+        mtp_batterydata: qcom,battery-data {
 		qcom,batt-id-range-pct = <15>;
-		#include "batterydata-davinci-coslight-4000mah.dtsi"
-		#include "batterydata-davinci-sunwoda-4000mah.dtsi"
-	};
+                #include "batterydata-F10-coslight-4000mah.dtsi"
+                #include "batterydata-F10-sunwoda-4000mah.dtsi"
+        };
 };
 
 &pm6150_qg {
@@ -35,19 +35,19 @@ And public attribution of xiaomi platforms(like F3 and so and)
 
 &pm6150_charger {
 	io-channels = <&pm6150_vadc ADC_USB_IN_V_16>,
-			<&pm6150_vadc ADC_USB_IN_I>,
-			<&pm6150_vadc ADC_CHG_TEMP>,
-			<&pm6150_vadc ADC_DIE_TEMP>,
-			<&pm6150l_vadc ADC_AMUX_THM1_PU2>,
-			<&pm6150_vadc ADC_SBUx>,
-			<&pm6150_vadc ADC_VPH_PWR>;
+		      <&pm6150_vadc ADC_USB_IN_I>,
+		      <&pm6150_vadc ADC_CHG_TEMP>,
+		      <&pm6150_vadc ADC_DIE_TEMP>,
+		      <&pm6150l_vadc ADC_AMUX_THM1_PU2>,
+		      <&pm6150_vadc ADC_SBUx>,
+		      <&pm6150_vadc ADC_VPH_PWR>;
 	io-channel-names = "usb_in_voltage",
-			"usb_in_current",
-			"chg_temp",
-			"die_temp",
-			"conn_temp",
-			"sbux_res",
-			"vph_voltage";
+			   "usb_in_current",
+			   "chg_temp",
+			   "die_temp",
+			   "conn_temp",
+			   "sbux_res",
+			   "vph_voltage";
 	qcom,battery-data = <&mtp_batterydata>;
 	qcom,usb-icl-ua = <2800000>;
 	qcom,fcc-max-ua = <3500000>;
@@ -57,12 +57,11 @@ And public attribution of xiaomi platforms(like F3 and so and)
 	qcom,chg-term-current-ma = <(-200)>;
 	qcom,sec-charger-config = <1>;
 	qcom,dynamic-fv-enable;
-	qcom,thermal-mitigation
-				= <3500000 3400000 3300000 3200000 3100000 3000000 2900000
+	qcom,thermal-mitigation = <3500000 3400000 3300000 3200000 3100000 3000000 2900000
 				   2800000 2600000 2400000 2200000 2000000 1800000 1500000
 				   1000000 500000>;
 	qcom,thermal-mitigation-icl
-				= <2800000 2700000 2600000 2400000 2200000 2100000 2000000
+				 = <2800000 2700000 2600000 2400000 2200000 2100000 2000000
 				   2000000 2000000 1900000 1800000 1600000 1500000 1300000
 				   1000000 750000>;
 	qcom,thermal-mitigation-dcp
@@ -131,7 +130,7 @@ And public attribution of xiaomi platforms(like F3 and so and)
 		pinctrl-1 = <&akm_irq_suspend &akm_reset_suspend>;
 		status = "ok";
 	};
-	#include "../smb1390.dtsi"
+	#include "smb1390.dtsi"
 };
 
 &smb1390 {
@@ -239,14 +238,14 @@ And public attribution of xiaomi platforms(like F3 and so and)
 };
 
 &dsi_ss_fhd_ea_f10_cmd {
-	qcom,panel-supply-entries = <&dsi_panel_pwr_supply_labibb_amoled>;
-	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
-	qcom,mdss-dsi-bl-min-level = <2>;
-	qcom,mdss-dsi-bl-max-level = <2047>;
-	qcom,mdss-dsi-mode-sel-gpio-state = "single_port";
-	//qcom,panel-mode-gpio = <&tlmm 7 0>;
-	qcom,platform-te-gpio = <&tlmm 10 0>;
-	qcom,platform-reset-gpio = <&pm6150l_gpios 9 0>;
+        qcom,panel-supply-entries = <&dsi_panel_pwr_supply_labibb_amoled>;
+        qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+        qcom,mdss-dsi-bl-min-level = <2>;
+        qcom,mdss-dsi-bl-max-level = <2047>;
+        qcom,mdss-dsi-mode-sel-gpio-state = "single_port";
+        //qcom,panel-mode-gpio = <&tlmm 7 0>;
+        qcom,platform-te-gpio = <&tlmm 10 0>;
+        qcom,platform-reset-gpio = <&pm6150l_gpios 9 0>;
 };
 
 &dsi_ss_fhd_eb_f10_cmd {
@@ -261,7 +260,7 @@ And public attribution of xiaomi platforms(like F3 and so and)
 };
 
 &dsi_sim_vid_display {
-	qcom,dsi-display-active;
+        qcom,dsi-display-active;
 };
 
 &pm6150_vadc {
@@ -280,9 +279,29 @@ And public attribution of xiaomi platforms(like F3 and so and)
 		qcom,hw-settle-time = <200>;
 		qcom,pre-scaling = <1 1>;
 	};
+
+	quiet_therm {
+		reg = <ADC_AMUX_THM4_PU2>;
+		label = "quiet_therm";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+	};
 };
 
 &pm6150_adc_tm {
+	io-channels = <&pm6150_vadc ADC_XO_THERM_PU2>,
+			<&pm6150_vadc ADC_AMUX_THM2_PU2>,
+			<&pm6150_vadc ADC_AMUX_THM3_PU2>,
+			<&pm6150_vadc ADC_AMUX_THM4_PU2>;
+
+	/* Channel nodes */
+	xo_therm {
+		reg = <ADC_XO_THERM_PU2>;
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+	};
+
 	pa_therm1 {
 		reg = <ADC_AMUX_THM2_PU2>;
 		qcom,ratiometric;
@@ -294,9 +313,84 @@ And public attribution of xiaomi platforms(like F3 and so and)
 		qcom,ratiometric;
 		qcom,hw-settle-time = <200>;
 	};
+
+	quiet_therm {
+		reg = <ADC_AMUX_THM4_PU2>;
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+	};
+};
+
+&pm6150l_vadc {
+
+	conn_therm {
+		reg = <ADC_AMUX_THM1_PU2>;
+		label = "conn_therm";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+	};
+
+	smb_therm {
+		reg = <ADC_AMUX_THM2>;
+		label = "smb_therm";
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+	};
+
+	camera_ftherm {
+		reg = <ADC_AMUX_THM3_PU2>;
+		label = "camera_ftherm";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+	};
+
+	nvm_therm {
+		reg = <ADC_GPIO4_PU2>;
+		label = "nvm_therm";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+	};
+};
+
+&pm6150l_gpios {
+	nvm_therm {
+		nvm_therm_default: nvm_therm_default {
+			pins = "gpio10";
+			bias-high-impedance;
+		};
+	};
+};
+
+&pm6150l_adc_tm {
+	io-channels = <&pm6150l_vadc ADC_AMUX_THM1_PU2>,
+			<&pm6150l_vadc ADC_AMUX_THM3_PU2>,
+			<&pm6150l_vadc ADC_GPIO4_PU2>;
+
+	/* Channel nodes */
+	conn_therm {
+		reg = <ADC_AMUX_THM1_PU2>;
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+	};
+
+	camera_ftherm {
+		reg = <ADC_AMUX_THM3_PU2>;
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+	};
+
+	nvm_therm {
+		reg = <ADC_GPIO4_PU2>;
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+	};
 };
 
 &thermal_zones {
+
 	xo_therm {
 		polling-delay-passive = <0>;
 		polling-delay = <0>;
@@ -437,40 +531,26 @@ And public attribution of xiaomi platforms(like F3 and so and)
 				12 11 10 9 8 7 6 5 4 3 2 1 0>;
 	qcom,lut-patterns-camera = <0 1 3 5 8 10 12 15 18 22 26 32 38 44 50 60 72 82 90 96 98 99 100
 				99 98 96 90 82 72 60 50 44 38 32 26 22 18 15 12 10 8 5 3 1 0>;
-
-	lpg2 {
-		qcom,lpg-chan-id = <2>;
-		qcom,ramp-step-ms = <70>;
-		qcom,ramp-pause-hi-count = <2>;
-		qcom,ramp-pause-lo-count = <30>;
-		qcom,ramp-low-index = <0>;
-		qcom,ramp-high-index = <26>;
-		qcom,ramp-from-low-to-high;
-		qcom,ramp-pattern-repeat;
-	};
-
-	lpg3 {
-		qcom,lpg-chan-id = <3>;
-		qcom,ramp-step-ms = <70>;
-		qcom,ramp-pause-hi-count = <2>;
-		qcom,ramp-pause-lo-count = <30>;
-		qcom,ramp-low-index = <0>;
-		qcom,ramp-high-index = <26>;
-		qcom,ramp-from-low-to-high;
-		qcom,ramp-pattern-repeat;
-	};
 };
 
-&pm6150l_rgb_led {
-	red {
-		status = "disabled";
-	};
+&pwm_lpg2 {
+	qcom,lpg-chan-id = <2>;
+	qcom,ramp-step-ms = <70>;
+	qcom,ramp-pause-hi-count = <2>;
+	qcom,ramp-pause-lo-count = <30>;
+	qcom,ramp-low-index = <0>;
+	qcom,ramp-high-index = <26>;
+	qcom,ramp-from-low-to-high;
+	qcom,ramp-pattern-repeat;
+};
 
-	green {
-		label = "left";
-	};
-
-	blue {
-		label = "right";
-	};
+&pwm_lpg3 {
+	qcom,lpg-chan-id = <3>;
+	qcom,ramp-step-ms = <70>;
+	qcom,ramp-pause-hi-count = <2>;
+	qcom,ramp-pause-lo-count = <30>;
+	qcom,ramp-low-index = <0>;
+	qcom,ramp-high-index = <26>;
+	qcom,ramp-from-low-to-high;
+	qcom,ramp-pattern-repeat;
 };

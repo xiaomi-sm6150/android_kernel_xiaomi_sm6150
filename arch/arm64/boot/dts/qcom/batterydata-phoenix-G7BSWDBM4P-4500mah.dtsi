@@ -1,9 +1,9 @@
 qcom,4242875_Xiaomi_G7B_SIBM4P_4500mAh_PM7150 {
-	/* 4242875_Xiaomi_G7B_SIBM4P_4500mAh_PM7150_averaged_MasterSlave_Oct16th2019 */
-	qcom,max-voltage-uv = <4400000>;
-	qcom,ffc-max-voltage-uv = <4450000>;
-	qcom,fg-cc-cv-threshold-uv = <4390000>;
-	qcom,fastchg-current-ma = <5500>;
+        /* 4242875_Xiaomi_G7B_SIBM4P_4500mAh_PM7150_averaged_MasterSlave_Oct16th2019 */
+        qcom,max-voltage-uv = <4400000>;
+        qcom,ffc-max-voltage-uv = <4450000>;
+        qcom,fg-cc-cv-threshold-uv = <4390000>;
+        qcom,fastchg-current-ma = <5500>;
 	qcom,jeita-fcc-ranges = <0  50  880000
 				51  100  2200000
 				101 150  3080000
@@ -21,11 +21,11 @@ qcom,4242875_Xiaomi_G7B_SIBM4P_4500mAh_PM7150 {
 				401  500  4340000>;
 	qcom,fg-cc-cv-threshold-mv = <4390>;
 	qcom,nom-batt-capacity-mah = <4500>;
-	qcom,batt-id-kohm = <100>;
-	qcom,battery-beta = <4250>;
-	qcom,battery-therm-kohm = <100>;
-	qcom,battery-type = "G7BSWDBM4P_4500mAh";
-	qcom,qg-batt-profile-ver = <100>;
+        qcom,batt-id-kohm = <100>;
+        qcom,battery-beta = <4250>;
+        qcom,battery-therm-kohm = <100>;
+        qcom,battery-type = "G7BSWDBM4P_4500mAh";
+        qcom,qg-batt-profile-ver = <100>;
 	mi,six-pin-battery;
 
 	qcom,fcc1-temp-lut {
