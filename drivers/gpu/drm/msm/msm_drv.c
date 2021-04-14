@@ -2107,7 +2107,7 @@ static int msm_pdev_remove(struct platform_device *pdev)
 static void msm_pdev_shutdown(struct platform_device *pdev)
 {
 	struct drm_device *ddev = platform_get_drvdata(pdev);
-	struct msm_drm_private *priv = NULL;
+ 	struct msm_drm_private *priv = NULL;
 
 	if (!ddev) {
 		DRM_ERROR("invalid drm device node\n");
