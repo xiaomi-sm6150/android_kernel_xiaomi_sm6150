@@ -56,9 +56,16 @@ compile()
 	                -j4
 }
 
-completion() 
+completion()
 {
-	cd "${objdir}"
+        if [ "$CONFIG_FILE" = "sweet_defconfig" ]
+        then
+        cd "${objdir}"
+        cd arch/arm64/boot/
+        curl https://android.googlesource.com/platform/external/avb/+/refs/heads/master/avbtool.py?format=TEXT | base64 --decode > avbtool.py
+        python3 avbtool.py add_hash_footer --image dtbo.img --partition_size=33554432 --partition_name dtbo
+        fi
+        cd "${objdir}"
 	if [ "$Appended" = "y" ]
 	then
 	COMPILED_IMAGE=arch/arm64/boot/Image.gz-dtb
