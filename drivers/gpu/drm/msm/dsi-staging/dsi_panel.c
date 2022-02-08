@@ -500,24 +500,19 @@ extern bool enable_gesture_mode;
 static int dsi_panel_power_off(struct dsi_panel *panel)
 {
 	int rc = 0;
+	bool skip_reset_gpio = false;
 
 	if (gpio_is_valid(panel->reset_config.disp_en_gpio))
 		gpio_set_value(panel->reset_config.disp_en_gpio, 0);
 
-#ifdef CONFIG_MACH_XIAOMI_VIOLET
-	if (!enable_gesture_mode && gpio_is_valid(panel->reset_config.reset_gpio)) {
-#elif defined CONFIG_TOUCHSCREEN_TDDI_DBCLK
-	if (panel->is_tddi_flag) {
-		if (!is_tp_doubleclick_enable()||panel->panel_dead_flag) {
-			if (gpio_is_valid(panel->reset_config.reset_gpio))
-				gpio_set_value(panel->reset_config.reset_gpio, 0);
-		}
-	} else if (gpio_is_valid(panel->reset_config.reset_gpio)) {
-#else
-	if (gpio_is_valid(panel->reset_config.reset_gpio)) {
+#ifdef CONFIG_TOUCHSCREEN_TDDI_DBCLK
+	skip_reset_gpio = panel->is_tddi_flag &&
+			(is_tp_doubleclick_enable() && !panel->panel_dead_flag);
+#elif defined CONFIG_MACH_XIAOMI_VIOLET
+	skip_reset_gpio = enable_gesture_mode;
 #endif
+	if (!skip_reset_gpio && gpio_is_valid(panel->reset_config.reset_gpio))
 		gpio_set_value(panel->reset_config.reset_gpio, 0);
-	}
 
 	if (gpio_is_valid(panel->reset_config.lcd_mode_sel_gpio))
 		gpio_set_value(panel->reset_config.lcd_mode_sel_gpio, 0);
