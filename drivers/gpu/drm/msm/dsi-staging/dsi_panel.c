@@ -505,23 +505,19 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 		gpio_set_value(panel->reset_config.disp_en_gpio, 0);
 
 #ifdef CONFIG_MACH_XIAOMI_VIOLET
-	if (!enable_gesture_mode) {
-		if (gpio_is_valid(panel->reset_config.reset_gpio))
-			gpio_set_value(panel->reset_config.reset_gpio, 0);
-	}
+	if (!enable_gesture_mode && gpio_is_valid(panel->reset_config.reset_gpio)) {
 #elif defined CONFIG_TOUCHSCREEN_TDDI_DBCLK
 	if (panel->is_tddi_flag) {
 		if (!is_tp_doubleclick_enable()||panel->panel_dead_flag) {
 			if (gpio_is_valid(panel->reset_config.reset_gpio))
 				gpio_set_value(panel->reset_config.reset_gpio, 0);
 		}
-	} else {
+	} else if (gpio_is_valid(panel->reset_config.reset_gpio)) {
+#else
+	if (gpio_is_valid(panel->reset_config.reset_gpio)) {
 #endif
-		if (gpio_is_valid(panel->reset_config.reset_gpio))
-			gpio_set_value(panel->reset_config.reset_gpio, 0);
-#ifdef CONFIG_TOUCHSCREEN_TDDI_DBCLK
+		gpio_set_value(panel->reset_config.reset_gpio, 0);
 	}
-#endif
 
 	if (gpio_is_valid(panel->reset_config.lcd_mode_sel_gpio))
 		gpio_set_value(panel->reset_config.lcd_mode_sel_gpio, 0);
