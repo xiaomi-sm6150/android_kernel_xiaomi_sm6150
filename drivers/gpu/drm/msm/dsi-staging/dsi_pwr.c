@@ -142,11 +142,11 @@ static int dsi_pwr_enable_vregs(struct dsi_regulator_info *regs, bool enable)
 	if (enable) {
 		for (i = 0; i < regs->count; i++) {
 #ifdef CONFIG_MACH_XIAOMI_VIOLET
-			if( (enable_gesture_mode) &&
-			( (strcmp(regs->vregs[i].vreg_name,"lab")==0) ||
-			(strcmp(regs->vregs[i].vreg_name,"ibb")==0) ||
-			(strcmp(regs->vregs[i].vreg_name,"vddio")==0) ) ) {
-			continue;
+			if (enable_gesture_mode &&
+					((strcmp(regs->vregs[i].vreg_name, "lab") == 0) ||
+					(strcmp(regs->vregs[i].vreg_name, "ibb") == 0) ||
+					(strcmp(regs->vregs[i].vreg_name, "vddio") == 0))) {
+				continue;
 			}
 #endif
 			vreg = &regs->vregs[i];
@@ -185,11 +185,11 @@ static int dsi_pwr_enable_vregs(struct dsi_regulator_info *regs, bool enable)
 	} else {
 		for (i = (regs->count - 1); i >= 0; i--) {
 #ifdef CONFIG_MACH_XIAOMI_VIOLET
-			if( (enable_gesture_mode) &&
-			((strcmp(regs->vregs[i].vreg_name,"lab")==0) ||
-			(strcmp(regs->vregs[i].vreg_name,"ibb")==0) ||
-			(strcmp(regs->vregs[i].vreg_name,"vddio")==0) ) ) {
-			continue;
+			if (enable_gesture_mode &&
+					((strcmp(regs->vregs[i].vreg_name, "lab") == 0) ||
+					(strcmp(regs->vregs[i].vreg_name, "ibb") == 0) ||
+					(strcmp(regs->vregs[i].vreg_name, "vddio") == 0))) {
+				continue;
 			}
 #endif
 			if (regs->vregs[i].pre_off_sleep)
