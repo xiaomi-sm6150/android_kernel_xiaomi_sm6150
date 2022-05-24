@@ -54,6 +54,7 @@
 #include <linux/ctype.h>
 #include <linux/debugfs.h>
 #include <linux/khugepaged.h>
+#include <linux/simple_lmk.h>
 #include <linux/rculist_nulls.h>
 #include <linux/random.h>
 #include <linux/mmu_notifier.h>
@@ -4415,6 +4416,10 @@ static void lru_gen_age_node(struct pglist_data *pgdat, struct scan_control *sc)
 	 * younger than min_ttl. However, another possibility is all memcgs are
 	 * either too small or below min.
 	 */
+#ifdef CONFIG_ANDROID_SIMPLE_LMK
+	if (!reclaimable)
+		simple_lmk_trigger();
+#else
 	if (!reclaimable && mutex_trylock(&oom_lock)) {
 		struct oom_control oc = {
 			.gfp_mask = sc->gfp_mask,
@@ -4424,6 +4429,7 @@ static void lru_gen_age_node(struct pglist_data *pgdat, struct scan_control *sc)
 
 		mutex_unlock(&oom_lock);
 	}
+#endif
 }
 
 /******************************************************************************
