@@ -333,6 +333,11 @@ static void dsi_bridge_enable(struct drm_bridge *bridge)
 		return;
 	}
 
+#ifdef CONFIG_MACH_XIAOMI_SWEET
+	if (c_bridge->display->panel->cur_mode->timing.refresh_rate == 120)
+		dsi_panel_gamma_mode_change(c_bridge->display->panel, c_bridge->display->panel->cur_mode);
+#endif
+
 	if (c_bridge->dsi_mode.dsi_mode_flags &
 			(DSI_MODE_FLAG_SEAMLESS | DSI_MODE_FLAG_VRR |
 			 DSI_MODE_FLAG_DYN_CLK)) {
@@ -1136,10 +1141,6 @@ int dsi_conn_post_kickoff(struct drm_connector *connector,
 				return -EINVAL;
 			}
 		}
-#ifdef CONFIG_MACH_XIAOMI_SWEET
-		if (adj_mode.timing.refresh_rate == 120)
-			dsi_panel_gamma_mode_change(display->panel, &adj_mode);
-#endif
 
 		c_bridge->dsi_mode.dsi_mode_flags &= ~DSI_MODE_FLAG_VRR;
 	}
