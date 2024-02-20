@@ -26,6 +26,7 @@ quiet_cmd_h16tofw  = H16TOFW $@
 fw-shipped-$(CONFIG_TOUCHSCREEN_ST_FTS_V521) += st_fts_f4.ftb st_fts_f4l.ftb
 
 fw-shipped-$(CONFIG_TOUCHSCREEN_GOODIX_GTX8) += goodix_gt9886_cfg_f10.bin goodix_gt9886_fw_f10.bin
+fw-shipped-$(CONFIG_TOUCHSCREEN_GOODIX_GTX9886_F4) += goodix_gt9886_cfg_f4.bin goodix_gt9886_fw_f4.bin
 fw-shipped-$(CONFIG_TOUCHSCREEN_GOODIX_GTX9896_I2C) += goodix_gt9896_cfg.bin goodix_gt9896_fw.bin
 fw-shipped-$(CONFIG_TOUCHSCREEN_FTS_K6) += focaltech_ts_fw_k6.bin
 
