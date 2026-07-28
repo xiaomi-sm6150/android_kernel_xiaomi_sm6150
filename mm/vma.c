@@ -1338,7 +1338,13 @@ static void vms_complete_munmap_vmas(struct vma_munmap_struct *vms,
 	struct vm_area_struct *vma;
 	struct mm_struct *mm;
 
-	mm = current->mm;
+	if (!vms->vma) {
+		/* Only __mmap_prepare() passes vms->vma == NULL, with unlock = false. */
+		VM_WARN_ON_ONCE(vms->unlock);
+		return;
+	}
+
+	mm = vms->vma->vm_mm;
 	mm->map_count -= vms->vma_count;
 	mm->locked_vm -= vms->locked_vm;
 	if (vms->unlock)
