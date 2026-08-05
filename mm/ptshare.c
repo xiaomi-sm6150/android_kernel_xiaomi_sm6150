@@ -431,3 +431,80 @@ void __ptshare_dup_vma(struct mm_struct *mm, struct vm_area_struct *vma)
 		ptshare_get_desc(desc);
 	}
 }
+
+int __ptshare_unshare_vma_on_gup(struct vm_area_struct *vma, unsigned long addr,
+				 unsigned int gup_flags, int *locked)
+{
+	struct mm_struct *mm = vma->vm_mm;
+	int ret;
+
+	mmap_assert_locked(mm);
+
+	/* Only writes and long-term pins CoW, see gup_must_unshare() */
+	if (!is_cow_mapping(vma->vm_flags) ||
+	    !(gup_flags & (FOLL_WRITE | FOLL_LONGTERM)))
+		return 0;
+	if ((gup_flags & (FOLL_UNLOCKABLE | FOLL_NOWAIT)) != FOLL_UNLOCKABLE)
+		return -EFAULT;
+
+	mmap_read_unlock(mm);
+	*locked = 0;
+
+	/* Lock was dropped, so let the caller retry and see the fatal signal. */
+	if (mmap_write_lock_killable(mm))
+		return -EAGAIN;
+
+	vma = vma_lookup(mm, addr);
+	if (!vma)
+		goto again;
+
+	ret = ptshare_unshare_vma_locked(vma);
+	if (!ret)
+		goto again;
+
+	/*
+	 * Unsharing failed. GUP expects mmap_lock held for read
+	 * (*locked == 1) on non-EAGAIN errors.
+	 */
+	mmap_write_downgrade(mm);
+	*locked = 1;
+	return ret;
+
+again:
+	/*
+	 * Re-locking for write dropped mmap_lock earlier, so the caller's vma
+	 * pointer may be stale. Drop mmap_lock here and have the caller retry.
+	 */
+	mmap_write_unlock(mm);
+
+	return -EAGAIN;
+}
+
+int __ptshare_unshare_vma_remote(struct mm_struct *mm, unsigned long addr)
+{
+	struct vm_area_struct *vma = vma_lookup(mm, addr);
+	int ret = 0;
+
+	mmap_assert_locked(mm);
+
+	/* Only COW mappings allocate a private copy on a FOLL_FORCE write. */
+	if (!vma || !vma_shares_pagetables(vma) || !is_cow_mapping(vma->vm_flags))
+		return 0;
+
+	mmap_read_unlock(mm);
+	if (mmap_write_lock_killable(mm)) {
+		mmap_read_lock(mm);
+		return -EINTR;
+	}
+
+	vma = vma_lookup(mm, addr);
+	if (vma)
+		ret = ptshare_unshare_vma_locked(vma);
+	mmap_write_downgrade(mm);
+
+	/*
+	 * If the VMA vanished while unlocked, return 0 and let
+	 * get_user_page_vma_remote() report the missing VMA.
+	 */
+	return ret;
+}

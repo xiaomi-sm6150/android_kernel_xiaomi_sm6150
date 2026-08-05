@@ -31,6 +31,9 @@ int __ptshare_install_vma(struct mm_struct *mm, unsigned long addr,
 void __ptshare_put_vma(struct vm_area_struct *vma);
 void ptshare_exit(struct mm_struct *mm);
 void __ptshare_dup_vma(struct mm_struct *mm, struct vm_area_struct *vma);
+int __ptshare_unshare_vma_on_gup(struct vm_area_struct *vma, unsigned long addr,
+				 unsigned int gup_flags, int *locked);
+int __ptshare_unshare_vma_remote(struct mm_struct *mm, unsigned long addr);
 
 /**
  * vma_is_ptshare_client - Check whether a VMA is a page table sharing client
@@ -308,6 +311,73 @@ static inline vm_flags_t ptshare_sync_vm_flags(const struct vm_area_struct *vma,
 	return vm_flags;
 }
 
+/**
+ * ptshare_unshare_vma_on_gup - Unshare a client VMA before GUP CoWs in it
+ * @vma: The VMA that GUP is about to access.
+ * @addr: The address that GUP accesses.
+ * @gup_flags: The GUP flags of the access.
+ * @locked: GUP's lock state, cleared if the mmap_lock was dropped.
+ *
+ * A FOLL_FORCE write or a read-only long-term pin of a COW mapping would
+ * CoW in page tables shared with other processes. Unshare @vma first,
+ * with the mmap_lock dropped as after VM_FAULT_RETRY, so that GUP
+ * retries on a private VMA.
+ *
+ * Context: The caller holds the mmap_lock of @vma->vm_mm (for read if
+ * @gup_flags has FOLL_UNLOCKABLE without FOLL_NOWAIT).
+ * Return:
+ * * 0: No unsharing needed. mmap_lock was never dropped, and @vma remains
+ *   valid.
+ * * -EAGAIN: mmap_lock was dropped (*@locked cleared) either after
+ *   unsharing @vma or because a fatal signal interrupted re-locking.
+ *   Caller must bail out and retry.
+ * * -EFAULT: Unsharing is required, but @gup_flags forbid dropping
+ *   mmap_lock. mmap_lock was never dropped, and @vma remains valid.
+ * * Other negative errno: Unsharing failed while holding the write lock.
+ *   mmap_lock was downgraded back to read (*@locked remains set), but
+ *   @vma may be stale.
+ */
+static inline int ptshare_unshare_vma_on_gup(struct vm_area_struct *vma,
+					     unsigned long addr,
+					     unsigned int gup_flags,
+					     int *locked)
+{
+	if (likely(!vma_is_ptshare_client(vma)))
+		return 0;
+
+	return __ptshare_unshare_vma_on_gup(vma, addr, gup_flags, locked);
+}
+
+/**
+ * ptshare_get_user_page_vma_remote - Get a page for a remote access
+ * @mm: The MM to access.
+ * @addr: The address to access.
+ * @gup_flags: The GUP flags of the access.
+ * @vmap: Returns the VMA that maps @addr.
+ *
+ * get_user_page_vma_remote() does not let GUP drop the mmap_lock, so GUP
+ * cannot unshare a client VMA for a FOLL_FORCE write. Unshare it first.
+ *
+ * Context: The caller holds the mmap_lock of @mm for read. It may be
+ * dropped and retaken.
+ * Return: as get_user_page_vma_remote().
+ */
+static inline struct page *ptshare_get_user_page_vma_remote(struct mm_struct *mm,
+							    unsigned long addr,
+							    int gup_flags,
+							    struct vm_area_struct **vmap)
+{
+	if ((gup_flags & (FOLL_WRITE | FOLL_FORCE)) == (FOLL_WRITE | FOLL_FORCE) &&
+	    unlikely(mm_shares_pagetables(mm))) {
+		int err = __ptshare_unshare_vma_remote(mm, addr);
+
+		if (err)
+			return ERR_PTR(err);
+	}
+
+	return get_user_page_vma_remote(mm, addr, gup_flags, vmap);
+}
+
 /* dup_mm() copies the parent's mm_struct: start outside any domain. */
 static inline void ptshare_mm_init(struct mm_struct *mm)
 {
@@ -406,6 +476,22 @@ static inline vm_flags_t ptshare_sync_vm_flags(const struct vm_area_struct *vma,
 					       vm_flags_t vm_flags)
 {
 	return vm_flags;
+}
+
+static inline int ptshare_unshare_vma_on_gup(struct vm_area_struct *vma,
+					     unsigned long addr,
+					     unsigned int gup_flags,
+					     int *locked)
+{
+	return 0;
+}
+
+static inline struct page *ptshare_get_user_page_vma_remote(struct mm_struct *mm,
+							    unsigned long addr,
+							    int gup_flags,
+							    struct vm_area_struct **vmap)
+{
+	return get_user_page_vma_remote(mm, addr, gup_flags, vmap);
 }
 
 static inline void ptshare_mm_init(struct mm_struct *mm)

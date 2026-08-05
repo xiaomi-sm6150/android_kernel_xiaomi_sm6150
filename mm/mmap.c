@@ -569,7 +569,13 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 	if (IS_ERR_VALUE(addr))
 		return addr;
 
-	ptshare_install_vma(mm, addr, len, vm_flags);
+	if (ptshare_install_vma(mm, addr, len, vm_flags)) {
+		struct vm_area_struct *vma = vma_lookup(mm, addr);
+
+		/* uprobe_mmap() skipped this VMA while VM_PT_SHARED was set. */
+		if (vma && vma->vm_file)
+			uprobe_mmap(vma);
+	}
 	if ((vm_flags & VM_LOCKED) ||
 	    (flags & (MAP_POPULATE | MAP_NONBLOCK)) == MAP_POPULATE)
 		*populate = len;

@@ -30,6 +30,7 @@
 #include <linux/srcu.h>
 #include <linux/oom.h>          /* check_stable_address_space */
 #include <linux/pagewalk.h>
+#include <linux/ptshare.h>
 
 #include <linux/uprobes.h>
 
@@ -141,6 +142,11 @@ static bool valid_vma(struct vm_area_struct *vma, bool is_register)
 
 	if (is_register)
 		flags |= VM_WRITE;
+
+	if (vma_is_ptshare_shadow(vma))
+		return false;
+	if (!is_register && vma_is_ptshare_client(vma))
+		return false;
 
 	return vma->vm_file && (vma->vm_flags & flags) == VM_MAYEXEC;
 }
@@ -1163,6 +1169,10 @@ static int install_breakpoint(struct uprobe *uprobe, struct vm_area_struct *vma,
 	if (ret)
 		return ret;
 
+	ret = ptshare_unshare_vma_locked(vma);
+	if (ret)
+		return ret;
+
 	/*
 	 * set MMF_HAS_UPROBES in advance for uprobe_pre_sstep_notifier(),
 	 * the task can hit this breakpoint right after __replace_page().
@@ -1613,6 +1623,9 @@ int uprobe_mmap(struct vm_area_struct *vma)
 		delayed_ref_ctr_inc(vma);
 
 	if (!valid_vma(vma, true))
+		return 0;
+
+	if (vma_is_ptshare_client(vma))
 		return 0;
 
 	inode = file_inode(vma->vm_file);
