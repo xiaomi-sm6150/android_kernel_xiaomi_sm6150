@@ -25,6 +25,10 @@ struct ptshare_desc {
 };
 
 #ifdef CONFIG_PTSHARE
+int __ptshare_unshare_vma(struct vm_area_struct *vma);
+int __ptshare_install_vma(struct mm_struct *mm, unsigned long addr,
+			  unsigned long len, vm_flags_t vm_flags);
+
 /**
  * vma_is_ptshare_client - Check whether a VMA is a page table sharing client
  * @vma: The VMA to check.
@@ -148,6 +152,32 @@ static inline void ptshare_vma_init_from(struct vm_area_struct *dest,
 }
 
 /**
+ * ptshare_install_vma - Share the page tables of a new mapping
+ * @mm: The mm that mmap_region() mapped the range into.
+ * @addr: The start address of the new mapping.
+ * @len: The length of the mapping.
+ * @vm_flags: The VMA flags that do_mmap() passed to mmap_region().
+ *
+ * If @vm_flags asks for VM_PT_SHARED, installs the shadow VMA for the new
+ * client VMA at @addr, or leaves the VMA with private page tables if that
+ * fails.
+ *
+ * Context: The caller holds the mmap_lock of @mm for write.
+ * Return: 0 if sharing was not requested, cleared by ->mmap(), or the
+ * shadow VMA was installed, or a negative errno if installation failed
+ * and the VMA fell back to private page tables.
+ */
+static inline int ptshare_install_vma(struct mm_struct *mm,
+				      unsigned long addr, unsigned long len,
+				      vm_flags_t vm_flags)
+{
+	if (vm_flags & VM_PT_SHARED)
+		return __ptshare_install_vma(mm, addr, len, vm_flags);
+
+	return 0;
+}
+
+/**
  * ptdesc_ptshare_inc - Count a client PMD that points at a shared PTE table
  * @pt: The PTE table, owned by the shadow MM.
  *
@@ -180,8 +210,6 @@ static inline int ptdesc_ptshare_count(struct ptdesc *pt)
 {
 	return atomic_read(&pt->pt_ptshare_count);
 }
-
-int __ptshare_unshare_vma(struct vm_area_struct *vma);
 
 /**
  * ptshare_unshare_vma_locked - Give a client VMA private page tables again
@@ -277,6 +305,13 @@ static inline refcount_t *vma_ptshare_refcount(struct vm_area_struct *vma)
 static inline void ptshare_vma_init_from(struct vm_area_struct *dest,
 					 const struct vm_area_struct *src)
 {
+}
+
+static inline int ptshare_install_vma(struct mm_struct *mm,
+				      unsigned long addr, unsigned long len,
+				      vm_flags_t vm_flags)
+{
+	return 0;
 }
 
 static inline void ptdesc_ptshare_inc(struct ptdesc *pt)
