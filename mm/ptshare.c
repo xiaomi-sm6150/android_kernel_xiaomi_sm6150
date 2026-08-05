@@ -180,3 +180,59 @@ fallback:
 
 	return ret;
 }
+
+static void ptshare_remove_shadow_vma(struct ptshare_desc *desc,
+				      unsigned long start, unsigned long end)
+{
+	struct mm_struct *ptshare_mm = desc->ptshare_mm;
+	struct vm_area_struct *vma;
+	struct vma_iterator vmi;
+	int err = -EINVAL;
+
+	vma_iter_init(&vmi, ptshare_mm, start);
+
+	/*
+	 * This can run in any task's context (remote GUP unshare, final
+	 * mmput() by another task), so avoid do_munmap() because it checks
+	 * the range against current's TASK_SIZE, which can be smaller than
+	 * the shadow address for compat tasks. The shadow VMA is never
+	 * split or merged, so it covers [start, end) exactly.
+	 */
+	mmap_write_lock(ptshare_mm);
+	vma = vma_find(&vmi, end);
+	if (vma && vma->vm_start == start && vma->vm_end == end)
+		err = do_vmi_align_munmap(&vmi, vma, ptshare_mm, start, end,
+					  NULL, false);
+	WARN_ON_ONCE(err);
+	mmap_write_unlock(ptshare_mm);
+}
+
+void __ptshare_put_vma(struct vm_area_struct *vma)
+{
+	struct ptshare_desc *desc = vma_ptshare_desc(vma);
+	unsigned long addr = vma->vm_start;
+	struct vm_area_struct *shadow_vma;
+	bool should_remove = false;
+	unsigned long start, end;
+
+	if (!desc)
+		return;
+
+	mmap_read_lock(desc->ptshare_mm);
+	shadow_vma = vma_lookup(desc->ptshare_mm, addr);
+	if (WARN_ON_ONCE(!shadow_vma)) {
+		mmap_read_unlock(desc->ptshare_mm);
+		return;
+	}
+
+	start = shadow_vma->vm_start;
+	end = shadow_vma->vm_end;
+
+	if (refcount_dec_and_test(vma_ptshare_refcount(shadow_vma)))
+		should_remove = true;
+
+	mmap_read_unlock(desc->ptshare_mm);
+
+	if (should_remove)
+		ptshare_remove_shadow_vma(desc, start, end);
+}

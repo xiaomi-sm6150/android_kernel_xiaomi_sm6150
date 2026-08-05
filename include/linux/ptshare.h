@@ -28,6 +28,7 @@ struct ptshare_desc {
 int __ptshare_unshare_vma(struct vm_area_struct *vma);
 int __ptshare_install_vma(struct mm_struct *mm, unsigned long addr,
 			  unsigned long len, vm_flags_t vm_flags);
+void __ptshare_put_vma(struct vm_area_struct *vma);
 
 /**
  * vma_is_ptshare_client - Check whether a VMA is a page table sharing client
@@ -149,6 +150,23 @@ static inline void ptshare_vma_init_from(struct vm_area_struct *dest,
 {
 	dest->__vm_ptshare_desc = vma_is_ptshare_client(src) ?
 				  READ_ONCE(src->__vm_ptshare_desc) : NULL;
+}
+
+/**
+ * ptshare_put_vma - Drop the shadow VMA reference of a client VMA
+ * @vma: A VMA that is being freed or unshared.
+ *
+ * Does nothing if @vma is not a client VMA. When the last client VMA of a
+ * shadow VMA drops its reference, the shadow VMA and the page tables it
+ * owns are freed.
+ *
+ * Context: May sleep. Takes the shadow MM mmap_lock, so the caller must
+ * not hold an rmap lock.
+ */
+static inline void ptshare_put_vma(struct vm_area_struct *vma)
+{
+	if (vma_is_ptshare_client(vma))
+		__ptshare_put_vma(vma);
 }
 
 /**
@@ -304,6 +322,10 @@ static inline refcount_t *vma_ptshare_refcount(struct vm_area_struct *vma)
 
 static inline void ptshare_vma_init_from(struct vm_area_struct *dest,
 					 const struct vm_area_struct *src)
+{
+}
+
+static inline void ptshare_put_vma(struct vm_area_struct *vma)
 {
 }
 
