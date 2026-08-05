@@ -34,6 +34,10 @@ void __ptshare_dup_vma(struct mm_struct *mm, struct vm_area_struct *vma);
 int __ptshare_unshare_vma_on_gup(struct vm_area_struct *vma, unsigned long addr,
 				 unsigned int gup_flags, int *locked);
 int __ptshare_unshare_vma_remote(struct mm_struct *mm, unsigned long addr);
+unsigned long __ptshare_get_unmapped_area(unsigned long addr, unsigned long len,
+					  unsigned long flags, vm_flags_t vm_flags);
+int __ptshare_validate_mmap(struct file *file, unsigned long addr,
+			    unsigned long len, vm_flags_t *vm_flags);
 
 /**
  * vma_is_ptshare_client - Check whether a VMA is a page table sharing client
@@ -183,6 +187,55 @@ static inline void ptshare_put_vma(struct vm_area_struct *vma)
 {
 	if (vma_is_ptshare_client(vma))
 		__ptshare_put_vma(vma);
+}
+
+/**
+ * ptshare_get_unmapped_area - Pick a PMD-aligned address for a client VMA
+ * @addr: The caller's hint address, or 0.
+ * @len: The length of the mapping.
+ * @flags: The MAP_* flags of the request.
+ * @vm_flags: The VMA flags of the mapping.
+ *
+ * Call from __get_unmapped_area() so non-MAP_FIXED client VMA requests get
+ * a PMD-aligned address regardless of file offset.
+ *
+ * Context: The caller holds the mmap_lock of current->mm for write.
+ * Return: A PMD-aligned address, 0 to use the default unmapped-area search,
+ *         or a negative errno.
+ */
+static inline unsigned long ptshare_get_unmapped_area(unsigned long addr,
+						      unsigned long len,
+						      unsigned long flags,
+						      vm_flags_t vm_flags)
+{
+	if (likely(!(vm_flags & VM_PT_SHARED)))
+		return 0;
+
+	return __ptshare_get_unmapped_area(addr, len, flags, vm_flags);
+}
+
+/**
+ * ptshare_validate_mmap - Check a request for a client VMA
+ * @file: The file to map, or NULL for an anonymous mapping.
+ * @addr: The address of the mapping.
+ * @len: The length of the mapping.
+ * @vm_flags: The VMA flags of the mapping. VM_PT_SHARED is cleared if
+ *            the mapping falls back to private page tables.
+ *
+ * Call this from do_mmap() right before mmap_region(), so that a request
+ * that cannot share page tables fails before anything is unmapped.
+ *
+ * Context: The caller holds the mmap_lock of current->mm for write.
+ * Return: 0, or a negative errno to fail the mmap().
+ */
+static inline int ptshare_validate_mmap(struct file *file, unsigned long addr,
+					unsigned long len,
+					vm_flags_t *vm_flags)
+{
+	if (likely(!(*vm_flags & VM_PT_SHARED)))
+		return 0;
+
+	return __ptshare_validate_mmap(file, addr, len, vm_flags);
 }
 
 /**
@@ -492,6 +545,21 @@ static inline struct page *ptshare_get_user_page_vma_remote(struct mm_struct *mm
 							    struct vm_area_struct **vmap)
 {
 	return get_user_page_vma_remote(mm, addr, gup_flags, vmap);
+}
+
+static inline unsigned long ptshare_get_unmapped_area(unsigned long addr,
+						      unsigned long len,
+						      unsigned long flags,
+						      vm_flags_t vm_flags)
+{
+	return 0;
+}
+
+static inline int ptshare_validate_mmap(struct file *file, unsigned long addr,
+					unsigned long len,
+					vm_flags_t *vm_flags)
+{
+	return 0;
 }
 
 static inline void ptshare_mm_init(struct mm_struct *mm)

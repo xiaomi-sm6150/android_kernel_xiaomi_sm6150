@@ -18,8 +18,13 @@
 #include <linux/mempolicy.h>
 #include <linux/slab.h>
 #include <linux/sched/mm.h>
+#include <linux/compat.h>
+#include <linux/shmem_fs.h>
+#include <linux/sizes.h>
 #include <linux/hugetlb.h>
 #include <linux/mmu_notifier.h>
+#include <linux/page_size_compat_defs.h>
+#include <linux/mman.h>
 #include <asm/tlbflush.h>
 
 #include "internal.h"
@@ -86,6 +91,245 @@ static void ptshare_desc_rcu_free(struct rcu_head *head)
 	struct ptshare_desc *desc = container_of(head, struct ptshare_desc, rcu);
 
 	kfree(desc);
+}
+
+static bool ptshare_file_supported(struct file *file)
+{
+	struct inode *inode;
+
+	if (!file || shmem_file(file))
+		return false;
+
+	inode = file_inode(file);
+
+	/*
+	 * Restrict sharing to regular, non-DAX files on user-mountable
+	 * filesystems. Rejecting SB_NOUSER excludes kernel-internal
+	 * pseudo-filesystems such as secretmem, dma-buf, and anon inodes
+	 * even when they set S_IFREG.
+	 */
+	return S_ISREG(inode->i_mode) && !IS_DAX(inode) &&
+	       !(inode->i_sb->s_flags & SB_NOUSER);
+}
+
+static bool ptshare_mmap_is_topdown(unsigned long flags)
+{
+	/* x86_64 forces bottom-up allocation for 64-bit MAP_32BIT requests. */
+	if (!in_compat_syscall() && (flags & MAP_32BIT))
+		return false;
+
+	return mm_flags_test(MMF_TOPDOWN, current->mm);
+}
+
+static struct mm_struct *ptshare_creator_shadow_mm(struct mm_struct *mm)
+{
+	struct ptshare_desc *desc;
+
+	if (!mm_flags_test(MMF_PTSHARE_CREATOR, mm))
+		return NULL;
+
+	desc = rcu_dereference_protected(mm->ptshare_desc,
+					 lockdep_is_held(&mm->mmap_lock));
+
+	return desc ? desc->ptshare_mm : NULL;
+}
+
+static bool ptshare_shadow_overlaps(struct mm_struct *ptshare_mm,
+				    unsigned long addr, unsigned long len)
+{
+	bool overlaps;
+
+	mmap_read_lock(ptshare_mm);
+	overlaps = !!find_vma_intersection(ptshare_mm, addr, addr + len);
+	mmap_read_unlock(ptshare_mm);
+
+	return overlaps;
+}
+
+/*
+ * Ensure [addr, addr + len) is also unmapped in ptshare_mm. When the range
+ * overlaps a shadow VMA, advance past that shadow VMA and search current->mm
+ * with vm_unmapped_area(), then re-validate through the arch allocator.
+ */
+static unsigned long
+ptshare_get_unmapped_shadow_area(struct mm_struct *ptshare_mm,
+				 unsigned long addr, unsigned long len,
+				 unsigned long flags, vm_flags_t vm_flags)
+{
+	bool compat = in_compat_syscall();
+	bool topdown = ptshare_mmap_is_topdown(flags);
+	struct vm_unmapped_area_info info = {
+		.flags = topdown ? VM_UNMAPPED_AREA_TOPDOWN : 0,
+		.length = len,
+		.low_limit = PAGE_SIZE,
+		.high_limit = arch_get_mmap_end(addr, len, flags),
+		.align_mask = PMD_SIZE - 1,
+	};
+	struct vm_area_struct *shadow_vma;
+
+	mmap_read_lock(ptshare_mm);
+	shadow_vma = find_vma_intersection(ptshare_mm, addr, addr + len);
+	if (!shadow_vma) {
+		mmap_read_unlock(ptshare_mm);
+		return addr;
+	}
+
+	/*
+	 * Match the address bounds of the initial allocation, because the
+	 * arch hint path used for re-validation does not enforce them.
+	 */
+	if (!compat && (flags & MAP_32BIT)) {
+		info.low_limit = SZ_1G;
+		info.high_limit = SZ_2G;
+	} else {
+		if (!compat && (flags & MAP_ABOVE4G))
+			info.low_limit = SZ_4G;
+		if (addr + len > DEFAULT_MAP_WINDOW)
+			info.low_limit = max(info.low_limit,
+					     DEFAULT_MAP_WINDOW + 1);
+		else
+			info.high_limit = min(info.high_limit,
+					      DEFAULT_MAP_WINDOW);
+	}
+
+	do {
+		if (topdown)
+			info.high_limit = shadow_vma->vm_start;
+		else
+			info.low_limit = shadow_vma->vm_end;
+
+		if (info.high_limit <= info.low_limit ||
+		    info.high_limit - info.low_limit < len) {
+			addr = -ENOMEM;
+			break;
+		}
+
+		/* Find the next PMD-aligned gap in current->mm. */
+		addr = vm_unmapped_area(&info);
+		if (IS_ERR_VALUE(addr))
+			break;
+
+		shadow_vma = find_vma_intersection(ptshare_mm, addr, addr + len);
+	} while (shadow_vma);
+	mmap_read_unlock(ptshare_mm);
+
+	if (IS_ERR_VALUE(addr))
+		return addr;
+
+	/*
+	 * Re-validate arch-specific hint constraints such as the compat
+	 * limit and 47-bit address boundary.
+	 */
+	if (mm_get_unmapped_area_vmflags(current->mm, NULL, addr, len,
+					 0, flags, vm_flags) != addr)
+		return -ENOMEM;
+
+	return addr;
+}
+
+unsigned long __ptshare_get_unmapped_area(unsigned long addr, unsigned long len,
+					  unsigned long flags, vm_flags_t vm_flags)
+{
+	struct mm_struct *ptshare_mm = ptshare_creator_shadow_mm(current->mm);
+	unsigned long hint = IS_ALIGNED(addr, PMD_SIZE) ? addr : 0;
+	unsigned long len_pad = len + PMD_SIZE;
+	unsigned long area;
+
+	if ((flags & MAP_FIXED) || !IS_ALIGNED(len, PMD_SIZE))
+		return 0;
+
+	if (len_pad < len)
+		return -ENOMEM;
+
+	/* Try a PMD-aligned advisory hint with exact len before padding. */
+	if (hint && hint <= TASK_SIZE - len &&
+	    (!ptshare_mm || !ptshare_shadow_overlaps(ptshare_mm, hint, len))) {
+		area = mm_get_unmapped_area_vmflags(current->mm, NULL, hint, len,
+						    0, flags, vm_flags);
+		if (IS_ERR_VALUE(area) || area == hint)
+			return area;
+	}
+
+	area = mm_get_unmapped_area_vmflags(current->mm, NULL, 0, len_pad,
+					    0, flags, vm_flags);
+	if (IS_ERR_VALUE(area))
+		return area;
+
+	/*
+	 * Place the PMD-aligned range flush at the top of the padded gap for
+	 * top-down allocation so consecutive mappings do not leave PMD gaps.
+	 */
+	if (ptshare_mmap_is_topdown(flags))
+		area = round_down(area + PMD_SIZE, PMD_SIZE);
+	else
+		area = round_up(area, PMD_SIZE);
+
+	if (ptshare_mm)
+		area = ptshare_get_unmapped_shadow_area(ptshare_mm, area, len,
+							flags, vm_flags);
+
+	return area;
+}
+
+int __ptshare_validate_mmap(struct file *file, unsigned long addr,
+			    unsigned long len, vm_flags_t *vm_flags)
+{
+	struct ptshare_desc *desc;
+
+	/* Re-checked on the final vm_file in ptshare_install_vma(). */
+	if (unlikely(!ptshare_file_supported(file)))
+		return -EINVAL;
+
+	/* Writable mappings are not allowed */
+	if (unlikely(*vm_flags & VM_WRITE))
+		return -EINVAL;
+
+	/* Require PMD alignment of both base and size */
+	if (unlikely(!IS_ALIGNED(addr, PMD_SIZE) ||
+		     !IS_ALIGNED(len, PMD_SIZE)))
+		return -EINVAL;
+
+	/*
+	 * With page size emulation (x86_64 page_shift=), a read fault between
+	 * the real PAGE_SIZE-aligned EOF and the emulated __PAGE_SIZE-aligned
+	 * EOF maps the zero page (VM_FAULT_NEED_ANONPAGE), and nothing zaps
+	 * that PTE when the file grows. In a shared page table, that stale
+	 * PTE would be seen by every process in the domain. Fall back to
+	 * private page tables here, after the file, flag, and alignment checks
+	 * above have already validated the request.
+	 */
+	if (__PAGE_SIZE != PAGE_SIZE) {
+		*vm_flags &= ~VM_PT_SHARED;
+		return 0;
+	}
+
+	desc = rcu_dereference_protected(current->mm->ptshare_desc,
+					 lockdep_is_held(&current->mm->mmap_lock));
+
+	/*
+	 * No domain exists yet, so there is no domain creator to verify and no
+	 * shadow VMA overlap to check here. ptshare_install_vma() creates the
+	 * domain when the VMA is installed.
+	 */
+	if (!desc)
+		return 0;
+
+	/*
+	 * Only the mm that created the domain gets MMF_PTSHARE_CREATOR.
+	 * Forked children inherit the domain without that flag and cannot
+	 * map new client VMAs into it.
+	 */
+	if (!mm_flags_test(MMF_PTSHARE_CREATOR, current->mm))
+		return -EPERM;
+
+	/*
+	 * Refuse a request that overlaps an existing shadow VMA so a mapping
+	 * cannot replace a range that is already shared in the domain.
+	 */
+	if (ptshare_shadow_overlaps(desc->ptshare_mm, addr, len))
+		return -EINVAL;
+
+	return 0;
 }
 
 int __ptshare_unshare_vma(struct vm_area_struct *vma)
@@ -255,9 +499,14 @@ int __ptshare_install_vma(struct mm_struct *mm, unsigned long addr,
 	if (!vma_is_ptshare_client(vma))
 		return 0;
 
-	/* Enforce remaining invariants on the installed VMA */
-	if (!vma->vm_file || vma_is_anonymous(vma) ||
-	    (vma->vm_flags & VM_SPECIAL)) {
+	/*
+	 * ->mmap() may replace vm_file (overlayfs, FUSE passthrough, and
+	 * fuse-bpf install their backing file) or clear vm_ops, so check the
+	 * final VMA again. Rejecting VM_SPECIAL also keeps out special driver
+	 * mappings on regular files.
+	 */
+	if (!ptshare_file_supported(vma->vm_file) || vma_is_anonymous(vma) ||
+	    (vma->vm_flags & (VM_SPECIAL | VM_WRITE))) {
 		ret = -EINVAL;
 		goto fallback;
 	}

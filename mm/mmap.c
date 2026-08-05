@@ -346,6 +346,7 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 {
 	struct mm_struct *mm = current->mm;
 	int pkey = 0;
+	int ret;
 
 	*populate = 0;
 
@@ -564,6 +565,10 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 	}
 
 	pgoff = __bpf_pgoff_fixup(file, pgoff);
+
+	ret = ptshare_validate_mmap(file, addr, len, &vm_flags);
+	if (ret)
+		return ret;
 
 	addr = mmap_region(file, addr, len, vm_flags, pgoff, uf);
 	if (IS_ERR_VALUE(addr))
@@ -835,6 +840,7 @@ __get_unmapped_area(struct file *file, unsigned long addr, unsigned long len,
 	unsigned long (*get_area)(struct file *, unsigned long,
 				  unsigned long, unsigned long, unsigned long)
 				  = NULL;
+	unsigned long ptshare_addr;
 
 	unsigned long error = arch_mmap_check(addr, len, flags);
 	if (error)
@@ -859,6 +865,12 @@ __get_unmapped_area(struct file *file, unsigned long addr, unsigned long len,
 	if (!file)
 		pgoff = 0;
 
+	ptshare_addr = ptshare_get_unmapped_area(addr, len, flags, vm_flags);
+	if (ptshare_addr) {
+		addr = ptshare_addr;
+		goto check_addr;
+	}
+
 	if (get_area) {
 		addr = get_area(file, addr, len, pgoff, flags);
 	} else if (IS_ENABLED(CONFIG_TRANSPARENT_HUGEPAGE) && !file
@@ -871,6 +883,8 @@ __get_unmapped_area(struct file *file, unsigned long addr, unsigned long len,
 		addr = mm_get_unmapped_area_vmflags(current->mm, file, addr, len,
 						    pgoff, flags, vm_flags);
 	}
+
+check_addr:
 	if (IS_ERR_VALUE(addr))
 		return addr;
 
