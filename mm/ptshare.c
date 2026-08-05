@@ -18,6 +18,9 @@
 #include <linux/mempolicy.h>
 #include <linux/slab.h>
 #include <linux/sched/mm.h>
+#include <linux/hugetlb.h>
+#include <linux/mmu_notifier.h>
+#include <asm/tlbflush.h>
 
 #include "internal.h"
 
@@ -87,7 +90,62 @@ static void ptshare_desc_rcu_free(struct rcu_head *head)
 
 int __ptshare_unshare_vma(struct vm_area_struct *vma)
 {
-	return -EINVAL;
+	struct mm_struct *mm = vma->vm_mm;
+	struct mmu_notifier_range range;
+	unsigned long addr, next;
+
+	if (WARN_ON_ONCE(!IS_ALIGNED(vma->vm_start, PMD_SIZE)) ||
+	    WARN_ON_ONCE(!IS_ALIGNED(vma->vm_end, PMD_SIZE)))
+		return -EINVAL;
+
+	vma_start_write(vma);
+
+	mmu_notifier_range_init(&range, MMU_NOTIFY_UNMAP, 0, mm,
+				vma->vm_start, vma->vm_end);
+	mmu_notifier_invalidate_range_start(&range);
+
+	for (addr = vma->vm_start; addr < vma->vm_end; addr = next) {
+		pmd_t *pmd = mm_find_pmd(mm, addr);
+		spinlock_t *ptl;	/* shared with the shadow MM */
+		struct ptdesc *ptdesc;
+		pte_t *pte;
+
+		next = pmd_addr_end(addr, vma->vm_end);
+		if (!pmd)
+			continue;
+
+		/* Lockless walkers recheck the PMD under this lock. */
+		pte = pte_offset_map_lock(mm, pmd, addr, &ptl);
+		if (!pte)
+			continue;
+		ptdesc = page_ptdesc(pmd_page(*pmd));
+		pmd_clear(pmd);
+		mm_dec_nr_ptes(mm);
+		pte_unmap_unlock(pte, ptl);
+		WARN_ON_ONCE(!ptdesc_ptshare_dec(ptdesc));
+	}
+
+	/*
+	 * flush_tlb_range() is not leaf-only, so it also drops cached walks
+	 * through the cleared PMDs. We don't need mmu_gather here because
+	 * the shadow MM frees the tables via RCU.
+	 */
+	flush_tlb_range(vma, vma->vm_start, vma->vm_end);
+
+	mmu_notifier_invalidate_range_end(&range);
+
+	__ptshare_put_vma(vma);
+
+	/*
+	 * Clear the descriptor before clearing VM_PT_SHARED, since
+	 * vma_set_ptshare_desc() requires the flag. That also prevents a
+	 * double put if stale flags restore VM_PT_SHARED (see
+	 * ptshare_sync_vm_flags()).
+	 */
+	vma_set_ptshare_desc(vma, NULL);
+	vm_flags_clear(vma, VM_PT_SHARED);
+
+	return 0;
 }
 
 /* Copy a new client VMA into the shadow MM, with one client reference. */
