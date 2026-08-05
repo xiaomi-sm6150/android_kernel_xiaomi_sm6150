@@ -23,6 +23,7 @@
 #include <linux/sizes.h>
 #include <linux/hugetlb.h>
 #include <linux/mmu_notifier.h>
+#include <linux/memcontrol.h>
 #include <linux/page_size_compat_defs.h>
 #include <linux/mman.h>
 #include <linux/pgalloc.h>
@@ -75,6 +76,9 @@ static struct ptshare_desc *ptshare_alloc_desc(void)
 
 	refcount_set(&desc->refcount, 1);
 
+	/* Pin the creator's memcg for charging faults on the shadow MM. */
+	desc->memcg = get_mem_cgroup_from_mm(current->mm);
+
 	/* ptshare_exit() of the shadow MM frees the descriptor. */
 	rcu_assign_pointer(desc->ptshare_mm->ptshare_desc, desc);
 
@@ -100,6 +104,7 @@ static void ptshare_desc_rcu_free(struct rcu_head *head)
 {
 	struct ptshare_desc *desc = container_of(head, struct ptshare_desc, rcu);
 
+	mem_cgroup_put(desc->memcg);
 	kfree(desc);
 }
 
@@ -768,6 +773,46 @@ int __ptshare_unshare_vma_remote(struct mm_struct *mm, unsigned long addr)
 	return ret;
 }
 
+/*
+ * Make the creator's memcg active while a fault populates the shadow MM,
+ * so page table allocations and page cache reads are charged to the
+ * creator. Returns the pinned memcg for ptshare_unbind_active_memcg(),
+ * or NULL when memcg is disabled.
+ */
+static struct mem_cgroup *ptshare_bind_active_memcg(struct ptshare_desc *desc,
+						    struct mem_cgroup **old_memcg)
+{
+	struct mem_cgroup *memcg = desc->memcg;
+
+	if (!memcg)
+		return NULL;
+
+	/* Charge the nearest online ancestor if the creator's cgroup is gone. */
+	while (!mem_cgroup_tryget_online(memcg))
+		memcg = parent_mem_cgroup(memcg);
+
+	*old_memcg = set_active_memcg(memcg);
+
+	return memcg;
+}
+
+/*
+ * Restore the previous active memcg, even if NULL, before dropping the
+ * reference taken by ptshare_bind_active_memcg().
+ */
+static void ptshare_unbind_active_memcg(struct mem_cgroup *memcg,
+					struct mem_cgroup *old_memcg)
+{
+	struct mem_cgroup *cur;
+
+	if (!memcg)
+		return;
+
+	cur = set_active_memcg(old_memcg);
+	VM_WARN_ON_ONCE(cur != memcg);
+	mem_cgroup_put(memcg);
+}
+
 /**
  * ptshare_handle_mm_fault - Fault in a client VMA through the shadow MM
  * @vmf: The fault on the client VMA, with vmf->pmd pointing to the
@@ -785,6 +830,7 @@ int __ptshare_unshare_vma_remote(struct mm_struct *mm, unsigned long addr)
 vm_fault_t ptshare_handle_mm_fault(struct vm_fault *vmf)
 {
 	struct vm_area_struct *ptshare_vma;
+	struct mem_cgroup *memcg, *old_memcg = NULL;
 	struct ptshare_desc *desc;
 	struct mm_struct *ptshare_mm;
 	struct ptdesc *ptdesc;
@@ -843,6 +889,9 @@ vm_fault_t ptshare_handle_mm_fault(struct vm_fault *vmf)
 	};
 
 	assert_fault_locked(&ptshare_vmf);
+
+	/* Every exit below ends this active memcg scope at out. */
+	memcg = ptshare_bind_active_memcg(desc, &old_memcg);
 
 	pgd = pgd_offset(ptshare_mm, vmf->address);
 	p4d = p4d_alloc(ptshare_mm, pgd, vmf->address);
@@ -926,6 +975,8 @@ vm_fault_t ptshare_handle_mm_fault(struct vm_fault *vmf)
 	}
 
 out:
+	ptshare_unbind_active_memcg(memcg, old_memcg);
+
 	/*
 	 * handle_pte_fault() already released the shadow fault lock when
 	 * fault_drops_lock() is true. Otherwise release it here. The client
