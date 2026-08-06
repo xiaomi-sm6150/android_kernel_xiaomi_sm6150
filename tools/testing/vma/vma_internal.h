@@ -1482,4 +1482,8 @@ static inline void ptshare_put_vma(struct vm_area_struct *vma)
 {
 }
 
+static inline void ptshare_abort_new_vma(struct vm_area_struct *vma)
+{
+}
+
 #endif	/* __MM_VMA_INTERNAL_H */

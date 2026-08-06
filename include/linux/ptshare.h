@@ -38,6 +38,9 @@ unsigned long __ptshare_get_unmapped_area(unsigned long addr, unsigned long len,
 					  unsigned long flags, vm_flags_t vm_flags);
 int __ptshare_validate_mmap(struct file *file, unsigned long addr,
 			    unsigned long len, vm_flags_t *vm_flags);
+vm_fault_t ptshare_handle_mm_fault(struct vm_fault *vmf);
+bool __ptshare_free_pte_range(struct mmu_gather *tlb, struct ptdesc *pt,
+			      unsigned long addr);
 
 /**
  * vma_is_ptshare_client - Check whether a VMA is a page table sharing client
@@ -266,6 +269,21 @@ static inline int ptshare_install_vma(struct mm_struct *mm,
 }
 
 /**
+ * ptshare_abort_new_vma - Drop VM_PT_SHARED from a VMA that mmap() undoes
+ * @vma: The new VMA whose ->mmap() failed, not yet in the VMA tree.
+ *
+ * Call this before unmap_region() undoes a failed ->mmap(). @vma was never
+ * attached to its domain, so page tables that ->mmap() filled are private
+ * and must be zapped like those of any other VMA.
+ */
+static inline void ptshare_abort_new_vma(struct vm_area_struct *vma)
+{
+	/* VMA is not in the tree yet, so no VMA lock is needed. */
+	if (vma_is_ptshare_client(vma))
+		__vm_flags_mod(vma, 0, VM_PT_SHARED);
+}
+
+/**
  * ptshare_dup_vma - Join a VMA copied by fork() to its sharing domain
  * @mm: The child's mm.
  * @vma: The child's copy of a VMA, already linked into @mm.
@@ -431,6 +449,33 @@ static inline struct page *ptshare_get_user_page_vma_remote(struct mm_struct *mm
 	return get_user_page_vma_remote(mm, addr, gup_flags, vmap);
 }
 
+/**
+ * ptshare_free_pte_range - Detach a client PMD from a shared PTE table
+ * @tlb: The mmu_gather of the mm that frees its page tables.
+ * @pte: The PTE table that free_pte_range() has just unlinked.
+ * @addr: The start address of the PMD range that @pte maps.
+ *
+ * Call this from free_pte_range() after clearing the PMD entry. Any table
+ * with a non-zero client PMD count belongs to the shadow MM. In that case,
+ * this helper drops the caller's count and queues a TLB flush for the range
+ * on @tlb instead of letting the caller free the table.
+ *
+ * Return: true if @pte is a shared table that the caller must not free,
+ *         false otherwise.
+ */
+static inline bool ptshare_free_pte_range(struct mmu_gather *tlb,
+					  pgtable_t pte, unsigned long addr)
+{
+	/*
+	 * A shared table's count still includes this client PMD, so a zero
+	 * count means pte is not shared by any client and can be freed.
+	 */
+	if (likely(!ptdesc_ptshare_count(page_ptdesc(pte))))
+		return false;
+
+	return __ptshare_free_pte_range(tlb, page_ptdesc(pte), addr);
+}
+
 /* dup_mm() copies the parent's mm_struct: start outside any domain. */
 static inline void ptshare_mm_init(struct mm_struct *mm)
 {
@@ -497,6 +542,10 @@ static inline int ptshare_install_vma(struct mm_struct *mm,
 	return 0;
 }
 
+static inline void ptshare_abort_new_vma(struct vm_area_struct *vma)
+{
+}
+
 static inline void ptshare_exit(struct mm_struct *mm)
 {
 }
@@ -560,6 +609,17 @@ static inline int ptshare_validate_mmap(struct file *file, unsigned long addr,
 					vm_flags_t *vm_flags)
 {
 	return 0;
+}
+
+static inline vm_fault_t ptshare_handle_mm_fault(struct vm_fault *vmf)
+{
+	return VM_FAULT_SIGBUS;
+}
+
+static inline bool ptshare_free_pte_range(struct mmu_gather *tlb,
+					  pgtable_t pte, unsigned long addr)
+{
+	return false;
 }
 
 static inline void ptshare_mm_init(struct mm_struct *mm)

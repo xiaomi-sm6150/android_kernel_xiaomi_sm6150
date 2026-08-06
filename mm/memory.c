@@ -197,6 +197,10 @@ static void free_pte_range(struct mmu_gather *tlb, pmd_t *pmd,
 {
 	pgtable_t token = pmd_pgtable(*pmd);
 	pmd_clear(pmd);
+
+	if (ptshare_free_pte_range(tlb, token, addr))
+		return;
+
 	pte_free_tlb(tlb, token, addr);
 	mm_dec_nr_ptes(tlb->mm);
 }
@@ -2035,6 +2039,8 @@ void unmap_page_range(struct mmu_gather *tlb,
 	unsigned long next;
 
 	BUG_ON(addr >= end);
+	if (unlikely(vma_is_ptshare_client(vma)))
+		return;
 	tlb_start_vma(tlb, vma);
 	pgd = pgd_offset(vma->vm_mm, addr);
 	do {
@@ -6218,7 +6224,7 @@ split:
  * The mmap_lock may have been released depending on flags and our return value.
  * See filemap_fault() and __folio_lock_or_retry().
  */
-static vm_fault_t handle_pte_fault(struct vm_fault *vmf)
+vm_fault_t handle_pte_fault(struct vm_fault *vmf)
 {
 	pte_t entry;
 
@@ -6371,6 +6377,13 @@ retry_pud:
 	/* Huge pud page fault raced with pmd_alloc? */
 	if (pud_trans_unstable(vmf.pud))
 		goto retry_pud;
+
+	if (unlikely(vma_is_ptshare_client(vma))) {
+		ret = ptshare_handle_mm_fault(&vmf);
+		if (fault_drops_lock(ret, flags))
+			release_fault_lock(&vmf);
+		return ret;
+	}
 
 	if (pmd_none(*vmf.pmd) &&
 	    thp_vma_allowable_order(vma, vm_flags, TVA_PAGEFAULT, PMD_ORDER)) {

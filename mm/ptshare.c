@@ -25,6 +25,8 @@
 #include <linux/mmu_notifier.h>
 #include <linux/page_size_compat_defs.h>
 #include <linux/mman.h>
+#include <linux/pgalloc.h>
+#include <asm/tlb.h>
 #include <asm/tlbflush.h>
 
 #include "internal.h"
@@ -53,6 +55,14 @@ static struct ptshare_desc *ptshare_alloc_desc(void)
 		return NULL;
 	}
 	mm_flags_set(MMF_PTSHARE_SHADOW, desc->ptshare_mm);
+
+	/*
+	 * handle_pte_fault() can still map PMD-sized file folios via
+	 * do_set_pmd() (through filemap_map_pmd() or finish_fault()).
+	 * Client PMDs can only link PTE tables, so disable THP on the
+	 * shadow MM.
+	 */
+	mm_flags_set(MMF_DISABLE_THP_COMPLETELY, desc->ptshare_mm);
 	ptshare_clear_mm_owner(desc->ptshare_mm);
 
 	/*
@@ -756,4 +766,192 @@ int __ptshare_unshare_vma_remote(struct mm_struct *mm, unsigned long addr)
 	 * get_user_page_vma_remote() report the missing VMA.
 	 */
 	return ret;
+}
+
+/**
+ * ptshare_handle_mm_fault - Fault in a client VMA through the shadow MM
+ * @vmf: The fault on the client VMA, with vmf->pmd pointing to the
+ *       client PMD entry.
+ *
+ * Handle the fault on the shadow VMA at the same address, so that the PTE
+ * table and its entries are created in the shadow MM, then point an empty
+ * client PMD at that table. Only read faults reach here because client
+ * VMAs are never writable and GUP unshares them before any CoW fault.
+ *
+ * Context: Called by __handle_mm_fault() with the client VMA locked as
+ * vmf->flags says. Leaves the client fault lock held for the caller.
+ * Return: The VM_FAULT_* result of the fault in the shadow MM.
+ */
+vm_fault_t ptshare_handle_mm_fault(struct vm_fault *vmf)
+{
+	struct vm_area_struct *ptshare_vma;
+	struct ptshare_desc *desc;
+	struct mm_struct *ptshare_mm;
+	struct ptdesc *ptdesc;
+	vm_fault_t ret;
+	pgd_t *pgd;
+	p4d_t *p4d;
+
+	assert_fault_locked(vmf);
+
+	/*
+	 * Unsharing detaches the descriptor under mmap_write_lock and the VMA
+	 * write lock, so the client fault lock guarantees desc stays attached.
+	 */
+	desc = vma_ptshare_desc(vmf->vma);
+	if (WARN_ON_ONCE(!desc))
+		return VM_FAULT_SIGBUS;
+
+	ptshare_mm = desc->ptshare_mm;
+
+	/*
+	 * Write and unshare faults would CoW inside the shared page table.
+	 * Client VMAs are never writable and GUP unshares them before it
+	 * raises either fault, so neither may reach the shadow MM.
+	 */
+	if (WARN_ON_ONCE(vmf->flags & (FAULT_FLAG_WRITE | FAULT_FLAG_UNSHARE)))
+		return VM_FAULT_SIGSEGV;
+
+	/*
+	 * Lock the shadow VMA the way the caller locked the client VMA. A
+	 * fault under mmap_lock must not reach handle_pte_fault() with
+	 * FAULT_FLAG_VMA_LOCK, because do_read_fault() returns VM_FAULT_RETRY
+	 * under a per-VMA lock for files without ->map_pages, so the retry
+	 * under mmap_lock would never make progress.
+	 */
+	if (vmf->flags & FAULT_FLAG_VMA_LOCK) {
+		ptshare_vma = lock_vma_under_rcu(ptshare_mm, vmf->address);
+		if (!ptshare_vma)
+			return VM_FAULT_RETRY;
+	} else {
+		/* The shadow mmap_lock nests inside the client mmap_lock. */
+		mmap_read_lock(ptshare_mm);
+		ptshare_vma = vma_lookup(ptshare_mm, vmf->address);
+		if (WARN_ON_ONCE(!ptshare_vma)) {
+			mmap_read_unlock(ptshare_mm);
+			return VM_FAULT_SIGBUS;
+		}
+	}
+
+	struct vm_fault ptshare_vmf = {
+		.vma = ptshare_vma,
+		.gfp_mask = vmf->gfp_mask,
+		.pgoff = vmf->pgoff,
+		.address = vmf->address,
+		.real_address = vmf->real_address,
+		.flags = vmf->flags,
+	};
+
+	assert_fault_locked(&ptshare_vmf);
+
+	pgd = pgd_offset(ptshare_mm, vmf->address);
+	p4d = p4d_alloc(ptshare_mm, pgd, vmf->address);
+	if (!p4d) {
+		ret = VM_FAULT_OOM;
+		goto out;
+	}
+
+	ptshare_vmf.pud = pud_alloc(ptshare_mm, p4d, vmf->address);
+	if (!ptshare_vmf.pud) {
+		ret = VM_FAULT_OOM;
+		goto out;
+	}
+
+	ptshare_vmf.pmd = pmd_alloc(ptshare_mm, ptshare_vmf.pud, vmf->address);
+	if (!ptshare_vmf.pmd) {
+		ret = VM_FAULT_OOM;
+		goto out;
+	}
+
+	ret = handle_pte_fault(&ptshare_vmf);
+
+	/*
+	 * Count the client PMD in the shadow PTE table, then point the empty
+	 * client PMD at it. If another thread of the client linked the table
+	 * first, drop the count again.
+	 */
+	if (!(ret & (VM_FAULT_ERROR | VM_FAULT_RETRY | VM_FAULT_COMPLETED)) &&
+	    pmd_none(pmdp_get_lockless(vmf->pmd))) {
+		spinlock_t *shadow_ptl;
+		spinlock_t *client_ptl;
+		pmd_t pmdval;
+
+		shadow_ptl = pmd_lock(ptshare_mm, ptshare_vmf.pmd);
+		pmdval = *ptshare_vmf.pmd;
+		if (pmd_present(pmdval)) {
+			if (WARN_ON_ONCE(pmd_trans_huge(pmdval))) {
+				spin_unlock(shadow_ptl);
+				ret = VM_FAULT_SIGBUS;
+				goto out;
+			}
+			ptdesc = page_ptdesc(pmd_page(pmdval));
+			ptdesc_ptshare_inc(ptdesc);
+		}
+		spin_unlock(shadow_ptl);
+
+		if (pmd_present(pmdval)) {
+			client_ptl = pmd_lock(vmf->vma->vm_mm, vmf->pmd);
+			if (pmd_none(*vmf->pmd)) {
+				/*
+				 * Order PTE writes before exposing the PMD to
+				 * lockless readers.
+				 */
+				smp_wmb();
+				pmd_populate(vmf->vma->vm_mm, vmf->pmd,
+					     pmd_pgtable(pmdval));
+				mm_inc_nr_ptes(vmf->vma->vm_mm);
+			} else {
+				/*
+				 * Another thread of this client faulted on the
+				 * same PMD concurrently. Both threads passed
+				 * the lockless pmd_none() check and, to avoid
+				 * nesting the two PMD locks, bumped
+				 * ptdesc_ptshare_inc() under the shadow PMD
+				 * lock before contending on the client PMD
+				 * lock. The winner already linked the shadow
+				 * PTE table, so undo our speculative increment.
+				 * Because the fault lock prevents unmap or
+				 * unshare and the shadow VMA never frees its
+				 * PTE table while clients exist, *vmf->pmd must
+				 * point to this exact same table.
+				 */
+				WARN_ON_ONCE(!ptdesc_ptshare_dec(ptdesc));
+				if (WARN_ON_ONCE(!pmd_present(*vmf->pmd) ||
+						 pmd_page(*vmf->pmd) !=
+						 pmd_page(pmdval)))
+					ret = VM_FAULT_SIGBUS;
+			}
+			spin_unlock(client_ptl);
+		}
+	}
+
+out:
+	/*
+	 * handle_pte_fault() already released the shadow fault lock when
+	 * fault_drops_lock() is true. Otherwise release it here. The client
+	 * fault lock stays held for the caller in both cases.
+	 */
+	if (!fault_drops_lock(ret, vmf->flags))
+		release_fault_lock(&ptshare_vmf);
+
+	return ret;
+}
+
+bool __ptshare_free_pte_range(struct mmu_gather *tlb, struct ptdesc *pt,
+			      unsigned long addr)
+{
+	if (!ptdesc_ptshare_dec(pt))
+		return false;
+
+	/*
+	 * The zap of the client VMA was skipped, so nothing has flushed the
+	 * range yet. Queue a freed-table flush to invalidate both leaf and
+	 * walk-cache entries on the client. tlb_finish_mmu() issues the flush
+	 * before remove_vma() drops the shadow VMA reference.
+	 */
+	tlb_flush_pte_range(tlb, addr, PMD_SIZE);
+	tlb->freed_tables = 1;
+	mm_dec_nr_ptes(tlb->mm);
+
+	return true;
 }

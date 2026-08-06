@@ -2515,6 +2515,7 @@ static int __mmap_new_file_vma(struct mmap_state *map,
 
 		vma_iter_set(vmi, vma->vm_end);
 		/* Undo any partial mapping done by a device driver. */
+		ptshare_abort_new_vma(vma);
 		unmap_region(&vmi->mas, vma, map->prev, map->next);
 
 		return error;
