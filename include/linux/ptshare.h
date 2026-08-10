@@ -29,6 +29,8 @@ int __ptshare_unshare_vma(struct vm_area_struct *vma);
 int __ptshare_install_vma(struct mm_struct *mm, unsigned long addr,
 			  unsigned long len, vm_flags_t vm_flags);
 void __ptshare_put_vma(struct vm_area_struct *vma);
+void ptshare_exit(struct mm_struct *mm);
+void __ptshare_dup_vma(struct mm_struct *mm, struct vm_area_struct *vma);
 
 /**
  * vma_is_ptshare_client - Check whether a VMA is a page table sharing client
@@ -153,6 +155,17 @@ static inline void ptshare_vma_init_from(struct vm_area_struct *dest,
 }
 
 /**
+ * mm_shares_pagetables - Check whether an MM is attached to a sharing domain
+ * @mm: The MM to check.
+ *
+ * Return: true if @mm is a member of a sharing domain or its shadow MM.
+ */
+static inline bool mm_shares_pagetables(const struct mm_struct *mm)
+{
+	return rcu_access_pointer(mm->ptshare_desc);
+}
+
+/**
  * ptshare_put_vma - Drop the shadow VMA reference of a client VMA
  * @vma: A VMA that is being freed or unshared.
  *
@@ -178,7 +191,8 @@ static inline void ptshare_put_vma(struct vm_area_struct *vma)
  *
  * If @vm_flags asks for VM_PT_SHARED, installs the shadow VMA for the new
  * client VMA at @addr, or leaves the VMA with private page tables if that
- * fails.
+ * fails. The first client VMA of @mm creates its sharing domain and makes
+ * @mm the creator.
  *
  * Context: The caller holds the mmap_lock of @mm for write.
  * Return: 0 if sharing was not requested, cleared by ->mmap(), or the
@@ -193,6 +207,25 @@ static inline int ptshare_install_vma(struct mm_struct *mm,
 		return __ptshare_install_vma(mm, addr, len, vm_flags);
 
 	return 0;
+}
+
+/**
+ * ptshare_dup_vma - Join a VMA copied by fork() to its sharing domain
+ * @mm: The child's mm.
+ * @vma: The child's copy of a VMA, already linked into @mm.
+ *
+ * Takes a shadow VMA reference for a client VMA and attaches @mm to the
+ * domain with its first client VMA. Does nothing for other VMAs.
+ *
+ * Context: The caller holds the mmap_lock of @mm and of the parent's mm
+ * for write. May sleep. Takes the shadow MM mmap_lock, so the caller must
+ * not hold an rmap lock.
+ */
+static inline void ptshare_dup_vma(struct mm_struct *mm,
+				   struct vm_area_struct *vma)
+{
+	if (vma_is_ptshare_client(vma))
+		__ptshare_dup_vma(mm, vma);
 }
 
 /**
@@ -325,6 +358,11 @@ static inline void ptshare_vma_init_from(struct vm_area_struct *dest,
 {
 }
 
+static inline bool mm_shares_pagetables(const struct mm_struct *mm)
+{
+	return false;
+}
+
 static inline void ptshare_put_vma(struct vm_area_struct *vma)
 {
 }
@@ -334,6 +372,15 @@ static inline int ptshare_install_vma(struct mm_struct *mm,
 				      vm_flags_t vm_flags)
 {
 	return 0;
+}
+
+static inline void ptshare_exit(struct mm_struct *mm)
+{
+}
+
+static inline void ptshare_dup_vma(struct mm_struct *mm,
+				   struct vm_area_struct *vma)
+{
 }
 
 static inline void ptdesc_ptshare_inc(struct ptdesc *pt)

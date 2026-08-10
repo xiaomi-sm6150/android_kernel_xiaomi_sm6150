@@ -1478,4 +1478,8 @@ static inline int ptshare_unshare_vma_locked(struct vm_area_struct *vma)
 	return 0;
 }
 
+static inline void ptshare_put_vma(struct vm_area_struct *vma)
+{
+}
+
 #endif	/* __MM_VMA_INTERNAL_H */
