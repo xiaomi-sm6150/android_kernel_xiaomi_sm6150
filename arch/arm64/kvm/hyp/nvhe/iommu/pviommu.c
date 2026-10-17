@@ -438,6 +438,9 @@ bool kvm_handle_pviommu_hvc(struct kvm_vcpu *vcpu, u64 *exit_code)
 	struct pkvm_hyp_vm *vm = pkvm_hyp_vcpu_to_hyp_vm(hyp_vcpu);
 	int ret;
 
+	if (list_empty(&vm->pviommus))
+		goto out_guest_err;
+
 	/*
 	 * Eagerly fill the vm iommu pool to avoid deadlocks from donation path while
 	 * doing IOMMU operations.
