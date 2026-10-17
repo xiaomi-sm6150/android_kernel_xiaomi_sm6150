@@ -353,7 +353,8 @@ bool pkvm_device_request_mmio(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code)
 	}
 
 	/* It's expected the address is mapped as page for MMIO */
-	WARN_ON(level != KVM_PGTABLE_LAST_LEVEL);
+	if (level != KVM_PGTABLE_LAST_LEVEL)
+		goto out_inval;
 
 	hyp_spin_lock(&device_spinlock);
 	dev = pkvm_get_vm_device_by_addr(vm, token);
