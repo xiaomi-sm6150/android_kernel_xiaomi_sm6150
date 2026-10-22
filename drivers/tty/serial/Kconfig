@@ -14,6 +14,15 @@ config SERIAL_EARLYCON
 	  the console before standard serial driver is probed. The console is
 	  enabled when early_param is processed.
 
+config SERIAL_EARLYCON_RAMOOPS
+	bool "Early console into a ramoops zone"
+	depends on SERIAL_CORE
+	select SERIAL_EARLYCON
+	help
+	  Boot console for devices without a UART: writes the kernel log
+	  into a ramoops zone (earlycon=ramoops,<addr>[,<size>]) so that it
+	  can be read from /sys/fs/pstore after a warm reset.
+
 source "drivers/tty/serial/8250/Kconfig"
 
 comment "Non-8250 serial port support"
