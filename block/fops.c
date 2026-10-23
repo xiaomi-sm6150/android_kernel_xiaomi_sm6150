@@ -8,6 +8,7 @@
 #include <linux/mm.h>
 #include <linux/blkdev.h>
 #include <linux/blk-integrity.h>
+#include <linux/k61-stop.h>
 #include <linux/buffer_head.h>
 #include <linux/mpage.h>
 #include <linux/uio.h>
@@ -709,6 +710,10 @@ static int blkdev_open(struct inode *inode, struct file *filp)
 	ret = bdev_permission(inode->i_rdev, mode, filp->private_data);
 	if (ret)
 		return ret;
+
+	/* DEBUG (k61.stop=init): no block device write opens from userspace */
+	if (k61_stop_init && (filp->f_mode & FMODE_WRITE))
+		panic("k61.stop: refusing write open of %pD", filp);
 
 	bdev = blkdev_get_no_open(inode->i_rdev, true);
 	if (!bdev)

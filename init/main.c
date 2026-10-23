@@ -26,6 +26,7 @@
 #include <linux/delay.h>
 #include <linux/ioport.h>
 #include <linux/init.h>
+#include <linux/k61-stop.h>
 #include <linux/initrd.h>
 #include <linux/memblock.h>
 #include <linux/acpi.h>
@@ -1563,9 +1564,29 @@ void __weak free_initmem(void)
  */
 static bool bringup_stop;
 
+/*
+ * "k61.stop=init" instead lets first-stage init run and panics when PID 1
+ * executes /system/bin/init, i.e. once the first-stage mounts are done and
+ * before second stage. Writable block mounts and block device write opens
+ * panic as well (see linux/k61-stop.h), and so does not getting there
+ * within K61_STOP_TIMEOUT seconds, so a hang still ends in a warm reset.
+ */
+bool k61_stop_init;
+#define K61_STOP_TIMEOUT	60
+
+static void k61_stop_timeout(struct timer_list *t)
+{
+	panic("k61.stop: /system/bin/init not reached within %ds",
+	      K61_STOP_TIMEOUT);
+}
+static DEFINE_TIMER(k61_stop_timer, k61_stop_timeout);
+
 static int __init bringup_stop_setup(char *str)
 {
-	bringup_stop = true;
+	if (!strcmp(str, "=init"))
+		k61_stop_init = true;
+	else
+		bringup_stop = true;
 	return 1;
 }
 __setup("k61.stop", bringup_stop_setup);
@@ -1588,6 +1609,13 @@ static int __ref kernel_init(void *unused)
 		wait_for_device_probe();
 		driver_probe_state_dump();
 		panic("k61.stop: stopping after initcalls");
+	}
+
+	if (k61_stop_init) {
+		wait_for_device_probe();
+		driver_probe_state_dump();
+		mod_timer(&k61_stop_timer, jiffies + K61_STOP_TIMEOUT * HZ);
+		pr_info("k61.stop: init mode, stopping at the exec of /system/bin/init\n");
 	}
 
 	system_state = SYSTEM_FREEING_INITMEM;
