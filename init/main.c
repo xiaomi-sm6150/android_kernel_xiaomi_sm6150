@@ -1674,6 +1674,19 @@ static int __init bringup_stop_setup(char *str)
 }
 __setup("k61.stop", bringup_stop_setup);
 
+/*
+ * "k61.hold=<s>" keeps the kernel running for that many seconds at the
+ * k61.stop point before panicking, e.g. to read the log over the USB
+ * serial console (console=ttyGS0).
+ */
+static unsigned int bringup_hold;
+
+static int __init bringup_hold_setup(char *str)
+{
+	return !kstrtouint(str, 0, &bringup_hold);
+}
+__setup("k61.hold=", bringup_hold_setup);
+
 static int __ref kernel_init(void *unused)
 {
 	int ret;
@@ -1691,6 +1704,10 @@ static int __ref kernel_init(void *unused)
 		/* let deferred probes settle so their results are in the log */
 		wait_for_device_probe();
 		driver_probe_state_dump();
+		if (bringup_hold) {
+			pr_info("k61.stop: holding for %us\n", bringup_hold);
+			ssleep(bringup_hold);
+		}
 		panic("k61.stop: stopping after initcalls");
 	}
 
