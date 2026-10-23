@@ -4,6 +4,7 @@ obj-$(CONFIG_DMABUF_HEAPS_PAGE_POOL)	+= page_pool.o
 obj-$(CONFIG_DMABUF_HEAPS_SYSTEM)	+= system_heap.o
 obj-$(CONFIG_DMABUF_HEAPS_CMA)		+= cma_heap.o
 obj-$(CONFIG_QCOM_DMABUF_HEAPS)		+= qcom_dma_heaps.o
+obj-$(CONFIG_QCOM_LEGACY_ION)		+= qcom_legacy_ion.o
 qcom_dma_heaps-y			:= qcom_dma_heap.o qcom_dt_parser.o qcom_sg_ops.o
 qcom_dma_heaps-$(CONFIG_QCOM_DMABUF_HEAPS_SYSTEM) += qcom_system_heap.o \
 						     qcom_dynamic_page_pool.o

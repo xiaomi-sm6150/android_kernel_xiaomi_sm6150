@@ -37,6 +37,14 @@ config QCOM_DMABUF_HEAPS
 	  the appropriate defconfig option.
 	  If in doubt, say M here.
 
+config QCOM_LEGACY_ION
+	bool "/dev/ion for Android 11 vendor userspace"
+	depends on QCOM_DMABUF_HEAPS
+	help
+	  Provide the /dev/ion interface of 5.4 GKI modular ION (ABI version
+	  2, msm heap IDs) on top of the qcom DMA-BUF heaps, for vendor
+	  blobs built against the VNDK v30 libion.
+
 config QCOM_DMABUF_HEAPS_SYSTEM
 	bool "QCOM DMA-BUF System Heap"
 	depends on QCOM_DMABUF_HEAPS
