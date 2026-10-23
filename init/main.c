@@ -1669,6 +1669,7 @@ static int __ref kernel_init(void *unused)
 	if (bringup_stop) {
 		/* let deferred probes settle so their results are in the log */
 		wait_for_device_probe();
+		driver_probe_state_dump();
 		panic("k61.stop: stopping after initcalls");
 	}
 
