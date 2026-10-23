@@ -30,6 +30,7 @@
 #include <linux/sched/task.h>
 #include <uapi/linux/mount.h>
 #include <linux/fs_context.h>
+#include <linux/k61-stop.h>
 #include <linux/shmem_fs.h>
 #include <linux/mnt_idmapping.h>
 
@@ -2724,6 +2725,10 @@ static int do_remount(struct path *path, int ms_flags, int sb_flags,
 	if (!can_change_locked_flags(mnt, mnt_flags))
 		return -EPERM;
 
+	/* DEBUG (k61.stop=init): no writable block filesystem mounts */
+	if (k61_stop_init && sb->s_bdev && !(sb_flags & SB_RDONLY))
+		panic("k61.stop: refusing rw remount of %s", sb->s_id);
+
 	fc = fs_context_for_reconfigure(path->dentry, sb_flags, MS_RMT_MASK);
 	if (IS_ERR(fc))
 		return PTR_ERR(fc);
@@ -3045,6 +3050,12 @@ static int do_new_mount(struct path *path, const char *fstype, int sb_flags,
 	type = get_fs_type(fstype);
 	if (!type)
 		return -ENODEV;
+
+	/* DEBUG (k61.stop=init): no writable block filesystem mounts */
+	if (k61_stop_init && (type->fs_flags & FS_REQUIRES_DEV) &&
+	    !(sb_flags & SB_RDONLY))
+		panic("k61.stop: refusing rw mount of %s on %pd (%s)",
+		      name ?: "(null)", path->dentry, fstype);
 
 	if (type->fs_flags & FS_HAS_SUBTYPE) {
 		subtype = strchr(fstype, '.');
