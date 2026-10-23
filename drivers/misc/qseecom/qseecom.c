@@ -9602,6 +9602,46 @@ static int qseecom_create_kthreads(void)
 	return 0;
 }
 
+/*
+ * Legacy (5.4) binding: the qseecom node has no qseecom_mem, qseecom_ta_mem
+ * or user_contig_mem phandles. The regions are those of the msm ION heaps
+ * with the matching (single-bit) heap IDs from the 5.4 msm_ion_ids.h.
+ */
+static struct device_node *qseecom_legacy_heap_region(const char *name)
+{
+	static const struct {
+		const char *name;
+		u32 id;
+	} map[] = {
+		{ "qseecom_mem",	BIT(7) },	/* ION_QSECOM_HEAP_ID */
+		{ "qseecom_ta_mem",	BIT(1) },	/* ION_QSECOM_TA_HEAP_ID */
+		{ "user_contig_mem",	BIT(6) },	/* ION_USER_CONTIG_HEAP_ID */
+	};
+	struct device_node *ion, *heap, *region = NULL;
+	u32 id;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(map); i++)
+		if (!strcmp(name, map[i].name))
+			break;
+	if (i == ARRAY_SIZE(map))
+		return NULL;
+
+	ion = of_find_compatible_node(NULL, NULL, "qcom,msm-ion");
+	if (!ion)
+		return NULL;
+
+	for_each_child_of_node(ion, heap) {
+		if (!of_property_read_u32(heap, "reg", &id) && id == map[i].id) {
+			region = of_parse_phandle(heap, "memory-region", 0);
+			of_node_put(heap);
+			break;
+		}
+	}
+	of_node_put(ion);
+	return region;
+}
+
 static int qseecom_register_heap_shmbridge(struct platform_device *pdev,
 					   char *heap_mem_region_name,
 					   uint64_t *handle)
@@ -9614,6 +9654,8 @@ static int qseecom_register_heap_shmbridge(struct platform_device *pdev,
 	uint32_t ns_vm_perms[] = {PERM_READ | PERM_WRITE};
 
 	node = of_parse_phandle(pdev->dev.of_node, heap_mem_region_name, 0);
+	if (!node)
+		node = qseecom_legacy_heap_region(heap_mem_region_name);
 	if (!node) {
 		pr_err("unable to parse memory-region of heap %s\n", heap_mem_region_name);
 		return -EINVAL;
