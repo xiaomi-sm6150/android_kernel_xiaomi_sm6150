@@ -22,6 +22,8 @@
 #include <linux/dma-map-ops.h>
 #include <linux/init.h>
 #include <linux/module.h>
+#include <linux/of.h>
+#include <linux/platform_device.h>
 #include <linux/kthread.h>
 #include <linux/wait.h>
 #include <linux/async.h>
@@ -255,6 +257,36 @@ static int deferred_devs_show(struct seq_file *s, void *data)
 	return 0;
 }
 DEFINE_SHOW_ATTRIBUTE(deferred_devs);
+
+/*
+ * DEBUG (k61.stop): log the devices whose probe is still deferred, with
+ * the reason when the driver gave one, and the platform devices that no
+ * driver bound to. Bring-up only.
+ */
+static int unbound_dev_show(struct device *dev, void *data)
+{
+	const char *compat = NULL;
+
+	if (dev->driver || !dev->of_node)
+		return 0;
+
+	of_property_read_string(dev->of_node, "compatible", &compat);
+	pr_info("k61.stop: unbound %s (%s)\n", dev_name(dev), compat ?: "-");
+	return 0;
+}
+
+void driver_probe_state_dump(void)
+{
+	struct device_private *curr;
+
+	mutex_lock(&deferred_probe_mutex);
+	list_for_each_entry(curr, &deferred_probe_pending_list, deferred_probe)
+		pr_info("k61.stop: deferred %s: %s", dev_name(curr->device),
+			curr->deferred_probe_reason ?: "\n");
+	mutex_unlock(&deferred_probe_mutex);
+
+	bus_for_each_dev(&platform_bus_type, NULL, NULL, unbound_dev_show);
+}
 
 #ifdef CONFIG_MODULES
 int driver_deferred_probe_timeout = 10;
