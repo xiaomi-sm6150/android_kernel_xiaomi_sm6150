@@ -515,6 +515,15 @@ config VCPU_STALL_DETECTOR
 
 	  If you do not intend to run this kernel as a guest, say N.
 
+config QSEECOM
+	tristate "QTI Secure Execution Environment Communicator"
+	depends on QCOM_SCM && QTEE_SHM_BRIDGE
+	help
+	  The QTI Secure Execution Environment Communicator (/dev/qseecom)
+	  lets userspace load and talk to trusted applications in QSEE,
+	  e.g. the Keymaster TA behind the stock Keymaster HAL. It also
+	  provides the qseecom kernel API through QSEECOM_PROXY.
+
 config QSEECOM_PROXY
 	tristate "To enable qseecom proxy driver for kernel client"
 	help
