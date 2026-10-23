@@ -20,10 +20,59 @@
 #define QCOM_DMA_HEAP_WARN(fmt...) WARN(1, fmt)
 #endif /* CONFIG_PANIC_ON_QCOM_DMA_HEAPS_FAILURE */
 
+/*
+ * Legacy (5.4) binding: the lahaina DT describes the heaps as msm ION heaps
+ * (qcom,msm-ion), each with its single-bit 5.4 heap ID (msm_ion_ids.h) in
+ * reg and a qcom,ion-heap-type string. The plain CMA ("DMA") heaps map onto
+ * 6.1 CMA heaps with the usual names. The system heaps are created by the
+ * probe anyway, and the hypervisor-assigned and secure carveout heaps have
+ * no translation yet, so those children are skipped.
+ */
+static const struct {
+	u32 id;
+	const char *name;
+} legacy_ion_heaps[] = {
+	{ BIT(1), "qcom,qseecom-ta" },	/* ION_QSECOM_TA_HEAP_ID */
+	{ BIT(3), "qcom,display" },	/* ION_DISPLAY_HEAP_ID */
+	{ BIT(4), "qcom,adsp" },	/* ION_ADSP_HEAP_ID */
+	{ BIT(5), "qcom,audio-ml" },	/* ION_AUDIO_ML_HEAP_ID */
+	{ BIT(6), "qcom,user-contig" },	/* ION_USER_CONTIG_HEAP_ID */
+	{ BIT(7), "qcom,qseecom" },	/* ION_QSECOM_HEAP_ID */
+};
+
+static const char *legacy_ion_heap_name(struct device_node *node)
+{
+	const char *type;
+	u32 id;
+	int i;
+
+	if (of_property_read_u32(node, "reg", &id) ||
+	    of_property_read_string(node, "qcom,ion-heap-type", &type) ||
+	    strcmp(type, "DMA"))
+		return NULL;
+
+	for (i = 0; i < ARRAY_SIZE(legacy_ion_heaps); i++)
+		if (legacy_ion_heaps[i].id == id)
+			return legacy_ion_heaps[i].name;
+
+	return NULL;
+}
+
+static bool is_legacy_ion(const struct device_node *node)
+{
+	return of_device_is_compatible(node, "qcom,msm-ion");
+}
+
 static int populate_heap(struct device_node *node,
 			 struct platform_heap *heap)
 {
 	int ret;
+
+	if (is_legacy_ion(node->parent)) {
+		heap->name = legacy_ion_heap_name(node);
+		heap->type = HEAP_TYPE_CMA;
+		return heap->name ? 0 : -EINVAL;
+	}
 
 	/* Mandatory properties */
 	ret = of_property_read_string(node, "qcom,dma-heap-name", &heap->name);
@@ -135,7 +184,8 @@ struct platform_data *parse_heap_dt(struct platform_device *pdev)
 		return ERR_PTR(-ENOMEM);
 
 	for_each_available_child_of_node(dt_node, node)
-		pdata->nr++;
+		if (!is_legacy_ion(dt_node) || legacy_ion_heap_name(node))
+			pdata->nr++;
 
 	/*
 	 * No heaps defined in the devicetree. However, there may be other
@@ -152,6 +202,9 @@ struct platform_data *parse_heap_dt(struct platform_device *pdev)
 	}
 
 	for_each_available_child_of_node(dt_node, node) {
+		if (is_legacy_ion(dt_node) && !legacy_ion_heap_name(node))
+			continue;
+
 		new_dev = of_platform_device_create(node, NULL, &pdev->dev);
 		if (!new_dev) {
 			pr_err("Failed to create device %s\n", node->name);
