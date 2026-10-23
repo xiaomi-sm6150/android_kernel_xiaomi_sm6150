@@ -292,10 +292,14 @@ int mem_buf_vm_init(struct device *dev)
 	struct mem_buf_vm **p;
 	int ret, vmid;
 
+	/*
+	 * Legacy (5.4) DTs describe only the primary HLOS VM and have no
+	 * qcom,vmid; default to it.
+	 */
 	ret = of_property_read_u32(dev->of_node, "qcom,vmid", &vmid);
 	if (ret) {
-		dev_err(dev, "missing qcom,vmid property\n");
-		return ret;
+		dev_info(dev, "no qcom,vmid, assuming HLOS\n");
+		vmid = VMID_HLOS;
 	}
 	current_vmid = vmid;
 
