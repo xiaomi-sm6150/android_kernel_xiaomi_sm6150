@@ -1748,12 +1748,8 @@ struct block_device_operations {
 	ANDROID_KABI_RESERVE(2);
 };
 
-#ifdef CONFIG_COMPAT
 extern int blkdev_compat_ptr_ioctl(struct block_device *, blk_mode_t,
 				      unsigned int, unsigned long);
-#else
-#define blkdev_compat_ptr_ioctl NULL
-#endif
 
 static inline void blk_wake_io_task(struct task_struct *waiter)
 {
