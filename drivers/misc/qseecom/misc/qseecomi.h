@@ -8,7 +8,7 @@
 #define __QSEECOMI_H_
 
 /* we need to include qseecom.h present in securemsm-kernel */
-#include "../../include/uapi/linux/qseecom.h"
+#include <linux/qseecom.h>
 
 #define QSEECOM_KEY_ID_SIZE   32
 
