@@ -59,6 +59,14 @@
 #define KERNEL_VERSION_LEGACY
 #endif
 
+/* Clock and bus IOCTLs of the 5.4 UAPI, see qseecom_ioctl() */
+#define QSEECOM_IOCTL_PERF_ENABLE_REQ \
+	_IO(QSEECOM_IOC_MAGIC, 11)
+#define QSEECOM_IOCTL_PERF_DISABLE_REQ \
+	_IO(QSEECOM_IOC_MAGIC, 12)
+#define QSEECOM_IOCTL_SET_BUS_SCALING_REQ \
+	_IOWR(QSEECOM_IOC_MAGIC, 23, int)
+
 #define QSEECOM_DEV			"qseecom"
 #define QSEOS_VERSION_14		0x14
 #define QSEEE_VERSION_00		0x400000
@@ -8330,6 +8338,19 @@ long qseecom_ioctl(struct file *file,
 		pr_err("QSEECOM_IOCTL_FBE_CLEAR_KEY IOCTL is deprecated\n");
 		return -EINVAL;
 	}
+	case QSEECOM_IOCTL_PERF_ENABLE_REQ:
+	case QSEECOM_IOCTL_PERF_DISABLE_REQ:
+	case QSEECOM_IOCTL_SET_BUS_SCALING_REQ:
+		/*
+		 * Removed from the 6.1 UAPI, but Android 11 era libQSEEComAPI
+		 * still issues them. 5.4 returned success without doing
+		 * anything when HLOS does not handle the crypto clocks.
+		 */
+		if (!qseecom.no_clock_support) {
+			pr_err("Unsupported clock IOCTL: 0x%x\n", cmd);
+			return -EINVAL;
+		}
+		break;
 	default:
 		pr_err("Invalid IOCTL: 0x%x\n", cmd);
 		return -ENOIOCTLCMD;
