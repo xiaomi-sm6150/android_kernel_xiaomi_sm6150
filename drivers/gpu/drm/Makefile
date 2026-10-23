@@ -54,6 +54,7 @@ drm-y := \
 	drm_fourcc.o \
 	drm_framebuffer.o \
 	drm_gem.o \
+	drm_ioc32.o \
 	drm_ioctl.o \
 	drm_lease.o \
 	drm_managed.o \
@@ -79,7 +80,6 @@ drm-$(CONFIG_DRM_CLIENT) += \
 	drm_client_event.o \
 	drm_client_modeset.o
 drm-$(CONFIG_DRM_LIB_RANDOM) += lib/drm_random.o
-drm-$(CONFIG_COMPAT) += drm_ioc32.o
 drm-$(CONFIG_DRM_PANEL) += drm_panel.o
 drm-$(CONFIG_OF) += drm_of.o
 drm-$(CONFIG_PCI) += drm_pci.o

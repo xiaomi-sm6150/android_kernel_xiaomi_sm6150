@@ -315,10 +315,7 @@ pub(super) const fn create_fops() -> bindings::file_operations {
     fops.open = Some(bindings::drm_open);
     fops.release = Some(bindings::drm_release);
     fops.unlocked_ioctl = Some(bindings::drm_ioctl);
-    #[cfg(CONFIG_COMPAT)]
-    {
-        fops.compat_ioctl = Some(bindings::drm_compat_ioctl);
-    }
+    fops.compat_ioctl = Some(bindings::drm_compat_ioctl);
     fops.poll = Some(bindings::drm_poll);
     fops.read = Some(bindings::drm_read);
     fops.llseek = Some(bindings::noop_llseek);
