@@ -148,6 +148,7 @@ static const struct dev_pm_ops qcom_dma_heaps_pm_ops = {
 
 static const struct of_device_id qcom_dma_heap_match_table[] = {
 	{.compatible = "qcom,dma-heaps"},
+	{.compatible = "qcom,msm-ion"},	/* legacy (5.4) binding */
 	{},
 };
 
