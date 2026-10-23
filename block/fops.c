@@ -7,6 +7,7 @@
 #include <linux/init.h>
 #include <linux/mm.h>
 #include <linux/blkdev.h>
+#include <linux/k61-stop.h>
 #include <linux/buffer_head.h>
 #include <linux/mpage.h>
 #include <linux/uio.h>
@@ -489,6 +490,10 @@ static int blkdev_open(struct inode *inode, struct file *filp)
 	 */
 	filp->f_flags |= O_LARGEFILE;
 	filp->f_mode |= FMODE_NOWAIT | FMODE_BUF_RASYNC;
+
+	/* DEBUG (k61.stop=init): no block device write opens from userspace */
+	if (k61_stop_init && (filp->f_mode & FMODE_WRITE))
+		panic("k61.stop: refusing write open of %pD", filp);
 
 	if (filp->f_flags & O_NDELAY)
 		filp->f_mode |= FMODE_NDELAY;

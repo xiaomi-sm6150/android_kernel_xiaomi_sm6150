@@ -24,6 +24,7 @@
  */
 
 #include <linux/kernel_read_file.h>
+#include <linux/k61-stop.h>
 #include <linux/slab.h>
 #include <linux/file.h>
 #include <linux/fdtable.h>
@@ -1914,6 +1915,11 @@ static int do_execveat_common(int fd, struct filename *filename,
 
 	if (IS_ERR(filename))
 		return PTR_ERR(filename);
+
+	/* DEBUG (k61.stop=init): stop at the end of first-stage init */
+	if (k61_stop_init && task_pid_nr(current) == 1 &&
+	    !strcmp(filename->name, "/system/bin/init"))
+		panic("k61.stop: PID 1 exec %s", filename->name);
 
 	/*
 	 * We move the actual failure in case of RLIMIT_NPROC excess from
