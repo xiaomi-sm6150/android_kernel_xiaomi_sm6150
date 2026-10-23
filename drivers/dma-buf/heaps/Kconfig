@@ -22,3 +22,11 @@ config DMABUF_HEAPS_CMA_LEGACY
 	  from the CMA area's devicetree node, or "reserved" if the area is not
 	  defined in the devicetree. This uses the same underlying allocator as
 	  CONFIG_DMABUF_HEAPS_CMA.
+
+config QCOM_LEGACY_ION
+	bool "/dev/ion for Android 11 vendor userspace"
+	depends on QCOM_DMABUF_HEAPS
+	help
+	  Provide the /dev/ion interface of 5.4 GKI modular ION (ABI version
+	  2, msm heap IDs) on top of the qcom DMA-BUF heaps, for vendor
+	  blobs built against the VNDK v30 libion.
