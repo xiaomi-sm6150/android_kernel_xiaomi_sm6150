@@ -117,7 +117,6 @@ int mem_buf_reclaim(struct dma_buf *dmabuf);
 void *mem_buf_alloc(struct mem_buf_allocation_data *alloc_data);
 void mem_buf_free(void *membuf);
 struct gh_sgl_desc *mem_buf_get_sgl(void *membuf);
-int mem_buf_current_vmid(void);
 
 static inline u32 gh_rm_default_trans_type(void)
 {
@@ -138,16 +137,21 @@ static inline struct gh_sgl_desc *mem_buf_get_sgl(void *membuf)
 {
 	return ERR_PTR(-EINVAL);
 }
-static inline int mem_buf_current_vmid(void)
-{
-	return -EINVAL;
-}
-
 static inline u32 gh_rm_default_trans_type(void)
 {
 	return GH_RM_TRANS_TYPE_DONATE;
 }
 #endif /* CONFIG_QCOM_MEM_BUF */
+
+/* Implemented in mem-buf-ids.c, which QCOM_MEM_BUF_DEV builds */
+#if IS_ENABLED(CONFIG_QCOM_MEM_BUF_DEV)
+int mem_buf_current_vmid(void);
+#else
+static inline int mem_buf_current_vmid(void)
+{
+	return -EINVAL;
+}
+#endif
 
 
 #ifdef CONFIG_QCOM_MEM_BUF_DEV_GH
