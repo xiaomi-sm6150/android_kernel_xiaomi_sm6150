@@ -1637,6 +1637,22 @@ void __weak free_initmem(void)
 	free_initmem_default(POISON_FREE_INITMEM);
 }
 
+/*
+ * Bring-up aid: "k61.stop" on the cmdline panics once all initcalls have
+ * run, before any userspace starts. The panic dumps the log to ramoops and
+ * (with reboot=warm) warm-resets, so a test kernel booted once with
+ * fastboot boot on the stable slot leaves its log for the next boot
+ * without Android ever touching that slot's partitions.
+ */
+static bool bringup_stop;
+
+static int __init bringup_stop_setup(char *str)
+{
+	bringup_stop = true;
+	return 1;
+}
+__setup("k61.stop", bringup_stop_setup);
+
 static int __ref kernel_init(void *unused)
 {
 	int ret;
@@ -1649,6 +1665,12 @@ static int __ref kernel_init(void *unused)
 	kernel_init_freeable();
 	/* need to finish all async __init code before freeing the memory */
 	async_synchronize_full();
+
+	if (bringup_stop) {
+		/* let deferred probes settle so their results are in the log */
+		wait_for_device_probe();
+		panic("k61.stop: stopping after initcalls");
+	}
 
 	system_state = SYSTEM_FREEING_INITMEM;
 	kprobe_free_init_mem();
