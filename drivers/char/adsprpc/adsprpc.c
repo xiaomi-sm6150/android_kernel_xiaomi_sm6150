@@ -6791,6 +6791,14 @@ int fastrpc_get_info(struct fastrpc_file *fl, uint32_t *info)
 	spin_lock(&fl->hlock);
 	if (fl->set_session_info) {
 		spin_unlock(&fl->hlock);
+		/*
+		 * The 5.4 driver answered a repeated GETINFO for the same
+		 * domain again; keep that for the Android 11 libraries.
+		 */
+		if (fl->cid == cid && fl->sctx) {
+			*info = (fl->sctx->smmu.enabled ? 1 : 0);
+			goto bail;
+		}
 		ADSPRPC_ERR("Set session info invoked multiple times\n");
 		err = -EBADR;
 		goto bail;
