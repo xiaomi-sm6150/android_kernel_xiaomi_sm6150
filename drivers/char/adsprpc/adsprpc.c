@@ -341,10 +341,14 @@ static inline uint64_t ptr_to_uint64(void *ptr)
 
 static struct fastrpc_apps gfa;
 
+/*
+ * subsys is the SSR notifier name; the lahaina remoteprocs register the
+ * 5.4 subsystem names (adsp, modem, slpi, cdsp).
+ */
 static struct fastrpc_channel_ctx gcinfo[NUM_CHANNELS] = {
 	{
 		.name = "adsprpc-smd",
-		.subsys = "lpass",
+		.subsys = "adsp",
 		.spd = {
 			{
 				.servloc_name =
@@ -364,7 +368,7 @@ static struct fastrpc_channel_ctx gcinfo[NUM_CHANNELS] = {
 	},
 	{
 		.name = "mdsprpc-smd",
-		.subsys = "mpss",
+		.subsys = "modem",
 		.spd = {
 			{
 				.cid = MDSP_DOMAIN_ID,
@@ -375,7 +379,7 @@ static struct fastrpc_channel_ctx gcinfo[NUM_CHANNELS] = {
 	},
 	{
 		.name = "sdsprpc-smd",
-		.subsys = "dsps",
+		.subsys = "slpi",
 		.spd = {
 			{
 				.servloc_name =
