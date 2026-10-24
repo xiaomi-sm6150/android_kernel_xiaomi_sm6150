@@ -1164,8 +1164,16 @@ static int get_buffer_attr(struct dma_buf *buf, bool *exclusive_access, bool *hl
 	*exclusive_access = false;
 	*hlos_access = false;
 	err = mem_buf_dma_buf_get_vmperm(buf, &vmids_list, &perms, &vmids_list_len);
-	if (err)
+	if (err) {
+		/*
+		 * Not exported through mem_buf (e.g. AOSP DMA-BUF heaps): only
+		 * HLOS maps it, so it is non-secure, as 5.4 treated buffers
+		 * without ION_FLAG_SECURE.
+		 */
+		*exclusive_access = true;
+		err = 0;
 		goto bail;
+	}
 
 	/*
 	 * If one VM has access to buffer and is the current VM,
