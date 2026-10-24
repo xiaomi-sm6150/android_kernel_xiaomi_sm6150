@@ -206,7 +206,7 @@
 
 #define PERF_CAPABILITY_SUPPORT	(1 << 1)
 #define KERNEL_ERROR_CODE_V1_SUPPORT	1
-#define USERSPACE_ALLOCATION_SUPPORT	1
+#define USERSPACE_ALLOCATION_SUPPORT	0
 #define DSPSIGNAL_SUPPORT		1
 
 #define MD_GMSG_BUFFER (1000)
@@ -4197,19 +4197,12 @@ static int fastrpc_init_create_dynamic_process(struct fastrpc_file *fl,
 	}
 	fl->dsp_process_state = PROCESS_CREATE_IS_INPROGRESS;
 
-	if (init->memlen) {
-		if(init->memlen > INIT_MEMLEN_MAX_DYNAMIC || init->memlen < INIT_MEMLEN_MIN_DYNAMIC) {
-		    ADSPRPC_ERR(
-			    "init memory for process %d should be between %d and %d\n",
-			     init->memlen, INIT_MEMLEN_MIN_DYNAMIC, INIT_MEMLEN_MAX_DYNAMIC);
-		    err = -EINVAL;
-		    spin_unlock(&fl->hlock);
-		    goto bail;
-		}
-		dsp_userpd_memlen = init->memlen;
-	} else {
-		dsp_userpd_memlen = 3*one_mb;
-	}
+	/*
+	 * The 5.4 driver ignored init->memlen for dynamic processes, and the
+	 * Android 11 libadsprpc was only used with that; always donate the
+	 * default size instead of rejecting values outside the 6.1 range.
+	 */
+	dsp_userpd_memlen = 3*one_mb;
 
 	spin_unlock(&fl->hlock);
 
@@ -4250,11 +4243,12 @@ static int fastrpc_init_create_dynamic_process(struct fastrpc_file *fl,
 				"untrusted app trying to offload to signed remote process\n");
 			goto bail;
 		}
-	} else {
-		/* Trusted apps will be launched as system unsigned PDs */
-		if (fl->is_unsigned_pd)
-			uproc->attrs |= FASTRPC_MODE_SYSTEM_UNSIGNED_PD;
 	}
+	/*
+	 * Trusted apps are not launched as system unsigned PDs: the lahaina
+	 * DSP firmware predates FASTRPC_MODE_SYSTEM_UNSIGNED_PD (the 5.4
+	 * driver never set it).
+	 */
 
 	/* Disregard any privilege bits from userspace */
 	uproc->attrs &= (~FASTRPC_MODE_PRIVILEGED);
@@ -4358,8 +4352,13 @@ static int fastrpc_init_create_dynamic_process(struct fastrpc_file *fl,
 	 * critical process, adaptive QoS, CRC checks etc).
 	 */
 	ioctl.inv.sc = REMOTE_SCALARS_MAKE(6, 4, 0);
+	/*
+	 * The lahaina DSP firmware takes the attrs and siglen as two more
+	 * input buffers of the create-with-attributes method, as the 5.4
+	 * driver sent them.
+	 */
 	if (uproc->attrs)
-		ioctl.inv.sc = REMOTE_SCALARS_MAKE(7, 4, 0);
+		ioctl.inv.sc = REMOTE_SCALARS_MAKE(7, 6, 0);
 	ioctl.inv.pra = ra;
 	ioctl.fds = fds;
 	ioctl.attrs = NULL;
@@ -5765,9 +5764,13 @@ int fastrpc_internal_mmap(struct fastrpc_file *fl,
 		return err;
 	}
 	mutex_lock(&fl->internal_map_mutex);
-	/* Pages for unsigned PD's user-heap should be allocated in userspace */
-	if (((ud->flags == ADSP_MMAP_ADD_PAGES) ||
-	    (ud->flags == ADSP_MMAP_ADD_PAGES_LLC)) && !fl->is_unsigned_pd) {
+	/*
+	 * The Android 11 libadsprpc doesn't allocate the unsigned PD's
+	 * user-heap pages in userspace (USERSPACE_ALLOCATION_SUPPORT is not
+	 * advertised); allocate them here for every PD, as the 5.4 driver did.
+	 */
+	if ((ud->flags == ADSP_MMAP_ADD_PAGES) ||
+	    (ud->flags == ADSP_MMAP_ADD_PAGES_LLC)) {
 		if (ud->vaddrin) {
 			err = -EINVAL;
 			ADSPRPC_ERR(
