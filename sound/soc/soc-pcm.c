@@ -1354,6 +1354,16 @@ static struct snd_soc_pcm_runtime *dpcm_get_be(struct snd_soc_card *card,
 			dev_dbg(card->dev, "ASoC: try BE : %s\n",
 				w ? w->name : "(not set)");
 
+#ifdef CONFIG_AUDIO_QGKI
+			/*
+			 * A CPU DAI widget only selects the BE whose stream
+			 * name matches it, several BEs can share a CPU DAI.
+			 */
+			if (w && w == widget && i < be->dai_link->num_cpus &&
+			    !(be->dai_link->stream_name && w->sname &&
+			      !strcmp(be->dai_link->stream_name, w->sname)))
+				continue;
+#endif
 			if (w == widget)
 				return be;
 		}
