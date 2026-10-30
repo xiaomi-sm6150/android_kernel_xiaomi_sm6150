@@ -33,7 +33,14 @@ static int qcom_dma_heap_probe(struct platform_device *pdev)
 	int i;
 	struct platform_data *heaps;
 
-	qcom_system_heap_create("qcom,system", "system", false);
+	/*
+	 * No "system" alias: the Android 11 vendor userspace allocates
+	 * through /dev/ion, like on 5.4. With /dev/dma_heap/system present,
+	 * Codec2 switches to DMA-BUF heaps (debug.c2.use_dmabufheaps) and
+	 * asks the vendor Codec2 store for a heap name, which an Android 11
+	 * store can't answer, so no linear buffer can be allocated.
+	 */
+	qcom_system_heap_create("qcom,system", NULL, false);
 #ifdef CONFIG_QCOM_DMABUF_HEAPS_SYSTEM_UNCACHED
 	qcom_system_heap_create("qcom,system-uncached", NULL, true);
 #endif
