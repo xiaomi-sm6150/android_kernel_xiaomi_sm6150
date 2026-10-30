@@ -100,6 +100,13 @@ config SND_SOC_USB
 	  notify the ASoC USB DPCM backend DAI link about available USB audio
 	  devices.  Based on the notifications, sequences to enable the audio
 	  stream can be taken based on the design.
+config AUDIO_QGKI
+	bool "Audio QGKI support"
+	help
+	  Qualcomm extensions to the ALSA and ASoC core that the APR audio
+	  techpack and the Android 11 audio HAL rely on (card online state,
+	  'U' and compat ioctls, hostless and dynamic DPCM links, compress
+	  offload extensions), as in the 5.4 vendor kernel.
 
 # All the supported SoCs
 source "sound/soc/adi/Kconfig"
