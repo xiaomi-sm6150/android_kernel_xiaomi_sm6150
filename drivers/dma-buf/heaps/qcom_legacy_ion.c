@@ -23,7 +23,7 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
-#include <uapi/linux/ion.h>
+#include <linux/ion.h>
 
 #define ION_IOC_MAGIC		'I'
 #define ION_IOC_ALLOC		_IOWR(ION_IOC_MAGIC, 0, struct ion_allocation_data)
@@ -130,6 +130,47 @@ static int legacy_ion_alloc(struct ion_allocation_data *data)
 
 	return ret;
 }
+
+/**
+ * ion_alloc - allocate a dma-buf with a 5.4 ION heap mask and flags
+ * @len:		size in bytes
+ * @heap_id_mask:	mask of 5.4 msm heap IDs (ION_HEAP())
+ * @flags:		5.4 ION flags (ION_FLAG_CACHED, ION_FLAG_CP_*)
+ *
+ * The kernel counterpart of ION_IOC_ALLOC, with the same heap selection, for
+ * the 5.4 drivers that allocate their own buffers (msm_vidc, msm_cvp).
+ */
+struct dma_buf *ion_alloc(size_t len, unsigned int heap_id_mask,
+			  unsigned int flags)
+{
+	const struct legacy_ion_heap *h;
+	struct dma_buf *dbuf = ERR_PTR(-ENODEV);
+	struct dma_heap *heap;
+	const char *name;
+	int i;
+
+	if (!len)
+		return ERR_PTR(-EINVAL);
+
+	for (i = 0; i < ARRAY_SIZE(legacy_ion_heaps); i++) {
+		h = &legacy_ion_heaps[i];
+		if (!(heap_id_mask & BIT(h->id)))
+			continue;
+
+		name = legacy_ion_backing_heap(h, flags);
+		heap = name ? dma_heap_find(name) : NULL;
+		if (!heap)
+			continue;
+
+		dbuf = dma_heap_buffer_alloc(heap, len, O_RDWR, 0);
+		dma_heap_put(heap);
+		if (!IS_ERR(dbuf))
+			break;
+	}
+
+	return dbuf;
+}
+EXPORT_SYMBOL(ion_alloc);
 
 static int legacy_ion_query_heaps(struct ion_heap_query *query)
 {
