@@ -915,6 +915,7 @@ int snd_compr_stop_error(struct snd_compr_stream *stream,
 }
 EXPORT_SYMBOL_GPL(snd_compr_stop_error);
 
+#ifndef CONFIG_AUDIO_QGKI
 static int snd_compress_wait_for_drain(struct snd_compr_stream *stream)
 {
 	int ret;
@@ -949,6 +950,7 @@ static int snd_compress_wait_for_drain(struct snd_compr_stream *stream)
 
 	return ret;
 }
+#endif
 
 static int snd_compr_drain(struct snd_compr_stream *stream)
 {
@@ -967,6 +969,7 @@ static int snd_compr_drain(struct snd_compr_stream *stream)
 	}
 
 	retval = stream->ops->trigger(stream, SND_COMPR_TRIGGER_DRAIN);
+#ifndef CONFIG_AUDIO_QGKI
 	if (retval) {
 		pr_debug("SND_COMPR_TRIGGER_DRAIN failed %d\n", retval);
 		wake_up(&stream->runtime->sleep);
@@ -974,6 +977,14 @@ static int snd_compr_drain(struct snd_compr_stream *stream)
 	}
 
 	return snd_compress_wait_for_drain(stream);
+#else
+	/* the driver blocks in the trigger until the stream is drained */
+	if (!retval) {
+		stream->runtime->state = SNDRV_PCM_STATE_DRAINING;
+		wake_up(&stream->runtime->sleep);
+	}
+	return retval;
+#endif
 }
 
 static int snd_compr_next_track(struct snd_compr_stream *stream)
@@ -1026,8 +1037,11 @@ static int snd_compr_partial_drain(struct snd_compr_stream *stream)
 	if (stream->next_track == false)
 		return -EPERM;
 
+#ifndef CONFIG_AUDIO_QGKI
 	stream->partial_drain = true;
+#endif
 	retval = stream->ops->trigger(stream, SND_COMPR_TRIGGER_PARTIAL_DRAIN);
+#ifndef CONFIG_AUDIO_QGKI
 	if (retval) {
 		pr_debug("Partial drain returned failure\n");
 		wake_up(&stream->runtime->sleep);
@@ -1036,6 +1050,10 @@ static int snd_compr_partial_drain(struct snd_compr_stream *stream)
 
 	stream->next_track = false;
 	return snd_compress_wait_for_drain(stream);
+#else
+	stream->next_track = false;
+	return retval;
+#endif
 }
 
 #if IS_ENABLED(CONFIG_SND_COMPRESS_ACCEL)
@@ -1312,6 +1330,49 @@ EXPORT_SYMBOL_GPL(snd_compr_task_finished);
 MODULE_IMPORT_NS("DMA_BUF");
 #endif /* CONFIG_SND_COMPRESS_ACCEL */
 
+#ifdef CONFIG_AUDIO_QGKI
+/*
+ * ioctls that run without the device lock: the driver blocks in its
+ * drain trigger, and the timestamp and avail queries have to work while
+ * it does
+ */
+static int snd_compress_unlocked_ioctl(struct snd_compr_stream *stream,
+				       unsigned int cmd, unsigned long arg)
+{
+	switch (cmd) {
+	case SNDRV_COMPRESS_IOCTL_VERSION:
+		return put_user(SNDRV_COMPRESS_VERSION,
+				(int __user *)arg) ? -EFAULT : 0;
+	case SNDRV_COMPRESS_GET_CAPS:
+		return snd_compr_get_caps(stream, arg);
+#ifndef COMPR_CODEC_CAPS_OVERFLOW
+	case SNDRV_COMPRESS_GET_CODEC_CAPS:
+		return snd_compr_get_codec_caps(stream, arg);
+#endif
+	}
+
+	if (stream->direction == SND_COMPRESS_ACCEL)
+		return -ENOIOCTLCMD;
+
+	switch (cmd) {
+	case SNDRV_COMPRESS_TSTAMP:
+		return snd_compr_tstamp(stream, arg, true);
+	case SNDRV_COMPRESS_TSTAMP64:
+		return snd_compr_tstamp(stream, arg, false);
+	case SNDRV_COMPRESS_AVAIL:
+		return snd_compr_ioctl_avail(stream, arg, true);
+	case SNDRV_COMPRESS_AVAIL64:
+		return snd_compr_ioctl_avail(stream, arg, false);
+	case SNDRV_COMPRESS_DRAIN:
+		return snd_compr_drain(stream);
+	case SNDRV_COMPRESS_PARTIAL_DRAIN:
+		return snd_compr_partial_drain(stream);
+	}
+
+	return -ENOIOCTLCMD;
+}
+#endif
+
 static long snd_compr_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 {
 	struct snd_compr_file *data = f->private_data;
@@ -1321,6 +1382,15 @@ static long snd_compr_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 		return -EFAULT;
 
 	stream = &data->stream;
+
+#ifdef CONFIG_AUDIO_QGKI
+	{
+		int ret = snd_compress_unlocked_ioctl(stream, cmd, arg);
+
+		if (ret != -ENOIOCTLCMD)
+			return ret;
+	}
+#endif
 
 	guard(mutex)(&stream->device->lock);
 	switch (cmd) {
