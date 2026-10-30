@@ -4527,7 +4527,11 @@ void snd_soc_dapm_connect_dai_link_widgets(struct snd_soc_card *card)
 		 * dynamic FE links have no fixed DAI mapping.
 		 * CODEC<->CODEC links have no direct connection.
 		 */
+#ifdef CONFIG_AUDIO_QGKI
+		if (rtd->dai_link->dynamic || rtd->dai_link->dynamic_be)
+#else
 		if (rtd->dai_link->dynamic)
+#endif
 			continue;
 
 		/*

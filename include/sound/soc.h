@@ -803,6 +803,12 @@ struct snd_soc_dai_link {
 	 */
 	unsigned int no_host_mode:2;
 
+#ifdef CONFIG_AUDIO_QGKI
+	/* This DAI link can be reconfigured at runtime (Backend) */
+	unsigned int dynamic_be:1;
+
+#endif
+
 	/* DPCM used FE & BE merged format */
 	unsigned int dpcm_merged_format:1;
 	/* DPCM used FE & BE merged channel */
