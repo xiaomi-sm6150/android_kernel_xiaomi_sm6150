@@ -469,6 +469,7 @@ struct snd_pcm_substream {
 	const struct snd_pcm_ops *ops;
 	/* -- runtime information -- */
 	struct snd_pcm_runtime *runtime;
+	unsigned int hw_no_buffer: 1; /* substream may not have a buffer */
         /* -- timer section -- */
 	struct snd_timer *timer;		/* timer */
 	unsigned timer_running: 1;	/* time is running */

@@ -333,9 +333,32 @@ bool snd_soc_runtime_ignore_pmdown_time(struct snd_soc_pcm_runtime *rtd)
  *
  * Sets the substream runtime hardware parameters.
  */
+/* ASoC no host IO hardware */
+static const struct snd_pcm_hardware no_host_hardware = {
+	.info			= SNDRV_PCM_INFO_MMAP |
+				  SNDRV_PCM_INFO_MMAP_VALID |
+				  SNDRV_PCM_INFO_INTERLEAVED |
+				  SNDRV_PCM_INFO_PAUSE |
+				  SNDRV_PCM_INFO_RESUME,
+	.formats		= SNDRV_PCM_FMTBIT_S16_LE |
+				  SNDRV_PCM_FMTBIT_S32_LE,
+	.period_bytes_min	= PAGE_SIZE >> 2,
+	.period_bytes_max	= PAGE_SIZE >> 1,
+	.periods_min		= 2,
+	.periods_max		= 4,
+	/*
+	 * Increase the max buffer bytes as PAGE_SIZE bytes is
+	 * not enough to encompass all the scenarios sent by
+	 * userspapce.
+	 */
+	.buffer_bytes_max	= PAGE_SIZE * 4,
+};
+
 int snd_soc_set_runtime_hwparams(struct snd_pcm_substream *substream,
 	const struct snd_pcm_hardware *hw)
 {
+	if (!substream->runtime)
+		return 0;
 	substream->runtime->hw = *hw;
 
 	return 0;
@@ -791,6 +814,9 @@ static int __soc_pcm_open(struct snd_soc_pcm_runtime *rtd,
 
 	for_each_rtd_components(rtd, i, component)
 		pinctrl_pm_select_default_state(component->dev);
+
+	if (rtd->dai_link->no_host_mode == SND_SOC_DAI_LINK_NO_HOST)
+		snd_soc_set_runtime_hwparams(substream, &no_host_hardware);
 
 	ret = snd_soc_pcm_component_pm_runtime_get(rtd, substream);
 	if (ret < 0)
@@ -2956,6 +2982,14 @@ int soc_new_pcm(struct snd_soc_pcm_runtime *rtd, int num)
 			rtd->ops.mmap		= snd_soc_pcm_component_mmap;
 		if (drv->ack)
 			rtd->ops.ack            = snd_soc_pcm_component_ack;
+	}
+
+	/* setup any hostless PCMs - i.e. no host IO is performed */
+	if (rtd->dai_link->no_host_mode) {
+		if (pcm->streams[SNDRV_PCM_STREAM_PLAYBACK].substream)
+			pcm->streams[SNDRV_PCM_STREAM_PLAYBACK].substream->hw_no_buffer = 1;
+		if (pcm->streams[SNDRV_PCM_STREAM_CAPTURE].substream)
+			pcm->streams[SNDRV_PCM_STREAM_CAPTURE].substream->hw_no_buffer = 1;
 	}
 
 	if (playback)
