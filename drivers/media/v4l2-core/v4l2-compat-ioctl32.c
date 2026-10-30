@@ -366,6 +366,8 @@ static int get_v4l2_plane32(struct v4l2_plane *p64,
 		.m		= m,
 		.data_offset	= plane32.data_offset,
 	};
+	/* msm_vidc passes the buffer fd and offset in reserved, as on 5.4 */
+	memcpy(p64->reserved, plane32.reserved, sizeof(p64->reserved));
 
 	return 0;
 }
@@ -382,6 +384,7 @@ static int put_v4l2_plane32(struct v4l2_plane *p64,
 		.length		= p64->length,
 		.data_offset	= p64->data_offset,
 	};
+	memcpy(plane32.reserved, p64->reserved, sizeof(plane32.reserved));
 
 	switch (memory) {
 	case V4L2_MEMORY_MMAP:
