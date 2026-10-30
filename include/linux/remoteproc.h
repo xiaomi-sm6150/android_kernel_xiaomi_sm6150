@@ -654,6 +654,7 @@ struct rproc_vdev {
 	u32 index;
 };
 
+struct rproc *rproc_get_by_node(struct device_node *np);
 struct rproc *rproc_get_by_phandle(phandle phandle);
 struct rproc *rproc_get_by_child(struct device *dev);
 
