@@ -510,6 +510,8 @@ int snd_soc_ret(const struct device *dev, int ret, const char *fmt, ...);
 static inline int snd_soc_set_runtime_hwparams(struct snd_pcm_substream *substream,
 					       const struct snd_pcm_hardware *hw)
 {
+	if (!substream->runtime)
+		return 0;
 	substream->runtime->hw = *hw;
 
 	return 0;
@@ -635,6 +637,10 @@ struct snd_soc_compr_ops {
 struct snd_soc_component*
 snd_soc_rtdcom_lookup(struct snd_soc_pcm_runtime *rtd,
 		       const char *driver_name);
+
+/* DAI Link Host Mode Support */
+#define SND_SOC_DAI_LINK_NO_HOST		0x1
+#define SND_SOC_DAI_LINK_OPT_HOST		0x2
 
 struct snd_soc_dai_link_component {
 	const char *name;
@@ -790,6 +796,12 @@ struct snd_soc_dai_link {
 
 	/* This DAI link can route to other DAI links at runtime (Frontend)*/
 	unsigned int dynamic:1;
+
+	/*
+	 * This DAI can support no host IO (no pcm data is
+	 * copied to from host)
+	 */
+	unsigned int no_host_mode:2;
 
 	/* DPCM used FE & BE merged format */
 	unsigned int dpcm_merged_format:1;
