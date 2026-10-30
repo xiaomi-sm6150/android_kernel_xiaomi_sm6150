@@ -520,6 +520,9 @@ static struct snd_compr_ops soc_compr_ops = {
 	.ack		= soc_compr_ack,
 	.get_caps	= snd_soc_component_compr_get_caps,
 	.get_codec_caps = snd_soc_component_compr_get_codec_caps,
+#ifdef CONFIG_AUDIO_QGKI
+	.set_next_track_param = snd_soc_component_compr_set_next_track_param,
+#endif
 };
 
 /* ASoC Dynamic Compress operations */
@@ -535,6 +538,9 @@ static struct snd_compr_ops soc_compr_dyn_ops = {
 	.ack		= soc_compr_ack,
 	.get_caps	= snd_soc_component_compr_get_caps,
 	.get_codec_caps = snd_soc_component_compr_get_codec_caps,
+#ifdef CONFIG_AUDIO_QGKI
+	.set_next_track_param = snd_soc_component_compr_set_next_track_param,
+#endif
 };
 
 /**
