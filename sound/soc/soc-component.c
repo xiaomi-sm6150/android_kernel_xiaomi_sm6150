@@ -992,6 +992,26 @@ int snd_soc_pcm_component_ioctl(struct snd_pcm_substream *substream,
 	return snd_pcm_lib_ioctl(substream, cmd, arg);
 }
 
+#ifdef CONFIG_AUDIO_QGKI
+int snd_soc_pcm_component_compat_ioctl(struct snd_pcm_substream *substream,
+				       unsigned int cmd, void __user *arg)
+{
+	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
+	struct snd_soc_component *component;
+	int i;
+
+	/* FIXME: use 1st ioctl */
+	for_each_rtd_components(rtd, i, component)
+		if (component->driver->compat_ioctl)
+			return soc_component_ret(
+				component,
+				component->driver->compat_ioctl(component,
+						substream, cmd, arg));
+
+	return snd_pcm_lib_ioctl(substream, cmd, arg);
+}
+#endif
+
 int snd_soc_pcm_component_sync_stop(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
