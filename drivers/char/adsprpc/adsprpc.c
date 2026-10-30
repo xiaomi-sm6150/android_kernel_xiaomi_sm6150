@@ -7051,6 +7051,12 @@ static int fastrpc_check_pd_status(struct fastrpc_file *fl, char *sloc_name)
 			goto bail;
 		}
 #if IS_ENABLED(CONFIG_QCOM_PDR_HELPERS)
+		/*
+		 * Nothing reports a PD up without a PDR lookup for it (the
+		 * lahaina DT has none for the SLPI sensors PD), so don't wait.
+		 */
+		if (!me->channel[cid].spd[session].pdrhandle)
+			goto bail;
 		if (!strcmp(fl->servloc_name,
 			AUDIO_PDR_SERVICE_LOCATION_CLIENT_NAME) || !strcmp(fl->servloc_name,
 			SENSORS_PDR_ADSP_SERVICE_LOCATION_CLIENT_NAME) ||
