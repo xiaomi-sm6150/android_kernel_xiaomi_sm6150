@@ -2942,6 +2942,10 @@ int soc_new_pcm(struct snd_soc_pcm_runtime *rtd, int num)
 
 		if (drv->ioctl)
 			rtd->ops.ioctl		= snd_soc_pcm_component_ioctl;
+#ifdef CONFIG_AUDIO_QGKI
+		if (drv->compat_ioctl)
+			rtd->ops.compat_ioctl	= snd_soc_pcm_component_compat_ioctl;
+#endif
 		if (drv->sync_stop)
 			rtd->ops.sync_stop	= snd_soc_pcm_component_sync_stop;
 		if (drv->copy_user)
