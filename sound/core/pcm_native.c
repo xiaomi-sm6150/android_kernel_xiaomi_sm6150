@@ -3324,6 +3324,16 @@ static int snd_pcm_forward_ioctl(struct snd_pcm_substream *substream,
 	return result < 0 ? result : 0;
 }
 
+#ifdef CONFIG_AUDIO_QGKI
+static int snd_user_ioctl(struct snd_pcm_substream *substream,
+				unsigned int cmd, void __user *arg)
+{
+	if (PCM_RUNTIME_CHECK(substream))
+		return -ENXIO;
+	return snd_pcm_ops_ioctl(substream, cmd, arg);
+}
+#endif
+
 static int snd_pcm_common_ioctl(struct file *file,
 				 struct snd_pcm_substream *substream,
 				 unsigned int cmd, void __user *arg)
@@ -3428,6 +3438,11 @@ static int snd_pcm_common_ioctl(struct file *file,
 		return snd_pcm_rewind_ioctl(substream, arg);
 	case SNDRV_PCM_IOCTL_FORWARD:
 		return snd_pcm_forward_ioctl(substream, arg);
+#ifdef CONFIG_AUDIO_QGKI
+	default:
+		if (((cmd >> 8) & 0xff) == 'U')
+			return snd_user_ioctl(substream, cmd, arg);
+#endif
 	}
 	pcm_dbg(substream->pcm, "unknown ioctl = 0x%x\n", cmd);
 	return -ENOTTY;
@@ -3438,9 +3453,16 @@ static long snd_pcm_ioctl(struct file *file, unsigned int cmd,
 {
 	struct snd_pcm_file *pcm_file;
 
+	unsigned char ioctl_magic;
+
 	pcm_file = file->private_data;
 
-	if (((cmd >> 8) & 0xff) != 'A')
+	ioctl_magic = ((cmd >> 8) & 0xff);
+#ifdef CONFIG_AUDIO_QGKI
+	if (ioctl_magic != 'A' && ioctl_magic != 'U')
+#else
+	if (ioctl_magic != 'A')
+#endif
 		return -ENOTTY;
 
 	return snd_pcm_common_ioctl(file, pcm_file->substream, cmd,
