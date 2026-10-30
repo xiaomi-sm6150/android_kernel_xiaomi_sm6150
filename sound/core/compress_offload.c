@@ -1331,6 +1331,28 @@ MODULE_IMPORT_NS("DMA_BUF");
 #endif /* CONFIG_SND_COMPRESS_ACCEL */
 
 #ifdef CONFIG_AUDIO_QGKI
+static int snd_compr_set_next_track_param(struct snd_compr_stream *stream,
+		unsigned long arg)
+{
+	union snd_codec_options codec_options;
+	int retval;
+
+	/* set next track params when stream is running or has been setup */
+	if (stream->runtime->state != SNDRV_PCM_STATE_SETUP &&
+			stream->runtime->state != SNDRV_PCM_STATE_RUNNING)
+		return -EPERM;
+
+	if (!stream->ops->set_next_track_param)
+		return -ENOTTY;
+
+	if (copy_from_user(&codec_options, (void __user *)arg,
+				sizeof(codec_options)))
+		return -EFAULT;
+
+	retval = stream->ops->set_next_track_param(stream, &codec_options);
+	return retval;
+}
+
 /*
  * ioctls that run without the device lock: the driver blocks in its
  * drain trigger, and the timestamp and avail queries have to work while
@@ -1411,6 +1433,10 @@ static long snd_compr_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 		return snd_compr_set_metadata(stream, arg);
 	case SNDRV_COMPRESS_GET_METADATA:
 		return snd_compr_get_metadata(stream, arg);
+#ifdef CONFIG_AUDIO_QGKI
+	case SNDRV_COMPRESS_SET_NEXT_TRACK_PARAM:
+		return snd_compr_set_next_track_param(stream, arg);
+#endif
 	}
 
 	if (stream->direction == SND_COMPRESS_ACCEL) {

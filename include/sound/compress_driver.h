@@ -118,6 +118,9 @@ struct snd_compr_stream {
 	bool metadata_set;
 	bool next_track;
 	bool partial_drain;
+#ifdef CONFIG_AUDIO_QGKI
+	struct snd_soc_pcm_runtime *be;
+#endif
 	bool pause_in_draining;
 	void *private_data;
 	struct snd_dma_buffer dma_buffer;
@@ -183,6 +186,10 @@ struct snd_compr_ops {
 #endif
 
 	ANDROID_KABI_RESERVE(1);
+#ifdef CONFIG_AUDIO_QGKI
+	int (*set_next_track_param)(struct snd_compr_stream *stream,
+			union snd_codec_options *codec_options);
+#endif
 };
 
 /**
