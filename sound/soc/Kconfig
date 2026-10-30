@@ -65,6 +65,14 @@ config SND_SOC_UTILS_KUNIT_TEST
 config SND_SOC_ACPI
 	tristate
 
+config AUDIO_QGKI
+	bool "Audio QGKI support"
+	help
+	  Qualcomm extensions to the ALSA and ASoC core that the APR audio
+	  techpack and the Android 11 audio HAL rely on (card online state,
+	  'U' and compat ioctls, hostless and dynamic DPCM links, compress
+	  offload extensions), as in the 5.4 vendor kernel.
+
 # All the supported SoCs
 source "sound/soc/adi/Kconfig"
 source "sound/soc/amd/Kconfig"
