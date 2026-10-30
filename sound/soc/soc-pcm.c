@@ -2808,10 +2808,17 @@ static int soc_get_playback_capture(struct snd_soc_pcm_runtime *rtd,
 				}
 			}
 			if (!*playback) {
+#ifdef CONFIG_AUDIO_QGKI
+				/* 5.4 dropped the direction silently */
+				dev_dbg(rtd->card->dev,
+					"No CPU DAIs support playback for stream %s\n",
+					rtd->dai_link->stream_name);
+#else
 				dev_err(rtd->card->dev,
 					"No CPU DAIs support playback for stream %s\n",
 					rtd->dai_link->stream_name);
 				return -EINVAL;
+#endif
 			}
 		}
 		if (rtd->dai_link->dpcm_capture) {
@@ -2825,10 +2832,17 @@ static int soc_get_playback_capture(struct snd_soc_pcm_runtime *rtd,
 			}
 
 			if (!*capture) {
+#ifdef CONFIG_AUDIO_QGKI
+				/* 5.4 dropped the direction silently */
+				dev_dbg(rtd->card->dev,
+					"No CPU DAIs support capture for stream %s\n",
+					rtd->dai_link->stream_name);
+#else
 				dev_err(rtd->card->dev,
 					"No CPU DAIs support capture for stream %s\n",
 					rtd->dai_link->stream_name);
 				return -EINVAL;
+#endif
 			}
 		}
 	} else {
