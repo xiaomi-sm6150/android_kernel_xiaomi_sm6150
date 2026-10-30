@@ -135,6 +135,11 @@ struct snd_card {
 
 	size_t total_pcm_alloc_bytes;	/* total amount of allocated buffers */
 	struct mutex memory_mutex;	/* protection for the above */
+#ifdef CONFIG_AUDIO_QGKI
+	int offline;			/* if this sound card is offline */
+	unsigned long offline_change;
+	wait_queue_head_t offline_poll_wait;
+#endif
 #ifdef CONFIG_SND_DEBUG
 	struct dentry *debugfs_root;    /* debugfs root for card */
 #endif
@@ -311,6 +316,11 @@ int snd_card_file_add(struct snd_card *card, struct file *file);
 int snd_card_file_remove(struct snd_card *card, struct file *file);
 
 struct snd_card *snd_card_ref(int card);
+
+#ifdef CONFIG_AUDIO_QGKI
+void snd_card_change_online_state(struct snd_card *card, int online);
+bool snd_card_is_online_state(struct snd_card *card);
+#endif
 
 /**
  * snd_card_unref - Unreference the card object

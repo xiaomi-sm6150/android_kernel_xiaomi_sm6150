@@ -434,6 +434,10 @@ enum snd_soc_pcm_subclass {
 	SND_SOC_PCM_CLASS_BE	= 1,
 };
 
+#ifdef CONFIG_AUDIO_QGKI
+void snd_soc_card_change_online_state(struct snd_soc_card *soc_card,
+				      int online);
+#endif
 int snd_soc_register_card(struct snd_soc_card *card);
 void snd_soc_unregister_card(struct snd_soc_card *card);
 int devm_snd_soc_register_card(struct device *dev, struct snd_soc_card *card);
