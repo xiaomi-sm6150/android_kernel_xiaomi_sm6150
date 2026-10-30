@@ -830,6 +830,7 @@ int snd_compr_stop_error(struct snd_compr_stream *stream,
 }
 EXPORT_SYMBOL_GPL(snd_compr_stop_error);
 
+#ifndef CONFIG_AUDIO_QGKI
 static int snd_compress_wait_for_drain(struct snd_compr_stream *stream)
 {
 	int ret;
@@ -864,6 +865,7 @@ static int snd_compress_wait_for_drain(struct snd_compr_stream *stream)
 
 	return ret;
 }
+#endif
 
 static int snd_compr_drain(struct snd_compr_stream *stream)
 {
@@ -882,6 +884,7 @@ static int snd_compr_drain(struct snd_compr_stream *stream)
 	}
 
 	retval = stream->ops->trigger(stream, SND_COMPR_TRIGGER_DRAIN);
+#ifndef CONFIG_AUDIO_QGKI
 	if (retval) {
 		pr_debug("SND_COMPR_TRIGGER_DRAIN failed %d\n", retval);
 		wake_up(&stream->runtime->sleep);
@@ -889,6 +892,14 @@ static int snd_compr_drain(struct snd_compr_stream *stream)
 	}
 
 	return snd_compress_wait_for_drain(stream);
+#else
+	/* the driver blocks in the trigger until the stream is drained */
+	if (!retval) {
+		stream->runtime->state = SNDRV_PCM_STATE_DRAINING;
+		wake_up(&stream->runtime->sleep);
+	}
+	return retval;
+#endif
 }
 
 static int snd_compr_next_track(struct snd_compr_stream *stream)
@@ -941,8 +952,11 @@ static int snd_compr_partial_drain(struct snd_compr_stream *stream)
 	if (stream->next_track == false)
 		return -EPERM;
 
+#ifndef CONFIG_AUDIO_QGKI
 	stream->partial_drain = true;
+#endif
 	retval = stream->ops->trigger(stream, SND_COMPR_TRIGGER_PARTIAL_DRAIN);
+#ifndef CONFIG_AUDIO_QGKI
 	if (retval) {
 		pr_debug("Partial drain returned failure\n");
 		wake_up(&stream->runtime->sleep);
@@ -951,7 +965,60 @@ static int snd_compr_partial_drain(struct snd_compr_stream *stream)
 
 	stream->next_track = false;
 	return snd_compress_wait_for_drain(stream);
+#else
+	stream->next_track = false;
+	return retval;
+#endif
 }
+
+#ifdef CONFIG_AUDIO_QGKI
+/*
+ * ioctls that run without the device lock: the driver blocks in its
+ * drain trigger, and the timestamp and avail queries have to work while
+ * it does
+ */
+static int snd_compress_simple_ioctls(struct file *file,
+				struct snd_compr_stream *stream,
+				unsigned int cmd, unsigned long arg)
+{
+	int retval = -ENOTTY;
+
+	switch (_IOC_NR(cmd)) {
+	case _IOC_NR(SNDRV_COMPRESS_IOCTL_VERSION):
+		retval = put_user(SNDRV_COMPRESS_VERSION,
+				(int __user *)arg) ? -EFAULT : 0;
+		break;
+
+	case _IOC_NR(SNDRV_COMPRESS_GET_CAPS):
+		retval = snd_compr_get_caps(stream, arg);
+		break;
+
+#ifndef COMPR_CODEC_CAPS_OVERFLOW
+	case _IOC_NR(SNDRV_COMPRESS_GET_CODEC_CAPS):
+		retval = snd_compr_get_codec_caps(stream, arg);
+		break;
+#endif
+
+	case _IOC_NR(SNDRV_COMPRESS_TSTAMP):
+		retval = snd_compr_tstamp(stream, arg);
+		break;
+
+	case _IOC_NR(SNDRV_COMPRESS_AVAIL):
+		retval = snd_compr_ioctl_avail(stream, arg);
+		break;
+
+	case _IOC_NR(SNDRV_COMPRESS_DRAIN):
+		retval = snd_compr_drain(stream);
+		break;
+
+	case _IOC_NR(SNDRV_COMPRESS_PARTIAL_DRAIN):
+		retval = snd_compr_partial_drain(stream);
+		break;
+	}
+
+	return retval;
+}
+#endif
 
 static long snd_compr_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 {
@@ -966,6 +1033,7 @@ static long snd_compr_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 
 	mutex_lock(&stream->device->lock);
 	switch (_IOC_NR(cmd)) {
+#ifndef CONFIG_AUDIO_QGKI
 	case _IOC_NR(SNDRV_COMPRESS_IOCTL_VERSION):
 		retval = put_user(SNDRV_COMPRESS_VERSION,
 				(int __user *)arg) ? -EFAULT : 0;
@@ -977,6 +1045,7 @@ static long snd_compr_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 	case _IOC_NR(SNDRV_COMPRESS_GET_CODEC_CAPS):
 		retval = snd_compr_get_codec_caps(stream, arg);
 		break;
+#endif
 #endif
 	case _IOC_NR(SNDRV_COMPRESS_SET_PARAMS):
 		retval = snd_compr_set_params(stream, arg);
@@ -990,12 +1059,14 @@ static long snd_compr_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 	case _IOC_NR(SNDRV_COMPRESS_GET_METADATA):
 		retval = snd_compr_get_metadata(stream, arg);
 		break;
+#ifndef CONFIG_AUDIO_QGKI
 	case _IOC_NR(SNDRV_COMPRESS_TSTAMP):
 		retval = snd_compr_tstamp(stream, arg);
 		break;
 	case _IOC_NR(SNDRV_COMPRESS_AVAIL):
 		retval = snd_compr_ioctl_avail(stream, arg);
 		break;
+#endif
 	case _IOC_NR(SNDRV_COMPRESS_PAUSE):
 		retval = snd_compr_pause(stream);
 		break;
@@ -1008,15 +1079,22 @@ static long snd_compr_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 	case _IOC_NR(SNDRV_COMPRESS_STOP):
 		retval = snd_compr_stop(stream);
 		break;
+#ifndef CONFIG_AUDIO_QGKI
 	case _IOC_NR(SNDRV_COMPRESS_DRAIN):
 		retval = snd_compr_drain(stream);
 		break;
 	case _IOC_NR(SNDRV_COMPRESS_PARTIAL_DRAIN):
 		retval = snd_compr_partial_drain(stream);
 		break;
+#endif
 	case _IOC_NR(SNDRV_COMPRESS_NEXT_TRACK):
 		retval = snd_compr_next_track(stream);
 		break;
+#ifdef CONFIG_AUDIO_QGKI
+	default:
+		mutex_unlock(&stream->device->lock);
+		return snd_compress_simple_ioctls(f, stream, cmd, arg);
+#endif
 
 	}
 	mutex_unlock(&stream->device->lock);
