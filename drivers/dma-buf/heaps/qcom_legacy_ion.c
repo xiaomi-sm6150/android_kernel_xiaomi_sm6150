@@ -64,6 +64,13 @@ static const struct legacy_ion_heap legacy_ion_heaps[] = {
 	  .heap = "qcom,display" },
 	{ .id = 1, .name = "qsecom_ta", .type = ION_HEAP_TYPE_DMA,
 	  .heap = "qcom,qseecom-ta" },
+	/*
+	 * The GKI system heap, which ION core gave the ION_HEAP_SYSTEM bit.
+	 * libdmabufheap (Codec2) finds it by this name when there is no
+	 * "system" DMA-BUF heap.
+	 */
+	{ .id = 0, .name = "ion_system_heap", .type = ION_HEAP_TYPE_SYSTEM,
+	  .heap = "qcom,system", .uncached_heap = "qcom,system-uncached" },
 };
 
 static const char *legacy_ion_backing_heap(const struct legacy_ion_heap *h,
