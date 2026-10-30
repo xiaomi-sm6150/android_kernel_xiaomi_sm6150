@@ -32,6 +32,10 @@
 #include <linux/qcom_dma_heap.h>
 #include <linux/msm_dma_iommu_mapping.h>
 #include <linux/qti-smmu-proxy-callbacks.h>
+#include <linux/mem-buf.h>
+#include <soc/qcom/secure_buffer.h>
+#include <uapi/linux/ion.h>
+#include <uapi/linux/msm_ion.h>
 
 #include "qcom_sg_ops.h"
 
@@ -612,6 +616,47 @@ struct mem_buf_vmperm *qcom_sg_lookup_vmperm(struct dma_buf *dmabuf)
 	return buffer->vmperm;
 }
 
+/*
+ * ION style flags for the 5.4 vendor drivers carried forward (msm_vidc,
+ * msm_cvp), which choose cache maintenance and secure context banks with
+ * dma_buf_get_flags(): ION_FLAG_CACHED unless the buffer is uncached, and
+ * ION_FLAG_SECURE with the CP flag of each content-protection VMID once
+ * HLOS no longer owns the buffer alone.
+ */
+static int qcom_sg_get_flags(struct dma_buf *dmabuf, unsigned long *flags)
+{
+	struct qcom_sg_buffer *buffer = dmabuf->priv;
+	const int *vmids, *perms;
+	int i, nr;
+
+	*flags = buffer->uncached ? 0 : ION_FLAG_CACHED;
+	if (mem_buf_dma_buf_exclusive_owner(dmabuf))
+		return 0;
+
+	*flags |= ION_FLAG_SECURE;
+	if (mem_buf_dma_buf_get_vmperm(dmabuf, &vmids, &perms, &nr))
+		return 0;
+
+	for (i = 0; i < nr; i++) {
+		switch (vmids[i]) {
+		case VMID_CP_BITSTREAM:
+			*flags |= ION_FLAG_CP_BITSTREAM;
+			break;
+		case VMID_CP_PIXEL:
+			*flags |= ION_FLAG_CP_PIXEL;
+			break;
+		case VMID_CP_NON_PIXEL:
+			*flags |= ION_FLAG_CP_NON_PIXEL;
+			break;
+		case VMID_CP_CAMERA:
+			*flags |= ION_FLAG_CP_CAMERA;
+			break;
+		}
+	}
+
+	return 0;
+}
+
 struct mem_buf_dma_buf_ops qcom_sg_buf_ops = {
 	.attach = qcom_sg_attach,
 	.lookup = qcom_sg_lookup_vmperm,
@@ -628,6 +673,7 @@ struct mem_buf_dma_buf_ops qcom_sg_buf_ops = {
 		.vmap = qcom_sg_vmap,
 		.vunmap = qcom_sg_vunmap,
 		.release = qcom_sg_dmabuf_release,
+		.get_flags = qcom_sg_get_flags,
 	}
 };
 EXPORT_SYMBOL(qcom_sg_buf_ops);
