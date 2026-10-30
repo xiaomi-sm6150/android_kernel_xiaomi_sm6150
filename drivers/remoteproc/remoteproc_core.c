@@ -2111,14 +2111,9 @@ EXPORT_SYMBOL(rproc_detach);
  * Return: rproc handle on success, and NULL on failure
  */
 #ifdef CONFIG_OF
-struct rproc *rproc_get_by_phandle(phandle phandle)
+struct rproc *rproc_get_by_node(struct device_node *np)
 {
 	struct rproc *rproc = NULL, *r;
-	struct device_node *np;
-
-	np = of_find_node_by_phandle(phandle);
-	if (!np)
-		return NULL;
 
 	rcu_read_lock();
 	list_for_each_entry_rcu(r, &rproc_list, node) {
@@ -2136,16 +2131,35 @@ struct rproc *rproc_get_by_phandle(phandle phandle)
 	}
 	rcu_read_unlock();
 
+	return rproc;
+}
+
+struct rproc *rproc_get_by_phandle(phandle phandle)
+{
+	struct rproc *rproc;
+	struct device_node *np;
+
+	np = of_find_node_by_phandle(phandle);
+	if (!np)
+		return NULL;
+
+	rproc = rproc_get_by_node(np);
 	of_node_put(np);
 
 	return rproc;
 }
 #else
+struct rproc *rproc_get_by_node(struct device_node *np)
+{
+	return NULL;
+}
+
 struct rproc *rproc_get_by_phandle(phandle phandle)
 {
 	return NULL;
 }
 #endif
+EXPORT_SYMBOL(rproc_get_by_node);
 EXPORT_SYMBOL(rproc_get_by_phandle);
 
 /**
