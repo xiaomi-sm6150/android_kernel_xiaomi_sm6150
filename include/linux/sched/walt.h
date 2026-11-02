@@ -257,11 +257,11 @@ static inline int walt_resume_cpus(struct cpumask *cpus, enum pause_client clien
 	return 0;
 }
 
-inline int walt_partial_pause_cpus(struct cpumask *cpus, enum pause_client client)
+static inline int walt_partial_pause_cpus(struct cpumask *cpus, enum pause_client client)
 {
 	return 0;
 }
-inline int walt_partial_resume_cpus(struct cpumask *cpus, enum pause_client client)
+static inline int walt_partial_resume_cpus(struct cpumask *cpus, enum pause_client client)
 {
 	return 0;
 }
