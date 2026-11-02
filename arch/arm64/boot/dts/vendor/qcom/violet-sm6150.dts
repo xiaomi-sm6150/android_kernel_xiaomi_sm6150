@@ -78,3 +78,12 @@
 &tlmm {
 	gpio-reserved-ranges = <0 4>;
 };
+
+/* Off until Phase 3: nothing at first boot needs a DSP */
+&adsp_pas {
+	status = "disabled";
+};
+
+&cdsp_pas {
+	status = "disabled";
+};
