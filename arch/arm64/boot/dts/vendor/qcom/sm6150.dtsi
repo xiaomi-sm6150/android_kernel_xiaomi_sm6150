@@ -1905,7 +1905,7 @@
 		reg = <0x62400000 0x00100>;
 		status = "ok";
 
-		vdd_cx-supply = <&pm6155_1_l8>;
+		vdd_cx-supply = <&L8A_LEVEL>;
 		cx-uV-uA = <RPMH_REGULATOR_LEVEL_TURBO 0>;
 		reg-names = "cx";
 		/*cx-supply = <&VDD_CX_LEVEL>;*/
