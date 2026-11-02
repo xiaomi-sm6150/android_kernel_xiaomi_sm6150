@@ -87,6 +87,7 @@ pub(crate) struct WrapInfo {
     num_pending_mmaps: usize,
     state: WrapState,
     monitors: KVec<MonitorEntry>,
+    num_mappable_refs: usize,
     pub(crate) close_on_exec: bool,
 }
 
@@ -112,6 +113,7 @@ impl WrapInfo {
             vma_file: VmaFile::None,
             num_pending_mmaps: 0,
             state: WrapState::Available,
+            num_mappable_refs: 0,
             monitors: KVec::default(),
             close_on_exec,
         }
@@ -221,10 +223,14 @@ impl WrapInfo {
             self.reset_vmafile();
         }
 
-        map_count
+        map_count + self.num_mappable_refs
     }
 
     fn is_mapped(&mut self) -> bool {
+        if self.num_mappable_refs > 0 {
+            return true;
+        }
+
         let vma_file_ptr = match self.vma_file {
             VmaFile::None => return false,
             VmaFile::Internal(file_ptr) => file_ptr,
@@ -1052,6 +1058,7 @@ unsafe extern "C" fn wrapfd_get_mappable(
         }
 
         guard.generate_event(uapi::WRAPFD_EVENT_MAP);
+        guard.num_mappable_refs += 1;
 
         guard.owner = WrapOwner::Device(device);
 
@@ -1107,11 +1114,16 @@ unsafe extern "C" fn wrapfd_put_mappable(
             return Err(EINVAL);
         }
 
+        if guard.num_mappable_refs == 0 {
+            return Err(EINVAL);
+        }
+
         // SAFETY: We've acquired an extra reference in `wrapfd_get_mappable` that we now no
         // longer need. We retain our own reference to `content.dmabuf` through ARef<>.
         unsafe {
             <DmaBuf as AlwaysRefCounted>::dec_ref(NonNull::from_ref(&content.dmabuf));
         }
+        guard.num_mappable_refs -= 1;
         guard.generate_event(uapi::WRAPFD_EVENT_UNMAP);
 
         guard.reset_owner();
