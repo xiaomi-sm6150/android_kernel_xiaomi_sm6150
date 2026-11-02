@@ -63,14 +63,17 @@
 	reg = <0x86d00000 0x2200000>;
 };
 
-/* earlycon=ramoops in violet.config points at the pmsg zone of this region */
+/*
+ * Same layout as stock 4.14, which reads this log back after a failed boot:
+ * console at +0, pmsg at +4M. earlycon=ramoops in violet.config uses the pmsg
+ * zone, and 4.14 shows it as pmsg-ramoops-0.
+ */
 &reserved_memory {
 	ramoops: ramoops@a1600000 {
 		compatible = "ramoops";
 		reg = <0x0 0xa1600000 0x0 0x800000>;
-		console-size = <0x200000>;
-		pmsg-size = <0x200000>;
-		record-size = <0x100000>;
+		console-size = <0x400000>;
+		pmsg-size = <0x400000>;
 	};
 };
 
