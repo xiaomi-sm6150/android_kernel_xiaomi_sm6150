@@ -221,6 +221,24 @@ FIXTURE(wrapfd_tests)
 	size_t size;
 	int dev_fd;
 	int fd;
+	int heap_fd;
+	int dmabuf_fd;
+	int rdonly_dmabuf_fd;
+};
+
+FIXTURE_VARIANT(wrapfd_tests)
+{
+	const char *dma_heap_name;
+};
+
+FIXTURE_VARIANT_ADD(wrapfd_tests, system_heap)
+{
+	.dma_heap_name = "system",
+};
+
+FIXTURE_VARIANT_ADD(wrapfd_tests, cma_heap)
+{
+	.dma_heap_name = "default_cma_region",
 };
 
 static size_t get_file_size(size_t page_size)
@@ -252,12 +270,20 @@ FIXTURE_SETUP(wrapfd_tests)
 {
 	ssize_t total_wr;
 	FILE *ftmp;
+	char dma_heap_path[64];
 
 	EXPECT_EQ(getuid(), 0)
 		SKIP(return, "Skipping all tests as non-root");
 
 	EXPECT_EQ(access("/dev/wrapfd", F_OK), 0)
 		SKIP(return, "Skipping all tests; kernel lacks wrapfd support");
+
+	sprintf(dma_heap_path, "/dev/dma_heap/%s", variant->dma_heap_name);
+	self->heap_fd = open(dma_heap_path, O_RDONLY);
+	if (self->heap_fd < 0 && errno == ENOENT)
+		SKIP(return, "Skipping %s heap tests, as the %s heap is missing",
+		     variant->dma_heap_name, variant->dma_heap_name);
+
 
 	self->page_size = (size_t)sysconf(_SC_PAGESIZE);
 	self->size = get_file_size(self->page_size);
@@ -282,12 +308,20 @@ FIXTURE_SETUP(wrapfd_tests)
 		ASSERT_TRUE(wr >= 0);
 		total_wr += wr;
 	} while (total_wr < self->size);
+
+	self->dmabuf_fd = dmabuf_heap_alloc(self->heap_fd, self->size, O_RDWR);
+	ASSERT_GE(self->dmabuf_fd, 0);
+	self->rdonly_dmabuf_fd = dmabuf_heap_alloc(self->heap_fd, self->size, O_RDONLY);
+	ASSERT_GE(self->rdonly_dmabuf_fd, 0);
 }
 
 FIXTURE_TEARDOWN(wrapfd_tests)
 {
+	close(self->rdonly_dmabuf_fd);
+	close(self->dmabuf_fd);
 	close(self->fd);
 	free(self->content);
+	close(self->heap_fd);
 	close(self->dev_fd);
 }
 
@@ -470,20 +504,19 @@ static void worker_join(struct __test_metadata *_metadata, struct worker *wk)
 		TH_LOG("worker %d ended with status 0x%x", wk->pid, status);
 }
 
-static void test_wrap(struct __test_metadata *_metadata,
-		      FIXTURE_DATA(wrapfd_tests) *self, int fd)
+static void test_wrap(struct __test_metadata *_metadata, FIXTURE_DATA(wrapfd_tests) *self)
 {
 	int wrapfd;
 	struct stat sb;
 
 	/* Get state of a non-wrapped fd */
-	ASSERT_TRUE(wrapfd_get_state(fd, NULL) &&
+	ASSERT_TRUE(wrapfd_get_state(self->dmabuf_fd, NULL) &&
 		    errno == ENOTTY);
 	ASSERT_TRUE(wrapfd_get_state(self->dev_fd, NULL) &&
 		    errno == ENOTTY);
 
 	/* Wrap and get state of a wrapped fd */
-	wrapfd = wrapfd_wrap(self->dev_fd, fd, PROT_READ);
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ);
 	ASSERT_TRUE(wrapfd >= 0);
 	ASSERT_EQ(wrapfd_get_state(wrapfd, NULL), 0);
 
@@ -495,17 +528,17 @@ static void test_wrap(struct __test_metadata *_metadata,
 }
 
 static void test_wrap_rdonly_file(struct __test_metadata *_metadata,
-				  FIXTURE_DATA(wrapfd_tests) *self, int fd)
+				  FIXTURE_DATA(wrapfd_tests) *self)
 {
 	int wrapfd;
 	unsigned int state;
 
 	/* Wrapping a read-only file in a read/write wrap should fail. */
-	wrapfd = wrapfd_wrap(self->dev_fd, fd, PROT_READ | PROT_WRITE);
+	wrapfd = wrapfd_wrap(self->dev_fd, self->rdonly_dmabuf_fd, PROT_READ | PROT_WRITE);
 	ASSERT_LT(wrapfd, 0);
 	ASSERT_EQ(errno, EACCES);
 
-	wrapfd = wrapfd_wrap(self->dev_fd, fd, PROT_READ);
+	wrapfd = wrapfd_wrap(self->dev_fd, self->rdonly_dmabuf_fd, PROT_READ);
 	ASSERT_TRUE(wrapfd >= 0);
 	ASSERT_EQ(wrapfd_get_state(wrapfd, &state), 0);
 	ASSERT_EQ(state, WRAPFD_CONTENT_RDONLY);
@@ -701,13 +734,12 @@ static int __test_loads(struct __test_metadata *_metadata,
 	return ret;
 }
 
-static void test_load_mapped(struct __test_metadata *_metadata,
-			     FIXTURE_DATA(wrapfd_tests) *self, int fd)
+static void test_load_mapped(struct __test_metadata *_metadata, FIXTURE_DATA(wrapfd_tests) *self)
 {
 	int wrapfd;
 	char *ptr;
 
-	wrapfd = wrapfd_wrap(self->dev_fd, fd, PROT_READ | PROT_WRITE);
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
 	ASSERT_TRUE(wrapfd >= 0);
 	ASSERT_EQ(wrapfd_acquire_ownership(wrapfd), 0);
 
@@ -723,12 +755,11 @@ static void test_load_mapped(struct __test_metadata *_metadata,
 	close(wrapfd);
 }
 
-static void test_load_unmapped(struct __test_metadata *_metadata,
-			       FIXTURE_DATA(wrapfd_tests) *self, int fd)
+static void test_load_unmapped(struct __test_metadata *_metadata, FIXTURE_DATA(wrapfd_tests) *self)
 {
 	int wrapfd;
 
-	wrapfd = wrapfd_wrap(self->dev_fd, fd, PROT_READ | PROT_WRITE);
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
 	ASSERT_TRUE(wrapfd >= 0);
 	ASSERT_EQ(wrapfd_acquire_ownership(wrapfd), 0);
 
@@ -823,12 +854,12 @@ static int __test_not_owned_usage(int wrapfd, int fd, size_t size, bool has_othe
 }
 
 static void test_not_owned_usage(struct __test_metadata *_metadata,
-				 FIXTURE_DATA(wrapfd_tests) *self, int fd)
+				 FIXTURE_DATA(wrapfd_tests) *self)
 {
 	int wrapfd, status;
 	pid_t pid;
 
-	wrapfd = wrapfd_wrap(self->dev_fd, fd, PROT_READ | PROT_WRITE);
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
 	ASSERT_TRUE(wrapfd >= 0);
 	ASSERT_EQ(wrapfd_acquire_ownership(wrapfd), 0);
 
@@ -865,11 +896,11 @@ static void test_not_owned_usage(struct __test_metadata *_metadata,
 }
 
 static void test_load_rdonly_file(struct __test_metadata *_metadata,
-				  FIXTURE_DATA(wrapfd_tests) *self, int fd)
+				  FIXTURE_DATA(wrapfd_tests) *self)
 {
 	int wrapfd;
 
-	wrapfd = wrapfd_wrap(self->dev_fd, fd, PROT_READ);
+	wrapfd = wrapfd_wrap(self->dev_fd, self->rdonly_dmabuf_fd, PROT_READ);
 	ASSERT_TRUE(wrapfd >= 0);
 	ASSERT_EQ(wrapfd_acquire_ownership(wrapfd), 0);
 
@@ -879,12 +910,11 @@ static void test_load_rdonly_file(struct __test_metadata *_metadata,
 	close(wrapfd);
 }
 
-static void test_wrap_rdonly(struct __test_metadata *_metadata,
-			     FIXTURE_DATA(wrapfd_tests) *self, int fd)
+static void test_wrap_rdonly(struct __test_metadata *_metadata, FIXTURE_DATA(wrapfd_tests) *self)
 {
 	int wrapfd;
 
-	wrapfd = wrapfd_wrap(self->dev_fd, fd, PROT_READ);
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ);
 	ASSERT_TRUE(wrapfd >= 0);
 
 	/* Check content of the buffer */
@@ -898,13 +928,12 @@ static void test_wrap_rdonly(struct __test_metadata *_metadata,
 	close(wrapfd);
 }
 
-static void test_wrap_rdwr(struct __test_metadata *_metadata,
-			   FIXTURE_DATA(wrapfd_tests) *self, int fd)
+static void test_wrap_rdwr(struct __test_metadata *_metadata, FIXTURE_DATA(wrapfd_tests) *self)
 {
 	int wrapfd;
 	char *ptr;
 
-	wrapfd = wrapfd_wrap(self->dev_fd, fd, PROT_READ | PROT_WRITE);
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
 	ASSERT_TRUE(wrapfd >= 0);
 
 	/* Check content of the buffer before modification */
@@ -942,20 +971,20 @@ static int remap_file_pages(void *addr, size_t size, int prot, size_t pgoff, int
 #endif
 
 static void test_remap_file_pages(struct __test_metadata *_metadata,
-				  FIXTURE_DATA(wrapfd_tests) *self, int fd)
+				  FIXTURE_DATA(wrapfd_tests) *self)
 {
 	int wrapfd;
 	char *ptr;
 
 	/* remap_file_pages() on the content should succeed */
 	ptr = mmap(NULL, self->size, PROT_READ | PROT_WRITE, MAP_SHARED,
-		   fd, 0);
+		   self->dmabuf_fd, 0);
 	ASSERT_NE(ptr, MAP_FAILED);
 	ASSERT_EQ(remap_file_pages(ptr, self->page_size, 0, 1, 0), 0);
 	ASSERT_EQ(munmap(ptr, self->size), 0);
 
 	/* remap_file_pages() on the wrapfd should fail with EINVAL error */
-	wrapfd = wrapfd_wrap(self->dev_fd, fd, PROT_READ | PROT_WRITE);
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
 	ASSERT_TRUE(wrapfd >= 0);
 
 	ptr = mmap(NULL, self->size, PROT_READ | PROT_WRITE, MAP_SHARED,
@@ -969,12 +998,12 @@ static void test_remap_file_pages(struct __test_metadata *_metadata,
 }
 
 static void test_wrap_remap(struct __test_metadata *_metadata,
-			    FIXTURE_DATA(wrapfd_tests) *self, int fd)
+			    FIXTURE_DATA(wrapfd_tests) *self)
 {
 	char *ptr, *new_ptr;
 	int wrapfd;
 
-	wrapfd = wrapfd_wrap(self->dev_fd, fd, PROT_READ | PROT_WRITE);
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
 	ASSERT_TRUE(wrapfd >= 0);
 
 	/* Check content of the buffer before modification */
@@ -1029,14 +1058,13 @@ static int proc_find_mapping(unsigned long start, size_t size, bool *mapping_fou
 	return -1;
 }
 
-static void test_wrap_fork(struct __test_metadata *_metadata,
-			   FIXTURE_DATA(wrapfd_tests) *self, int fd)
+static void test_wrap_fork(struct __test_metadata *_metadata, FIXTURE_DATA(wrapfd_tests) *self)
 {
 	int wrapfd, status;
 	char *ptr;
 	pid_t pid;
 
-	wrapfd = wrapfd_wrap(self->dev_fd, fd, PROT_READ | PROT_WRITE);
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
 	ASSERT_TRUE(wrapfd >= 0);
 
 	/* Check content of the buffer before modification */
@@ -1089,13 +1117,12 @@ static void test_wrap_fork(struct __test_metadata *_metadata,
 	close(wrapfd);
 }
 
-static void test_dup(struct __test_metadata *_metadata,
-		     FIXTURE_DATA(wrapfd_tests) *self, int fd)
+static void test_dup(struct __test_metadata *_metadata, FIXTURE_DATA(wrapfd_tests) *self)
 {
 	int wrapfd, wrapfd2;
 	char *ptr;
 
-	wrapfd = wrapfd_wrap(self->dev_fd, fd, PROT_READ);
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ);
 	ASSERT_TRUE(wrapfd >= 0);
 
 	wrapfd2 = dup(wrapfd);
@@ -1109,14 +1136,13 @@ static void test_dup(struct __test_metadata *_metadata,
 	close(wrapfd);
 }
 
-static void test_owner(struct __test_metadata *_metadata,
-		       FIXTURE_DATA(wrapfd_tests) *self, int fd)
+static void test_owner(struct __test_metadata *_metadata, FIXTURE_DATA(wrapfd_tests) *self)
 {
 	struct worker wk;
 	int wrapfd;
 	char *ptr;
 
-	wrapfd = wrapfd_wrap(self->dev_fd, fd, PROT_READ);
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ);
 	ASSERT_TRUE(wrapfd >= 0);
 
 	/* Try taking ownership while another process maps the wrapfd */
@@ -1166,14 +1192,13 @@ static void test_owner(struct __test_metadata *_metadata,
 	close(wrapfd);
 }
 
-static void test_rewrap(struct __test_metadata *_metadata,
-			FIXTURE_DATA(wrapfd_tests) *self, int fd)
+static void test_rewrap(struct __test_metadata *_metadata, FIXTURE_DATA(wrapfd_tests) *self)
 {
 	int wrapfd, wrapfd2, wrapfd3;
 	unsigned int state;
 	char *ptr;
 
-	wrapfd = wrapfd_wrap(self->dev_fd, fd, PROT_READ);
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ);
 	ASSERT_TRUE(wrapfd >= 0);
 
 	ASSERT_TRUE(wrapfd_get_state(wrapfd, &state) == 0 &&
@@ -1212,7 +1237,7 @@ static void test_rewrap(struct __test_metadata *_metadata,
 				   0, self->size), true);
 
 	/* The rewrapped buffer keeps its size */
-	ASSERT_EQ(lseek(wrapfd2, 0, SEEK_END), lseek(fd, 0, SEEK_END));
+	ASSERT_EQ(lseek(wrapfd2, 0, SEEK_END), lseek(self->dmabuf_fd, 0, SEEK_END));
 
 	/* Take ownership of the rewrapped buffer */
 	ASSERT_EQ(wrapfd_acquire_ownership(wrapfd2), 0);
@@ -1252,13 +1277,13 @@ static void test_rewrap(struct __test_metadata *_metadata,
 }
 
 static void test_rewrap_rdonly_file(struct __test_metadata *_metadata,
-				    FIXTURE_DATA(wrapfd_tests) *self, int fd)
+				    FIXTURE_DATA(wrapfd_tests) *self)
 {
 	int wrapfd;
 	unsigned int state;
 	char *ptr;
 
-	wrapfd = wrapfd_wrap(self->dev_fd, fd, PROT_READ);
+	wrapfd = wrapfd_wrap(self->dev_fd, self->rdonly_dmabuf_fd, PROT_READ);
 	ASSERT_TRUE(wrapfd >= 0);
 
 	ASSERT_EQ(wrapfd_get_state(wrapfd, &state), 0);
@@ -1279,11 +1304,12 @@ static void test_rewrap_rdonly_file(struct __test_metadata *_metadata,
 	close(wrapfd);
 }
 
-static void test_repopulate(struct __test_metadata *_metadata,
-			    FIXTURE_DATA(wrapfd_tests) *self, int heap_fd,
-			    int fd, int rdonly_fd)
+static void test_repopulate(struct __test_metadata *_metadata, FIXTURE_DATA(wrapfd_tests) *self)
 {
 	size_t large_size = ALIGN(self->size, self->page_size) + self->page_size;
+	int heap_fd = self->heap_fd;
+	int dmabuf_fd = self->dmabuf_fd;
+	int rdonly_dmabuf_fd = self->rdonly_dmabuf_fd;
 	struct wrapfd_repopulate repopulate;
 	int small_fd, large_fd;
 	int wrapfd, wrapfd2;
@@ -1298,21 +1324,21 @@ static void test_repopulate(struct __test_metadata *_metadata,
 	large_fd = dmabuf_heap_alloc(heap_fd, large_size, O_RDWR);
 	ASSERT_TRUE(large_fd >= 0);
 
-	wrapfd = wrapfd_wrap(self->dev_fd, fd, PROT_READ | PROT_WRITE);
+	wrapfd = wrapfd_wrap(self->dev_fd, dmabuf_fd, PROT_READ | PROT_WRITE);
 	ASSERT_TRUE(wrapfd >= 0);
 
 	/* Repopulate ioctl on non-device file descriptors should fail */
-	ASSERT_TRUE(wrapfd_repopulate(-1, wrapfd, fd) < 0 && errno == EBADF);
-	ASSERT_TRUE(wrapfd_repopulate(fd, wrapfd, fd) < 0 && errno == ENOTTY);
-	ASSERT_TRUE(wrapfd_repopulate(wrapfd, wrapfd, fd) < 0 && errno == ENOTTY);
-	ASSERT_TRUE(wrapfd_repopulate(self->fd, wrapfd, fd) < 0 && errno == ENOTTY);
+	ASSERT_TRUE(wrapfd_repopulate(-1, wrapfd, dmabuf_fd) < 0 && errno == EBADF);
+	ASSERT_TRUE(wrapfd_repopulate(dmabuf_fd, wrapfd, dmabuf_fd) < 0 && errno == ENOTTY);
+	ASSERT_TRUE(wrapfd_repopulate(wrapfd, wrapfd, dmabuf_fd) < 0 && errno == ENOTTY);
+	ASSERT_TRUE(wrapfd_repopulate(self->fd, wrapfd, dmabuf_fd) < 0 && errno == ENOTTY);
 
 	/* Repopulate with non-wrapfd target file descriptors should fail */
-	ASSERT_TRUE(wrapfd_repopulate(self->dev_fd, -1, fd) < 0 && errno == EBADF);
-	ASSERT_TRUE(wrapfd_repopulate(self->dev_fd, fd, fd) < 0 && errno == EBADF);
-	ASSERT_TRUE(wrapfd_repopulate(self->dev_fd, self->dev_fd, fd) < 0 &&
+	ASSERT_TRUE(wrapfd_repopulate(self->dev_fd, -1, dmabuf_fd) < 0 && errno == EBADF);
+	ASSERT_TRUE(wrapfd_repopulate(self->dev_fd, dmabuf_fd, dmabuf_fd) < 0 && errno == EBADF);
+	ASSERT_TRUE(wrapfd_repopulate(self->dev_fd, self->dev_fd, dmabuf_fd) < 0 &&
 		    errno == EBADF);
-	ASSERT_TRUE(wrapfd_repopulate(self->dev_fd, self->fd, fd) < 0 &&
+	ASSERT_TRUE(wrapfd_repopulate(self->dev_fd, self->fd, dmabuf_fd) < 0 &&
 		    errno == EBADF);
 
 	/* Invalid ioctl parameters */
@@ -1320,14 +1346,14 @@ static void test_repopulate(struct __test_metadata *_metadata,
 		    errno == EFAULT);
 	repopulate = (struct wrapfd_repopulate){
 		.wrapfd = wrapfd,
-		.fd = fd,
+		.fd = dmabuf_fd,
 		.reserved = 1,
 	};
 	ASSERT_TRUE(ioctl(self->dev_fd, WRAPFD_DEV_IOC_REPOPULATE, &repopulate) < 0 &&
 		    errno == EINVAL);
 
 	/* Try repopulating unowned non-empty buffer */
-	ASSERT_TRUE(wrapfd_repopulate(self->dev_fd, wrapfd, fd) < 0 &&
+	ASSERT_TRUE(wrapfd_repopulate(self->dev_fd, wrapfd, dmabuf_fd) < 0 &&
 		    errno == EINVAL);
 
 	/* Take buffer ownership */
@@ -1337,12 +1363,12 @@ static void test_repopulate(struct __test_metadata *_metadata,
 	ptr = mmap(NULL, self->size, PROT_READ | PROT_WRITE, MAP_SHARED,
 		   wrapfd, 0);
 	ASSERT_NE(ptr, MAP_FAILED);
-	ASSERT_TRUE(wrapfd_repopulate(self->dev_fd, wrapfd, fd) < 0 &&
+	ASSERT_TRUE(wrapfd_repopulate(self->dev_fd, wrapfd, dmabuf_fd) < 0 &&
 		    errno == EINVAL);
 	ASSERT_EQ(munmap(ptr, self->size), 0);
 
 	/* Try repopulating a non-empty buffer */
-	ASSERT_TRUE(wrapfd_repopulate(self->dev_fd, wrapfd, fd) < 0 &&
+	ASSERT_TRUE(wrapfd_repopulate(self->dev_fd, wrapfd, dmabuf_fd) < 0 &&
 		    errno == EINVAL);
 
 	/* Empty the buffer */
@@ -1354,7 +1380,7 @@ static void test_repopulate(struct __test_metadata *_metadata,
 	pid = fork();
 	ASSERT_FALSE(pid < 0);
 	if (pid == 0) {
-		if (wrapfd_repopulate(self->dev_fd, wrapfd, fd) < 0 && errno == EBUSY)
+		if (wrapfd_repopulate(self->dev_fd, wrapfd, dmabuf_fd) < 0 && errno == EBUSY)
 			exit(EXIT_SUCCESS);
 		exit(EXIT_FAILURE);
 	} else {
@@ -1372,7 +1398,7 @@ static void test_repopulate(struct __test_metadata *_metadata,
 		    errno == EINVAL);
 	ASSERT_TRUE(wrapfd_repopulate(self->dev_fd, wrapfd, wrapfd) < 0 &&
 		    errno == EINVAL);
-	ASSERT_TRUE(wrapfd_repopulate(self->dev_fd, wrapfd, rdonly_fd) < 0 &&
+	ASSERT_TRUE(wrapfd_repopulate(self->dev_fd, wrapfd, rdonly_dmabuf_fd) < 0 &&
 		    errno == EACCES);
 	ASSERT_TRUE(wrapfd_get_state(wrapfd, &state) == 0 &&
 		    state == WRAPFD_CONTENT_EMPTY);
@@ -1381,7 +1407,7 @@ static void test_repopulate(struct __test_metadata *_metadata,
 	ASSERT_EQ(wrapfd_repopulate(self->dev_fd, wrapfd, small_fd), 0);
 	ASSERT_TRUE(wrapfd_get_state(wrapfd, &state) == 0 &&
 		    state == WRAPFD_CONTENT_RDWR);
-	ASSERT_TRUE(wrapfd_repopulate(self->dev_fd, wrapfd, fd) < 0 &&
+	ASSERT_TRUE(wrapfd_repopulate(self->dev_fd, wrapfd, dmabuf_fd) < 0 &&
 		    errno == EINVAL);
 	ASSERT_EQ(fstat(wrapfd, &sb), 0);
 	ASSERT_EQ(sb.st_size, self->page_size);
@@ -1410,7 +1436,7 @@ static void test_repopulate(struct __test_metadata *_metadata,
 
 	/* Empty again and repopulate with the original buffer */
 	ASSERT_EQ(wrapfd_empty(wrapfd), 0);
-	ASSERT_EQ(wrapfd_repopulate(self->dev_fd, wrapfd, fd), 0);
+	ASSERT_EQ(wrapfd_repopulate(self->dev_fd, wrapfd, dmabuf_fd), 0);
 	ASSERT_TRUE(wrapfd_get_state(wrapfd, &state) == 0 &&
 		    state == WRAPFD_CONTENT_RDWR);
 	ASSERT_EQ(fstat(wrapfd, &sb), 0);
@@ -1425,19 +1451,19 @@ static void test_repopulate(struct __test_metadata *_metadata,
 	ASSERT_EQ(wrapfd_empty(wrapfd), 0);
 	ASSERT_EQ(wrapfd_release_ownership(wrapfd), 0);
 	ASSERT_TRUE(wrapfd_acquire_ownership(wrapfd) < 0 && errno == ENOENT);
-	ASSERT_EQ(wrapfd_repopulate(self->dev_fd, wrapfd, fd), 0);
+	ASSERT_EQ(wrapfd_repopulate(self->dev_fd, wrapfd, dmabuf_fd), 0);
 	ASSERT_TRUE(wrapfd_get_state(wrapfd, &state) == 0 &&
 		    state == WRAPFD_CONTENT_RDWR);
 	close(wrapfd);
 
 	/* Test repopulating a read-only wrapfd */
-	wrapfd = wrapfd_wrap(self->dev_fd, rdonly_fd, PROT_READ);
+	wrapfd = wrapfd_wrap(self->dev_fd, rdonly_dmabuf_fd, PROT_READ);
 	ASSERT_TRUE(wrapfd >= 0);
 	ASSERT_EQ(wrapfd_acquire_ownership(wrapfd), 0);
 	ASSERT_EQ(wrapfd_empty(wrapfd), 0);
 
 	/* Repopulate read-only wrapfd with read-only buffer */
-	ASSERT_EQ(wrapfd_repopulate(self->dev_fd, wrapfd, rdonly_fd), 0);
+	ASSERT_EQ(wrapfd_repopulate(self->dev_fd, wrapfd, rdonly_dmabuf_fd), 0);
 	ASSERT_TRUE(wrapfd_get_state(wrapfd, &state) == 0 &&
 		    state == WRAPFD_CONTENT_RDONLY);
 	ptr = mmap(NULL, self->size, PROT_READ | PROT_WRITE, MAP_SHARED,
@@ -1450,7 +1476,7 @@ static void test_repopulate(struct __test_metadata *_metadata,
 	 * read-only, but can be rewrapped as writable.
 	 */
 	ASSERT_EQ(wrapfd_empty(wrapfd), 0);
-	ASSERT_EQ(wrapfd_repopulate(self->dev_fd, wrapfd, fd), 0);
+	ASSERT_EQ(wrapfd_repopulate(self->dev_fd, wrapfd, dmabuf_fd), 0);
 	ASSERT_TRUE(wrapfd_get_state(wrapfd, &state) == 0 &&
 		    state == WRAPFD_CONTENT_RDONLY);
 	ptr = mmap(NULL, self->size, PROT_READ | PROT_WRITE, MAP_SHARED,
@@ -1471,14 +1497,13 @@ static void test_repopulate(struct __test_metadata *_metadata,
 	close(small_fd);
 }
 
-static void test_empty(struct __test_metadata *_metadata,
-		       FIXTURE_DATA(wrapfd_tests) *self, int fd)
+static void test_empty(struct __test_metadata *_metadata, FIXTURE_DATA(wrapfd_tests) *self)
 {
 	unsigned int state;
 	int wrapfd;
 	char *ptr;
 
-	wrapfd = wrapfd_wrap(self->dev_fd, fd, PROT_READ | PROT_WRITE);
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
 	ASSERT_TRUE(wrapfd >= 0);
 
 	/* Try emptying unowned buffer */
@@ -1579,33 +1604,32 @@ static void __test_close_on_exec(struct __test_metadata *_metadata,
 	close(wrapfd);
 }
 
-static void test_close_on_exec(struct __test_metadata *_metadata,
-			       FIXTURE_DATA(wrapfd_tests) *self, int fd)
+static void test_close_on_exec(struct __test_metadata *_metadata, FIXTURE_DATA(wrapfd_tests) *self)
 {
+	int dmabuf_fd = self->dmabuf_fd;
 	int close_on_exec;
 
-	close_on_exec = is_close_on_exec(fd);
+	close_on_exec = is_close_on_exec(dmabuf_fd);
 	ASSERT_NE(close_on_exec, -1);
 
 	/* Test FD_CLOEXEC inheritance */
-	__test_close_on_exec(_metadata, self, fd, close_on_exec);
+	__test_close_on_exec(_metadata, self, self->dmabuf_fd, close_on_exec);
 
 	/* Test FD_CLOEXEC inheritance after toggling the attribute */
-	set_close_on_exec(fd, !close_on_exec);
-	__test_close_on_exec(_metadata, self, fd, !close_on_exec);
+	set_close_on_exec(dmabuf_fd, !close_on_exec);
+	__test_close_on_exec(_metadata, self, dmabuf_fd, !close_on_exec);
 
 	/* Reset attribute to the original value */
-	set_close_on_exec(fd, close_on_exec);
+	set_close_on_exec(dmabuf_fd, close_on_exec);
 }
 
-static void test_guests(struct __test_metadata *_metadata,
-			FIXTURE_DATA(wrapfd_tests) *self, int fd)
+static void test_guests(struct __test_metadata *_metadata, FIXTURE_DATA(wrapfd_tests) *self)
 {
 	struct worker wk;
 	int wrapfd;
 	char *ptr;
 
-	wrapfd = wrapfd_wrap(self->dev_fd, fd, PROT_READ | PROT_WRITE);
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
 	ASSERT_TRUE(wrapfd >= 0);
 
 	/* Try allowing guests for unowned buffer */
@@ -1650,8 +1674,7 @@ static void test_guests(struct __test_metadata *_metadata,
 
 #define FDINFO_BUF_SIZE	4096
 
-static void test_ioctl(struct __test_metadata *_metadata,
-			FIXTURE_DATA(wrapfd_tests) *self, int fd)
+static void test_ioctl(struct __test_metadata *_metadata, FIXTURE_DATA(wrapfd_tests) *self)
 {
 	const char *buf_name = "test_dmabuf";
 	char str[FDINFO_BUF_SIZE];
@@ -1660,12 +1683,12 @@ static void test_ioctl(struct __test_metadata *_metadata,
 	int wrapfd;
 	ssize_t n;
 
-	wrapfd = wrapfd_wrap(self->dev_fd, fd, PROT_READ | PROT_WRITE);
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
 	ASSERT_TRUE(wrapfd >= 0);
 	ASSERT_EQ(ioctl(wrapfd, DMA_BUF_SET_NAME, buf_name), 0);
 
 	/* Verify the dmabuf name is changed */
-	sprintf(fdinfo_name, "/proc/%d/fdinfo/%d", getpid(), fd);
+	sprintf(fdinfo_name, "/proc/%d/fdinfo/%d", getpid(), self->dmabuf_fd);
 	fdinfo_fd = open(fdinfo_name, O_RDONLY);
 	ASSERT_TRUE(fdinfo_fd >= 0);
 	n = read(fdinfo_fd, str, sizeof(str) - 1);
@@ -1687,12 +1710,11 @@ static void test_ioctl(struct __test_metadata *_metadata,
 	close(wrapfd);
 }
 
-static void test_lseek(struct __test_metadata *_metadata,
-		       FIXTURE_DATA(wrapfd_tests) *self, int fd)
+static void test_lseek(struct __test_metadata *_metadata, FIXTURE_DATA(wrapfd_tests) *self)
 {
 	int wrapfd;
 
-	wrapfd = wrapfd_wrap(self->dev_fd, fd, PROT_READ | PROT_WRITE);
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
 	ASSERT_TRUE(wrapfd >= 0);
 
 	/* Verify the dmabuf size is what we expect; dmabuf sizes are page aligned. */
@@ -1735,8 +1757,7 @@ static long get_map_count(int wrapfd)
 	return map_count;
 }
 
-static void test_map_count(struct __test_metadata *_metadata, FIXTURE_DATA(wrapfd_tests) *self,
-			   int fd)
+static void test_map_count(struct __test_metadata *_metadata, FIXTURE_DATA(wrapfd_tests) *self)
 {
 	const int nr_mappings = 4;
 	int i, status;
@@ -1744,7 +1765,7 @@ static void test_map_count(struct __test_metadata *_metadata, FIXTURE_DATA(wrapf
 	void *mappings[nr_mappings];
 	pid_t pid;
 
-	wrapfd = wrapfd_wrap(self->dev_fd, fd, PROT_READ | PROT_WRITE);
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
 	ASSERT_TRUE(wrapfd >= 0);
 
 	ASSERT_EQ(get_map_count(wrapfd), 0);
@@ -1799,9 +1820,9 @@ static void test_map_count(struct __test_metadata *_metadata, FIXTURE_DATA(wrapf
 }
 
 static void test_prohibit_guests_on_owner_death(struct __test_metadata *_metadata,
-					       FIXTURE_DATA(wrapfd_tests) *self, int fd)
+					       FIXTURE_DATA(wrapfd_tests) *self)
 {
-	int wrapfd = wrapfd_wrap(self->dev_fd, fd, PROT_READ | PROT_WRITE);
+	int wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
 	int status;
 	void *buf;
 	pid_t pid;
@@ -2029,8 +2050,7 @@ static int wrapfd_flush_munmap(int fd)
 	return 0;
 }
 
-static void test_poll_ioctls(struct __test_metadata *_metadata,
-			     FIXTURE_DATA(wrapfd_tests) *self, int fd)
+static void test_poll_ioctls(struct __test_metadata *_metadata, FIXTURE_DATA(wrapfd_tests) *self)
 {
 	struct wrapfd_add_monitors add_monitors = {};
 	struct wrapfd_del_monitors del_monitors = {};
@@ -2040,14 +2060,15 @@ static void test_poll_ioctls(struct __test_metadata *_metadata,
 	__u64 invalid_results[6] = {};
 	__u64 results[2] = {};
 	int wrapfd1, wrapfd2;
+	int dmabuf_fd = self->dmabuf_fd;
 	struct pollfd pollfd;
 	int wrapfd1_dup;
 	__u64 count = 0;
 	char *ptr;
 
-	wrapfd1 = wrapfd_wrap(self->dev_fd, fd, PROT_READ | PROT_WRITE);
+	wrapfd1 = wrapfd_wrap(self->dev_fd, dmabuf_fd, PROT_READ | PROT_WRITE);
 	ASSERT_TRUE(wrapfd1 >= 0);
-	wrapfd2 = wrapfd_wrap(self->dev_fd, fd, PROT_READ | PROT_WRITE);
+	wrapfd2 = wrapfd_wrap(self->dev_fd, dmabuf_fd, PROT_READ | PROT_WRITE);
 	ASSERT_TRUE(wrapfd2 >= 0);
 
 	/* Test ADD_MONITOR, DEL_MONITOR, and QUERY_EVENTS ioctls with various parameters */
@@ -2055,15 +2076,15 @@ static void test_poll_ioctls(struct __test_metadata *_metadata,
 	monitors[0].events = WRAPFD_EVENT_MAP;
 
 	/* Monitor/event ioctls on non-device fds should fail with ENOTTY */
-	ASSERT_TRUE(wrapfd_add_monitors(fd, monitors, results, 1) < 0 &&
+	ASSERT_TRUE(wrapfd_add_monitors(dmabuf_fd, monitors, results, 1) < 0 &&
 		    errno == ENOTTY);
 	ASSERT_TRUE(wrapfd_add_monitors(wrapfd1, monitors, results, 1) < 0 &&
 		    errno == ENOTTY);
-	ASSERT_TRUE(wrapfd_del_monitors(fd, monitors, results, 1) < 0 &&
+	ASSERT_TRUE(wrapfd_del_monitors(dmabuf_fd, monitors, results, 1) < 0 &&
 		    errno == ENOTTY);
 	ASSERT_TRUE(wrapfd_del_monitors(wrapfd1, monitors, results, 1) < 0 &&
 		    errno == ENOTTY);
-	ASSERT_TRUE(wrapfd_query_events(fd, events, 1, &count) < 0 &&
+	ASSERT_TRUE(wrapfd_query_events(dmabuf_fd, events, 1, &count) < 0 &&
 		    errno == ENOTTY);
 	ASSERT_TRUE(wrapfd_query_events(wrapfd1, events, 1, &count) < 0 &&
 		    errno == ENOTTY);
@@ -2109,7 +2130,7 @@ static void test_poll_ioctls(struct __test_metadata *_metadata,
 	/* Per-monitor parameter validation for ADD_MONITOR and DEL_MONITOR */
 	invalid_monitors[0].fd = -1;
 	invalid_monitors[0].events = WRAPFD_EVENT_MAP;
-	invalid_monitors[1].fd = fd;
+	invalid_monitors[1].fd = dmabuf_fd;
 	invalid_monitors[1].events = WRAPFD_EVENT_MAP;
 	invalid_monitors[2].fd = self->dev_fd;
 	invalid_monitors[2].events = WRAPFD_EVENT_MAP;
@@ -2226,8 +2247,7 @@ static void test_poll_ioctls(struct __test_metadata *_metadata,
 	close(wrapfd1);
 }
 
-static void test_poll(struct __test_metadata *_metadata,
-		       FIXTURE_DATA(wrapfd_tests) *self, int fd)
+static void test_poll(struct __test_metadata *_metadata, FIXTURE_DATA(wrapfd_tests) *self)
 {
 	struct poll_thread_ctl poll_ctl = {};
 	struct wrapfd_monitor monitors[2];
@@ -2241,9 +2261,9 @@ static void test_poll(struct __test_metadata *_metadata,
 	__u64 count = 0;
 	char *ptr1, *ptr2;
 
-	wrapfd1 = wrapfd_wrap(self->dev_fd, fd, PROT_READ | PROT_WRITE);
+	wrapfd1 = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
 	ASSERT_TRUE(wrapfd1 >= 0);
-	wrapfd2 = wrapfd_wrap(self->dev_fd, fd, PROT_READ | PROT_WRITE);
+	wrapfd2 = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
 	ASSERT_TRUE(wrapfd2 >= 0);
 
 	/* Monitor both wrapfd1 and wrapfd2 for MAP, UNMAP, OWN, and UNOWN events */
@@ -2387,73 +2407,38 @@ static void test_poll(struct __test_metadata *_metadata,
 	close(wrapfd1);
 }
 
-static void run_tests(struct __test_metadata *_metadata,
-		      FIXTURE_DATA(wrapfd_tests) *self, int heap_fd,
-		      int fd, int rdonly_fd)
+static void run_tests(struct __test_metadata *_metadata, FIXTURE_DATA(wrapfd_tests) *self)
 {
-	test_wrap(_metadata, self, fd);
-	test_wrap_rdonly_file(_metadata, self, rdonly_fd);
-	test_load_mapped(_metadata, self, fd);
-	test_load_unmapped(_metadata, self, fd);
-	test_load_rdonly_file(_metadata, self, rdonly_fd);
-	test_wrap_rdonly(_metadata, self, fd);
-	test_wrap_rdwr(_metadata, self, fd);
-	test_remap_file_pages(_metadata, self, fd);
-	test_wrap_remap(_metadata, self, fd);
-	test_wrap_fork(_metadata, self, fd);
-	test_dup(_metadata, self, fd);
-	test_owner(_metadata, self, fd);
-	test_rewrap(_metadata, self, fd);
-	test_rewrap_rdonly_file(_metadata, self, rdonly_fd);
-	test_empty(_metadata, self, fd);
-	test_repopulate(_metadata, self, heap_fd, fd, rdonly_fd);
-	test_close_on_exec(_metadata, self, fd);
-	test_guests(_metadata, self, fd);
-	test_ioctl(_metadata, self, fd);
-	test_lseek(_metadata, self, fd);
-	test_map_count(_metadata, self, fd);
-	test_prohibit_guests_on_owner_death(_metadata, self, fd);
-	test_not_owned_usage(_metadata, self, fd);
-	test_poll_ioctls(_metadata, self, fd);
-	test_poll(_metadata, self, fd);
+	test_wrap(_metadata, self);
+	test_wrap_rdonly_file(_metadata, self);
+	test_load_mapped(_metadata, self);
+	test_load_unmapped(_metadata, self);
+	test_load_rdonly_file(_metadata, self);
+	test_wrap_rdonly(_metadata, self);
+	test_wrap_rdwr(_metadata, self);
+	test_remap_file_pages(_metadata, self);
+	test_wrap_remap(_metadata, self);
+	test_wrap_fork(_metadata, self);
+	test_dup(_metadata, self);
+	test_owner(_metadata, self);
+	test_rewrap(_metadata, self);
+	test_rewrap_rdonly_file(_metadata, self);
+	test_empty(_metadata, self);
+	test_repopulate(_metadata, self);
+	test_close_on_exec(_metadata, self);
+	test_guests(_metadata, self);
+	test_ioctl(_metadata, self);
+	test_lseek(_metadata, self);
+	test_map_count(_metadata, self);
+	test_prohibit_guests_on_owner_death(_metadata, self);
+	test_not_owned_usage(_metadata, self);
+	test_poll_ioctls(_metadata, self);
+	test_poll(_metadata, self);
 }
 
-TEST_F(wrapfd_tests, wrapfd_test_dmabuf_system_heap)
+TEST_F(wrapfd_tests, wrapfd_functional_test)
 {
-	int dmabuf_fd;
-	int rdonly_dmabuf_fd;
-	int heap_fd;
-
-	heap_fd = open("/dev/dma_heap/system", O_RDONLY);
-	ASSERT_TRUE(heap_fd >= 0);
-	dmabuf_fd = dmabuf_heap_alloc(heap_fd, self->size, O_RDWR);
-	ASSERT_TRUE(dmabuf_fd >= 0);
-	rdonly_dmabuf_fd = dmabuf_heap_alloc(heap_fd, self->size, O_RDONLY);
-	ASSERT_TRUE(rdonly_dmabuf_fd >= 0);
-	run_tests(_metadata, self, heap_fd, dmabuf_fd, rdonly_dmabuf_fd);
-	close(rdonly_dmabuf_fd);
-	close(dmabuf_fd);
-	close(heap_fd);
-}
-
-TEST_F(wrapfd_tests, wrapfd_test_dmabuf_cma_heap)
-{
-	int dmabuf_fd;
-	int rdonly_dmabuf_fd;
-	int heap_fd;
-
-	heap_fd = open("/dev/dma_heap/default_cma_region", O_RDONLY);
-	if (heap_fd < 0 && errno == ENOENT)
-		SKIP(return, "Skipping CMA tests as the CMA heap is missing");
-	ASSERT_TRUE(heap_fd >= 0);
-	dmabuf_fd = dmabuf_heap_alloc(heap_fd, self->size, O_RDWR);
-	ASSERT_TRUE(dmabuf_fd >= 0);
-	rdonly_dmabuf_fd = dmabuf_heap_alloc(heap_fd, self->size, O_RDONLY);
-	ASSERT_TRUE(rdonly_dmabuf_fd >= 0);
-	run_tests(_metadata, self, heap_fd, dmabuf_fd, rdonly_dmabuf_fd);
-	close(rdonly_dmabuf_fd);
-	close(dmabuf_fd);
-	close(heap_fd);
+	run_tests(_metadata, self);
 }
 
 /*
@@ -2462,29 +2447,6 @@ TEST_F(wrapfd_tests, wrapfd_test_dmabuf_cma_heap)
  * owners, and the state transitions of EMPTY, REWRAP and LOAD. Each runs on a wrap and a dma-buf
  * of its own, so that every behaviour has a result of its own.
  */
-
-/*
- * Wraps a new system-heap dma-buf read-write into @wrapfd. The dma-buf's own fd is closed, so the
- * wrap is the only way to the dma-buf. Returns false if the test was skipped because the kernel
- * has no system heap.
- */
-static bool new_wrap(struct __test_metadata *_metadata, FIXTURE_DATA(wrapfd_tests) *self,
-		     int *wrapfd)
-{
-	int heap_fd, dmabuf_fd;
-
-	heap_fd = open("/dev/dma_heap/system", O_RDONLY | O_CLOEXEC);
-	if (heap_fd < 0 && errno == ENOENT)
-		SKIP(return false, "the system heap is missing");
-	ASSERT_LE(0, heap_fd);
-	dmabuf_fd = dmabuf_heap_alloc(heap_fd, self->size, O_RDWR);
-	close(heap_fd);
-	ASSERT_LE(0, dmabuf_fd);
-	*wrapfd = wrapfd_wrap(self->dev_fd, dmabuf_fd, PROT_READ | PROT_WRITE);
-	ASSERT_LE(0, *wrapfd);
-	close(dmabuf_fd);
-	return true;
-}
 
 /* Loads the whole content file into @wrapfd. Returns 0, or -errno. */
 static int load_all(FIXTURE_DATA(wrapfd_tests) *self, int wrapfd)
@@ -2573,8 +2535,9 @@ TEST_F(wrapfd_tests, rewrapped_wrap_is_independent_of_old_wrap)
 	struct worker wk;
 	int wrapfd, wrapfd2;
 
-	if (!new_wrap(_metadata, self, &wrapfd))
-		return;
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
+	ASSERT_LE(0, wrapfd);
+
 	ASSERT_EQ(0, load_all(self, wrapfd));
 	ASSERT_EQ(0, ret_or_errno(wrapfd_acquire_ownership(wrapfd)));
 	wrapfd2 = ret_or_errno(wrapfd_rewrap(wrapfd, PROT_READ));
@@ -2603,8 +2566,9 @@ TEST_F(wrapfd_tests, other_thread_of_owner_can_load_and_empty)
 	struct load_args load;
 	int wrapfd;
 
-	if (!new_wrap(_metadata, self, &wrapfd))
-		return;
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
+	ASSERT_LE(0, wrapfd);
+
 	ASSERT_EQ(0, ret_or_errno(wrapfd_acquire_ownership(wrapfd)));
 
 	load = (struct load_args){ .wrapfd = wrapfd, .fd = self->fd, .len = self->size };
@@ -2626,8 +2590,9 @@ TEST_F(wrapfd_tests, release_by_other_thread_of_owner_ends_ownership)
 	struct worker wk;
 	int wrapfd;
 
-	if (!new_wrap(_metadata, self, &wrapfd))
-		return;
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
+	ASSERT_LE(0, wrapfd);
+
 	ASSERT_EQ(0, load_all(self, wrapfd));
 	ASSERT_EQ(0, ret_or_errno(wrapfd_acquire_ownership(wrapfd)));
 
@@ -2658,8 +2623,9 @@ TEST_F(wrapfd_tests, acquire_fails_ebusy_while_other_process_owns)
 	struct worker wk;
 	int wrapfd;
 
-	if (!new_wrap(_metadata, self, &wrapfd))
-		return;
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
+	ASSERT_LE(0, wrapfd);
+
 	ASSERT_EQ(0, load_all(self, wrapfd));
 
 	if (!worker_start(_metadata, &wk)) {
@@ -2692,8 +2658,9 @@ TEST_F(wrapfd_tests, owner_reacquire_succeeds_and_one_release_ends_ownership)
 	struct worker wk;
 	int wrapfd;
 
-	if (!new_wrap(_metadata, self, &wrapfd))
-		return;
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
+	ASSERT_LE(0, wrapfd);
+
 	ASSERT_EQ(0, load_all(self, wrapfd));
 	ASSERT_EQ(0, ret_or_errno(wrapfd_acquire_ownership(wrapfd)));
 	ASSERT_EQ(0, ret_or_errno(wrapfd_acquire_ownership(wrapfd)));
@@ -2718,8 +2685,9 @@ TEST_F(wrapfd_tests, release_succeeds_while_mapped)
 	void *ptr;
 	int wrapfd;
 
-	if (!new_wrap(_metadata, self, &wrapfd))
-		return;
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
+	ASSERT_LE(0, wrapfd);
+
 	ASSERT_EQ(0, load_all(self, wrapfd));
 	ASSERT_EQ(0, ret_or_errno(wrapfd_acquire_ownership(wrapfd)));
 	ASSERT_EQ(0, ret_or_errno(wrapfd_allow_guests(wrapfd)));
@@ -2753,8 +2721,9 @@ TEST_F(wrapfd_tests, empty_and_rewrap_fail_einval_when_mapped_by_other_process)
 	void *ptr;
 	int wrapfd;
 
-	if (!new_wrap(_metadata, self, &wrapfd))
-		return;
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
+	ASSERT_LE(0, wrapfd);
+
 	ASSERT_EQ(0, load_all(self, wrapfd));
 	ASSERT_EQ(0, ret_or_errno(wrapfd_acquire_ownership(wrapfd)));
 	ASSERT_EQ(0, ret_or_errno(wrapfd_allow_guests(wrapfd)));
@@ -2790,8 +2759,9 @@ TEST_F(wrapfd_tests, empty_after_rewrap_by_other_thread_fails_enoent)
 	struct rewrap_args rewrap;
 	int wrapfd;
 
-	if (!new_wrap(_metadata, self, &wrapfd))
-		return;
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
+	ASSERT_LE(0, wrapfd);
+
 	ASSERT_EQ(0, load_all(self, wrapfd));
 	ASSERT_EQ(0, ret_or_errno(wrapfd_acquire_ownership(wrapfd)));
 
@@ -2814,8 +2784,9 @@ TEST_F(wrapfd_tests, rewrap_failure_leaves_content_in_place)
 	struct worker wk;
 	int wrapfd;
 
-	if (!new_wrap(_metadata, self, &wrapfd))
-		return;
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
+	ASSERT_LE(0, wrapfd);
+
 	ASSERT_EQ(0, load_all(self, wrapfd));
 
 	if (!worker_start(_metadata, &wk)) {
@@ -2842,8 +2813,9 @@ TEST_F(wrapfd_tests, load_rejects_out_of_range_einval)
 	off_t bufsize;
 	int wrapfd;
 
-	if (!new_wrap(_metadata, self, &wrapfd))
-		return;
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
+	ASSERT_LE(0, wrapfd);
+
 	/* The buffer is page-rounded, so it ends after the content file. */
 	bufsize = ret_or_errno(lseek(wrapfd, 0, SEEK_END));
 	ASSERT_EQ((off_t)ALIGN(self->size, self->page_size), bufsize);
@@ -2859,8 +2831,9 @@ TEST_F(wrapfd_tests, get_state_by_non_owner_process_succeeds_while_owned)
 	struct worker wk;
 	int wrapfd;
 
-	if (!new_wrap(_metadata, self, &wrapfd))
-		return;
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
+	ASSERT_LE(0, wrapfd);
+
 	ASSERT_EQ(0, load_all(self, wrapfd));
 	ASSERT_EQ(0, ret_or_errno(wrapfd_acquire_ownership(wrapfd)));
 
@@ -2882,8 +2855,9 @@ TEST_F(wrapfd_tests, wrap_lseek_end_on_empty_wrap_has_no_side_effect)
 {
 	int wrapfd;
 
-	if (!new_wrap(_metadata, self, &wrapfd))
-		return;
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
+	ASSERT_LE(0, wrapfd);
+
 	ASSERT_EQ(0, ret_or_errno(wrapfd_acquire_ownership(wrapfd)));
 	ASSERT_EQ(0, ret_or_errno(wrapfd_empty(wrapfd)));
 	ASSERT_EQ(0, ret_or_errno(wrapfd_release_ownership(wrapfd)));
@@ -2903,8 +2877,8 @@ TEST_F(wrapfd_tests, mapping_held_across_load_shows_loaded_bytes)
 	void *ptr;
 	int wrapfd;
 
-	if (!new_wrap(_metadata, self, &wrapfd))
-		return;
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
+	ASSERT_LE(0, wrapfd);
 
 	if (!worker_start(_metadata, &wk)) {
 		ptr = mmap(NULL, self->size, PROT_READ, MAP_SHARED, wrapfd, 0);
@@ -2956,8 +2930,9 @@ TEST_F(wrapfd_tests, acquire_fails_einval_during_load)
 	struct probe probe;
 	int wrapfd, ret;
 
-	if (!new_wrap(_metadata, self, &wrapfd))
-		return;
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
+	ASSERT_LE(0, wrapfd);
+
 	if (!hold_load(_metadata, self, &gate, wrapfd, 0, self->size))
 		return;
 	ASSERT_EQ(0, probe_start(&probe, thread_acquire, wrapfd, &wrapfd));
@@ -2985,8 +2960,9 @@ TEST_F(wrapfd_tests, empty_and_rewrap_fail_einval_during_load)
 	struct probe empty, rewrap;
 	struct load_gate gate;
 
-	if (!new_wrap(_metadata, self, &wrapfd))
-		return;
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
+	ASSERT_LE(0, wrapfd);
+
 	ASSERT_EQ(0, ret_or_errno(wrapfd_acquire_ownership(wrapfd)));
 	/* The loader is another thread of the owner. */
 	if (!hold_load(_metadata, self, &gate, wrapfd, 0, self->size))
@@ -3022,8 +2998,9 @@ TEST_F(wrapfd_tests, release_succeeds_during_load)
 	struct probe probe;
 	int wrapfd, ret;
 
-	if (!new_wrap(_metadata, self, &wrapfd))
-		return;
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
+	ASSERT_LE(0, wrapfd);
+
 	ASSERT_EQ(0, ret_or_errno(wrapfd_acquire_ownership(wrapfd)));
 	if (!hold_load(_metadata, self, &gate, wrapfd, 0, self->size))
 		return;
@@ -3048,8 +3025,9 @@ TEST_F(wrapfd_tests, get_state_returns_without_waiting_during_load)
 	struct probe probe;
 	int wrapfd;
 
-	if (!new_wrap(_metadata, self, &wrapfd))
-		return;
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
+	ASSERT_LE(0, wrapfd);
+
 	if (!hold_load(_metadata, self, &gate, wrapfd, 0, self->size))
 		return;
 	ASSERT_EQ(0, probe_start(&probe, thread_get_state, wrapfd, &wrapfd));
@@ -3074,8 +3052,9 @@ TEST_F(wrapfd_tests, concurrent_loads_into_same_wrap_succeed)
 	struct probe probe;
 	int wrapfd;
 
-	if (!new_wrap(_metadata, self, &wrapfd))
-		return;
+	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
+	ASSERT_LE(0, wrapfd);
+
 	if (!hold_load(_metadata, self, &gate, wrapfd, 0, half))
 		return;
 	second = (struct load_args){ .wrapfd = wrapfd, .fd = self->fd, .offs = half,
