@@ -7052,16 +7052,20 @@ static int fastrpc_check_pd_status(struct fastrpc_file *fl, char *sloc_name)
 		}
 #if IS_ENABLED(CONFIG_QCOM_PDR_HELPERS)
 		/*
-		 * Nothing reports a PD up without a PDR lookup for it (the
-		 * lahaina DT has none for the SLPI sensors PD), so don't wait.
+		 * Nothing reports a PD up without a PDR lookup for it, so don't
+		 * wait then.
 		 */
 		if (!me->channel[cid].spd[session].pdrhandle)
 			goto bail;
+		/*
+		 * The SLPI sensors PD lookup is only used to track restarts. As
+		 * on 5.4, attaching to it doesn't wait for the PD to be reported
+		 * up: the wait has no timeout, and a missed PDR "up" would leave
+		 * sscrpcd and the sensors HAL blocked with no sensors.
+		 */
 		if (!strcmp(fl->servloc_name,
 			AUDIO_PDR_SERVICE_LOCATION_CLIENT_NAME) || !strcmp(fl->servloc_name,
-			SENSORS_PDR_ADSP_SERVICE_LOCATION_CLIENT_NAME) ||
-			!strcmp(fl->servloc_name,
-			SENSORS_PDR_SLPI_SERVICE_LOCATION_CLIENT_NAME)) {
+			SENSORS_PDR_ADSP_SERVICE_LOCATION_CLIENT_NAME)) {
 			err = wait_event_interruptible(
 			me->channel[cid].spd[session].wait_for_pdup,
 			atomic_read(&me->channel[cid].spd[session].ispdup));
