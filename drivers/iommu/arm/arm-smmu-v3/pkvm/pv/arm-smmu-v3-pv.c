@@ -260,10 +260,10 @@ static void smmu_iotlb_sync(struct kvm_hyp_iommu_domain *domain,
 {
 	size_t size;
 
-	if (!gather->pgsize)
-		return;
-	size = gather->end - gather->start + 1;
-	smmu_tlb_inv_range(domain, gather->start, size,  gather->pgsize, true);
+	if (gather->pgsize) {
+		size = gather->end - gather->start + 1;
+		smmu_tlb_inv_range(domain, gather->start, size,  gather->pgsize, true);
+	}
 
 	smmu_flush_deferred_unuse(smmu_this_cpu_ptr(kvm_smmu_deferred_unuse));
 }
@@ -400,7 +400,7 @@ static void smmu_flush_deferred_unuse(struct kvm_smmu_unmapped *unmapped)
 }
 
 /*
- * This is called just before the PTE is cleared, and before any TLB invalidation.
+ * This is called after the PTE is cleared, but before any TLB invalidation.
  * So, it is not possible to decrement the page count from here as it can still
  * be accessible through DMA.
  * Doint invalidation before this defeats the point of iotlb_gather and issues

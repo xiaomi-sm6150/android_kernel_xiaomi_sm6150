@@ -668,10 +668,19 @@ static size_t __arm_lpae_unmap(struct arm_lpae_io_pgtable *data,
 							  ARM_LPAE_GRANULE(data));
 				__arm_lpae_free_pgtable(data, lvl + 1,
 							iopte_deref(pte, data), gather);
-			} else {
-				io_pgtable_put_pages(iop, iopte_to_paddr(pte, data), size, gather);
+			} else if (iop->cfg.put_pages) {
+				/* Clear PTE and queue TLBI: put_pages() may release the page. */
+				__arm_lpae_clear_pte(&ptep[i], &iop->cfg, 1);
+				if (gather && !iommu_iotlb_gather_queued(gather))
+					io_pgtable_tlb_add_page(iop, gather,
+								iova + i * size, size);
+				io_pgtable_put_pages(iop, iopte_to_paddr(pte, data),
+						     size, gather);
 			}
 		}
+
+		if (iop->cfg.put_pages)
+			return i * size;
 
 		/* Clear the remaining entries */
 		__arm_lpae_clear_pte(ptep, &iop->cfg, i);
