@@ -372,6 +372,7 @@ impl IoContext {
         if remaining_req_len != 0
             && self.dio_buf_seg.len != 0
             && global_dio_file_offset <= cur_file_offs
+            && cur_file_offs < global_dio_file_offset + self.dio_buf_seg.len
         {
             /*
              * The offset into the buffer for this request should be the base of where we start
