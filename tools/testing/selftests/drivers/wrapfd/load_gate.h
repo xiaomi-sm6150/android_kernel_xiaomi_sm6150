@@ -236,8 +236,11 @@ static int load_gate_open_timeline(void)
 	if (unshare(CLONE_NEWNS) || mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL))
 		return -errno;
 	/* No mount point: the kernel has no debugfs, or does not allow mounting it. */
-	if (mount("debugfs", LOAD_GATE_DEBUGFS, "debugfs", 0, NULL))
-		return errno == ENOENT ? -ENODEV : -errno;
+	if (mount("debugfs", LOAD_GATE_DEBUGFS, "debugfs", 0, NULL)) {
+		/* Ignore the error if debugfs is already mounted */
+		if (errno != EBUSY)
+			return errno == ENOENT ? -ENODEV : -errno;
+	}
 	fd = open(LOAD_GATE_SW_SYNC, O_RDWR | O_CLOEXEC);
 	if (fd < 0)
 		return errno == ENOENT ? -ENODEV : -errno;
