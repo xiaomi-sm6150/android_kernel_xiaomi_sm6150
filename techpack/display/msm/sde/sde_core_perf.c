@@ -751,6 +751,7 @@ static void _sde_core_perf_crtc_update_bus(struct sde_kms *kms,
 		struct drm_crtc *crtc, u32 bus_id)
 {
 	u64 bw_sum_of_intfs = 0, bus_ib_quota = 0, bus_ab_quota;
+	u64 max_per_pipe_ib = 0;
 	enum sde_crtc_client_type client_vote, curr_client_type
 					= sde_crtc_get_client_type(crtc);
 	struct drm_crtc *tmp_crtc;
@@ -770,6 +771,8 @@ static void _sde_core_perf_crtc_update_bus(struct sde_kms *kms,
 			tmp_bw_ctl =
 			  sde_crtc->cur_perf.bw_ctl[bus_id];
 
+			max_per_pipe_ib = max(max_per_pipe_ib,
+				sde_crtc->cur_perf.max_per_pipe_ib[bus_id]);
 
 			bw_sum_of_intfs += tmp_bw_ctl;
 
@@ -788,6 +791,13 @@ static void _sde_core_perf_crtc_update_bus(struct sde_kms *kms,
 			kms->catalog->perf.num_ddr_channels) * 100,
 			kms->catalog->perf.dram_efficiency);
 	}
+
+	/*
+	 * The derived ib only scales the ab vote. Keep the per-pipe peak that
+	 * the composer sends in CRTC_PROP_CORE_IB as a floor, as the older
+	 * driver did, so downscaled video planes get their fetch bandwidth.
+	 */
+	bus_ib_quota = max(bus_ib_quota, max_per_pipe_ib);
 
 	if (kms->perf.perf_tune.mode == SDE_PERF_MODE_FIXED) {
 		bus_ab_quota = max(kms->perf.fix_core_ab_vote,
