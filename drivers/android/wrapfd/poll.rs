@@ -40,7 +40,7 @@ impl EventInfo {
 
 type EventVector = KVec<Option<EventInfo>>;
 
-#[pin_data(PinnedDrop)]
+#[pin_data]
 pub(crate) struct FileMonitor {
     #[pin]
     wait_queue_head: Opaque<bindings::wait_queue_head>,
@@ -57,33 +57,6 @@ pub(crate) struct FileMonitor {
 pub(crate) enum ProcessMode {
     Add,
     Delete,
-}
-
-#[pinned_drop]
-impl PinnedDrop for FileMonitor {
-    fn drop(self: Pin<&mut Self>) {
-        let mut guard = self.events.lock();
-        for opt_info in guard.iter() {
-            let Some(info) = opt_info else {
-                continue;
-            };
-
-            let Ok(local_file) = LocalFile::fget(info.fd) else {
-                continue;
-            };
-
-            // SAFETY: There are no `fdget_pos` calls on the current thread.
-            let file = unsafe { LocalFile::assume_no_fdget_pos(local_file) };
-
-            let Some(wrap) = WRAP_FOPS.borrow_private(&*file) else {
-                continue;
-            };
-
-            let mut wrap_guard = wrap.inner.lock();
-            _ = wrap_guard.detach_monitor(&self);
-        }
-        guard.clear();
-    }
 }
 
 impl FileMonitor {
@@ -216,7 +189,11 @@ impl FileMonitor {
         } else {
             let mut filemon_guard = filemon.events.lock();
             let slot = Self::allocate_slot(&mut filemon_guard, args.fd)?;
-            wrap_guard.attach_monitor(Arc::clone(filemon), slot)?;
+            wrap_guard
+                .attach_monitor(Arc::clone(filemon), slot)
+                .inspect_err(|_err| {
+                    filemon_guard[slot] = None;
+                })?;
             filemon_guard[slot].as_mut().unwrap().monitored |= args.events;
         }
 
@@ -284,5 +261,10 @@ impl PartialEq for FileMonitor {
 
 impl Eq for FileMonitor {}
 
+// SAFETY: `wait_queue_head` is synchronized internally by its own spinlock, and all
+// other fields are `Sync`.
 unsafe impl Sync for FileMonitor {}
+
+// SAFETY: `wait_queue_head` is not tied to a specific thread, and all other fields
+// are `Send`.
 unsafe impl Send for FileMonitor {}
