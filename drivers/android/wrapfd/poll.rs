@@ -2,20 +2,19 @@
 
 // Copyright (C) 2026 Google LLC.
 
-use core::{
-    marker::PhantomPinned,
-    sync::atomic::{AtomicBool, Ordering},
-};
+use core::sync::atomic::{AtomicBool, Ordering};
 
 use crate::wrap::WRAP_FOPS;
 
 use kernel::{
     bindings,
     fs::LocalFile,
-    new_mutex,
+    new_mutex, new_poll_condvar,
     prelude::*,
-    sync::{poll::PollTable, Arc, Mutex},
-    types::Opaque,
+    sync::{
+        poll::{PollCondVar, PollTable},
+        Arc, Mutex,
+    },
     uapi,
 };
 
@@ -43,14 +42,11 @@ type EventVector = KVec<Option<EventInfo>>;
 #[pin_data]
 pub(crate) struct FileMonitor {
     #[pin]
-    wait_queue_head: Opaque<bindings::wait_queue_head>,
+    condvar: PollCondVar,
     events_pending: AtomicBool,
 
     #[pin]
     events: Mutex<EventVector>,
-
-    #[pin]
-    _pin: PhantomPinned,
 }
 
 #[derive(Clone, Copy)]
@@ -62,25 +58,10 @@ pub(crate) enum ProcessMode {
 impl FileMonitor {
     pub(crate) fn new() -> impl PinInit<Self> {
         pin_init!(Self {
-            wait_queue_head <- Opaque::ffi_init(|slot| {
-                // SAFETY: `slot` is valid while the closure is called.
-                unsafe {
-                    bindings::init_waitqueue_head(slot);
-                }
-            }),
+            condvar <- new_poll_condvar!("FileMonitor::condvar"),
             events_pending: false.into(),
             events <- new_mutex!(EventVector::default()),
-            _pin: PhantomPinned,
         })
-    }
-
-    pub(crate) fn wake(&self) {
-        if self.events_pending.swap(true, Ordering::AcqRel) {
-            return;
-        }
-
-        // SAFETY: `wait_queue_head` has been properly initialized using `init_waitqueue_head`.
-        _ = unsafe { bindings::wake_up_interruptible(self.wait_queue_head.get()) };
     }
 
     fn allocate_slot(events: &mut EventVector, fd: u32) -> Result<usize> {
@@ -107,7 +88,7 @@ impl FileMonitor {
     }
 
     pub(crate) fn generate_wrap_event(&self, slot: usize, event: u32) -> Result<()> {
-        {
+        let should_wake = {
             let mut guard = self.events.lock();
             if slot >= guard.len() {
                 return Err(ERANGE);
@@ -125,8 +106,13 @@ impl FileMonitor {
 
             // SAFETY: Calling `ktime_get_ns` is always safe.
             info.timestamp = unsafe { bindings::ktime_get_ns() };
+
+            !self.events_pending.swap(true, Ordering::Release)
+        };
+
+        if should_wake {
+            self.condvar.notify_all();
         }
-        self.wake();
 
         Ok(())
     }
@@ -242,7 +228,7 @@ impl FileMonitor {
         file: &kernel::fs::File,
         table: PollTable<'_>,
     ) -> Result<bindings::__poll_t> {
-        table.wait(file, self.wait_queue_head.get());
+        table.register_wait(file, &self.condvar);
 
         let mut mask = 0;
         if self.events_pending.load(Ordering::Acquire) {
@@ -255,16 +241,8 @@ impl FileMonitor {
 
 impl PartialEq for FileMonitor {
     fn eq(&self, other: &Self) -> bool {
-        self.wait_queue_head.get() == other.wait_queue_head.get()
+        core::ptr::eq(self, other)
     }
 }
 
 impl Eq for FileMonitor {}
-
-// SAFETY: `wait_queue_head` is synchronized internally by its own spinlock, and all
-// other fields are `Sync`.
-unsafe impl Sync for FileMonitor {}
-
-// SAFETY: `wait_queue_head` is not tied to a specific thread, and all other fields
-// are `Send`.
-unsafe impl Send for FileMonitor {}
