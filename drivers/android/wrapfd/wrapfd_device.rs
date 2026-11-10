@@ -200,18 +200,19 @@ impl WrapfdDevFile {
             monitors.push_within_capacity(monitors_reader.read()?)?;
         }
 
-        let mut results: KVec<u64> = KVec::with_capacity(num_monitors, GFP_KERNEL)?;
+        let mut results: KVec<i64> = KVec::with_capacity(num_monitors, GFP_KERNEL)?;
         for monitor in &monitors {
             // NOTE: Should never fail as we reserved the memory ahead of time above.
             results.push_within_capacity(
                 FileMonitor::process_monitor(&self.file_monitor, monitor, mode)
-                    .map_or_else(Error::to_errno, |_| 0) as u64,
+                    .map_or_else(Error::to_errno, |_| 0)
+                    .into(),
             )?;
         }
 
         let results_slice = UserSlice::new(
             UserPtr::from_addr(usize::try_from(args.results)?),
-            num_monitors * core::mem::size_of::<u64>(),
+            num_monitors * core::mem::size_of::<i64>(),
         );
         let mut results_writer = results_slice.writer();
         Self::write_vector(&mut results_writer, &results)?;

@@ -62,7 +62,7 @@ struct wrapfd_monitor {
 struct wrapfd_monitors {
 	__u64 len;		/* [in] number of elements in arr and results */
 	__u64 arr;		/* [in] array of struct wrapfd_monitor */
-	__u64 results;		/* [in] array of integers */
+	__u64 results;		/* [out] array of 64-bit signed integers */
 };
 
 struct wrapfd_add_monitors {
@@ -83,8 +83,8 @@ struct wrapfd_event {
 
 struct wrapfd_events {
 	__u64 len;		/* [in] number of elements in arr */
-	__u64 arr;		/* [in] array of struct wrapfd_event */
-	__u64 count;
+	__u64 arr;		/* [in / out] array of struct wrapfd_event */
+	__u64 count;		/* [out] number of events reported in arr */
 };
 
 struct wrapfd_repopulate {
