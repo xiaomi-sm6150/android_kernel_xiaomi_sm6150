@@ -2,6 +2,8 @@
 
 // Copyright (C) 2026 Google LLC.
 
+use core::mem::MaybeUninit;
+
 use crate::{
     content::DmaBufContent,
     poll::{FileMonitor, ProcessMode},
@@ -13,9 +15,9 @@ use kernel::{
     fs::LocalFile,
     prelude::*,
     sync::{poll::PollTable, Arc},
-    transmute::AsBytes,
+    transmute::{AsBytes, FromBytes},
     types::ARef,
-    uaccess::UserSlice,
+    uaccess::{UserSlice, UserSliceReader},
     uapi,
 };
 
@@ -165,6 +167,39 @@ impl WrapfdDevFile {
         Ok(0)
     }
 
+    /// Reads exactly `len` elements from `reader` into a newly allocated `KVec` and returns it
+    /// (or an error).
+    fn read_vec<T>(reader: &mut UserSliceReader, len: usize) -> Result<KVec<T>>
+    where
+        T: FromBytes,
+    {
+        let mut vec = KVec::<T>::with_capacity(len, GFP_KERNEL)?;
+
+        let spare: &mut [MaybeUninit<T>] = &mut vec.spare_capacity_mut()[..len];
+        let byte_len = core::mem::size_of_val(spare);
+
+        // SAFETY:
+        // - `spare` is valid for writes of `byte_len` bytes for its lifetime, and casting from
+        //   `MaybeUninit<T>` to `MaybeUninit<u8>` has alignment 1 (always satisfied) with no
+        //   initialization invariants.
+        // - `byte_len` cannot exceed `isize::MAX` because `spare` is an existing Rust slice.
+        let out_bytes: &mut [MaybeUninit<u8>] = unsafe {
+            core::slice::from_raw_parts_mut(spare.as_mut_ptr().cast::<MaybeUninit<u8>>(), byte_len)
+        };
+
+        // Perform a single bulk copy from userspace; on `Ok(())`, `read_raw` guarantees every
+        // byte in `out_bytes` has been initialized.
+        reader.read_raw(out_bytes)?;
+
+        // SAFETY:
+        // - `with_capacity(len)` reserved at least `len` elements.
+        // - `read_raw` succeeded, so all `byte_len` bytes covering `0..len` are initialized,
+        //   and `T: FromBytes` guarantees any initialized bit pattern is a valid `T`.
+        unsafe { vec.inc_len(len) };
+
+        Ok(vec)
+    }
+
     fn process_monitors(&self, args: &uapi::wrapfd_monitors, mode: ProcessMode) -> Result<isize> {
         if args.len == 0 || args.len > (uapi::WRAPFD_MAX_NR_MONITORS as u64) {
             return Err(EINVAL);
@@ -176,17 +211,17 @@ impl WrapfdDevFile {
 
         let num_monitors: usize = args.len.try_into()?;
 
-        let mut monitors = KVec::<uapi::wrapfd_monitor>::with_capacity(num_monitors, GFP_KERNEL)?;
-
         let monitors_slice = UserSlice::new(
             UserPtr::from_addr(usize::try_from(args.arr)?),
             num_monitors * core::mem::size_of::<uapi::wrapfd_monitor>(),
         );
         let mut monitors_reader = monitors_slice.reader();
-        for _ in 0..num_monitors {
-            // NOTE: Should never fail as we reserved the memory ahead of time above.
-            monitors.push_within_capacity(monitors_reader.read()?)?;
-        }
+        let monitors = Self::read_vec(&mut monitors_reader, num_monitors)?;
+
+        let results_slice = UserSlice::new(
+            UserPtr::from_addr(usize::try_from(args.results)?),
+            num_monitors * core::mem::size_of::<i64>(),
+        );
 
         let mut results: KVec<i64> = KVec::with_capacity(num_monitors, GFP_KERNEL)?;
         for monitor in &monitors {
@@ -198,10 +233,6 @@ impl WrapfdDevFile {
             )?;
         }
 
-        let results_slice = UserSlice::new(
-            UserPtr::from_addr(usize::try_from(args.results)?),
-            num_monitors * core::mem::size_of::<i64>(),
-        );
         let mut results_writer = results_slice.writer();
         results_writer.write_slice(results.as_bytes())?;
 
