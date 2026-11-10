@@ -9,14 +9,13 @@ use crate::{
 };
 
 use kernel::{
-    alloc::Allocator,
     bindings, device,
     fs::LocalFile,
     prelude::*,
     sync::{poll::PollTable, Arc},
     transmute::AsBytes,
     types::ARef,
-    uaccess::{UserSlice, UserSliceWriter},
+    uaccess::UserSlice,
     uapi,
 };
 
@@ -140,17 +139,6 @@ impl WrapfdDevFile {
         self.process_monitors(&args.monitors, ProcessMode::Delete)
     }
 
-    fn write_vector<T: AsBytes, A: Allocator>(
-        writer: &mut UserSliceWriter,
-        vec: &Vec<T, A>,
-    ) -> Result {
-        for elem in vec {
-            writer.write(elem)?;
-        }
-
-        Ok(())
-    }
-
     fn query_events(&self, user_slice: UserSlice) -> Result<isize> {
         let (mut reader, mut writer) = user_slice.reader_writer();
         let mut args = reader.read::<uapi::wrapfd_events>()?;
@@ -161,18 +149,18 @@ impl WrapfdDevFile {
 
         let max_num_events: usize = args.len.try_into()?;
 
-        let mut events = KVec::<uapi::wrapfd_event>::with_capacity(max_num_events, GFP_KERNEL)?;
-        self.file_monitor.query_events(&mut events)?;
-
         let events_slice = UserSlice::new(
             UserPtr::from_addr(usize::try_from(args.arr)?),
             max_num_events * core::mem::size_of::<uapi::wrapfd_event>(),
         );
-        let mut events_writer = events_slice.writer();
-        Self::write_vector(&mut events_writer, &events)?;
 
-        args.count = events.len() as u64;
-        writer.write(&args)?;
+        self.file_monitor.query_events(max_num_events, |events| {
+            let mut events_writer = events_slice.writer();
+            events_writer.write_slice(events.as_bytes())?;
+
+            args.count = events.len() as u64;
+            writer.write(&args)
+        })?;
 
         Ok(0)
     }
@@ -215,7 +203,7 @@ impl WrapfdDevFile {
             num_monitors * core::mem::size_of::<i64>(),
         );
         let mut results_writer = results_slice.writer();
-        Self::write_vector(&mut results_writer, &results)?;
+        results_writer.write_slice(results.as_bytes())?;
 
         Ok(0)
     }
