@@ -149,10 +149,7 @@ impl FileMonitor {
             return Err(EBADF);
         };
 
-        // SAFETY: There are no `fdget_pos` calls on the current thread.
-        let file = unsafe { LocalFile::assume_no_fdget_pos(local_file) };
-
-        let Some(wrap) = WRAP_FOPS.borrow_private(&*file) else {
+        let Some(wrap) = WRAP_FOPS.borrow_private(&*local_file) else {
             return Err(EBADF);
         };
 

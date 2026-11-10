@@ -9,7 +9,7 @@
 use crate::{
     bindings, build_error,
     error::{from_err_ptr, VTABLE_DEFAULT_ERROR},
-    fs::{file::Offset, File},
+    fs::{file::Offset, File, LocalFile},
     mm::virt::VmaNew,
     prelude::*,
     seq_file::SeqFile,
@@ -148,7 +148,7 @@ impl<T: AnonInodeFileInterface> AnonInodeFileVTable<T> {
     /// private data `T::Ptr`.
     pub fn borrow_private<'a>(
         &'static self,
-        file: &'a File,
+        file: &'a LocalFile,
     ) -> Option<<T::Ptr as ForeignOwnable>::Borrowed<'a>> {
         // SAFETY: `file.as_ptr()` is a valid pointer to `struct file`.
         let f_op = unsafe { (*file.as_ptr()).f_op };

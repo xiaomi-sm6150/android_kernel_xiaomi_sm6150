@@ -242,14 +242,11 @@ impl WrapfdDevFile {
     fn repopulate(args: &uapi::wrapfd_repopulate) -> Result<u32> {
         let local_file = LocalFile::fget(args.wrapfd)?;
 
-        // SAFETY: There are no `fdget_pos` calls on the current thread.
-        let file = unsafe { LocalFile::assume_no_fdget_pos(local_file) };
-
-        let Some(wrap) = WRAP_FOPS.borrow_private(&*file) else {
+        let Some(wrap) = WRAP_FOPS.borrow_private(&*local_file) else {
             return Err(EBADF);
         };
 
-        let close_on_exec = wrap.repopulate(&file, args.fd)?;
+        let close_on_exec = wrap.repopulate(&local_file, args.fd)?;
 
         // SAFETY: args.wrapfd was a valid file descriptor at least at the time we acquired the
         // `LocalFile` reference above. If the file descriptor has been invalidated since, the

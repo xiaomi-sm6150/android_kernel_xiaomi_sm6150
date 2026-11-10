@@ -556,7 +556,7 @@ impl Wrap {
         Ok(0)
     }
 
-    pub(crate) fn repopulate(&self, wrap_file: &File, fd: u32) -> Result<bool> {
+    pub(crate) fn repopulate(&self, wrap_file: &LocalFile, fd: u32) -> Result<bool> {
         let f_mode = wrap_file.mode();
 
         let mut prot = 0;
