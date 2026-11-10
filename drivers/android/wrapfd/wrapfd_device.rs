@@ -182,7 +182,7 @@ impl WrapfdDevFile {
             return Err(EINVAL);
         }
 
-        if args.arr == 0 {
+        if args.arr == 0 || args.results == 0 {
             return Err(EFAULT);
         }
 
