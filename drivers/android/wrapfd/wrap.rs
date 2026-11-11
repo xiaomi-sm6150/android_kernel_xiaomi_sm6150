@@ -419,7 +419,7 @@ impl Wrap {
         let buf_offset: Offset = load_args.buf_offs.try_into()?;
         let len: Offset = load_args.len.try_into()?;
 
-        if file_offset < 0 || buf_offset < 0 || len < 0 {
+        if file_offset < 0 || buf_offset < 0 || len <= 0 {
             return Err(EINVAL);
         }
 
