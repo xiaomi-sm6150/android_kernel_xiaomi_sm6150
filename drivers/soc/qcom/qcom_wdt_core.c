@@ -35,6 +35,10 @@
 #include <linux/suspend.h>
 #include <linux/notifier.h>
 #include <linux/kmsg_dump.h>
+#include <linux/nmi.h>
+#include <linux/sched/debug.h>
+
+extern void k61_dump_curr(int cpu);
 
 #define MASK_SIZE        32
 
@@ -707,6 +711,27 @@ static irqreturn_t qcom_wdt_bark_handler(int irq, void *dev_id)
 
 	if (wdog_dd->freeze_in_progress)
 		dev_info(wdog_dd->dev, "Suspend in progress\n");
+
+	/* DEBUG (run 03): why does the pet kthread never pet? */
+	{
+		int c;
+
+		pr_emerg("k61wdt: jiffies=%lu pet_timer pending=%d expires=%lu timer_expired=%d timer_fired=%llu thread_start=%llu user_pet_complete=%d enabled=%d\n",
+			 jiffies, timer_pending(&wdog_dd->pet_timer),
+			 wdog_dd->pet_timer.expires, wdog_dd->timer_expired,
+			 wdog_dd->timer_fired, wdog_dd->thread_start,
+			 wdog_dd->user_pet_complete, wdog_dd->enabled);
+		for_each_possible_cpu(c)
+			pr_emerg("k61wdt: cpu%d online=%d idle_pc=%d ping_start=%llu ping_end=%llu\n",
+				 c, cpu_online(c), wdog_dd->cpu_idle_pc_state[c],
+				 wdog_dd->ping_start[c], wdog_dd->ping_end[c]);
+		if (wdog_dd->watchdog_task)
+			sched_show_task(wdog_dd->watchdog_task);
+		for (c = 5; c < 8; c++)
+			k61_dump_curr(c);
+		trigger_all_cpu_backtrace();
+		mdelay(700);
+	}
 
 #if defined(CONFIG_ARCH_QTI_VM) && !defined(MODULE)
 	/* Dump logs to shared memory for QTVM */

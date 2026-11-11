@@ -5626,8 +5626,8 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 	 */
 	msm_host->pltfm_init_done = true;
 
+	/* DEBUG (run 03): never runtime-suspend the host (test for the 7.8 s death) */
 	pm_runtime_mark_last_busy(&pdev->dev);
-	pm_runtime_put_autosuspend(&pdev->dev);
 
 	if (host->mmc->caps & MMC_CAP_NONREMOVABLE) {
 		register_trace_android_rvh_mmc_suspend(sdhci_msm_mmc_suspend, NULL);

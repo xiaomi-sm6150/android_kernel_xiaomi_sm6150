@@ -41,3 +41,4 @@ obj-$(CONFIG_NVMEM_REBOOT_MODE) += nvmem-reboot-mode.o
 obj-$(CONFIG_POWER_MLXBF) += pwr-mlxbf.o
 obj-$(CONFIG_NVMEM_IMEM) += nvmem_imem.o
 obj-y += k61-pshold.o
+obj-y += k61-ipitest.o

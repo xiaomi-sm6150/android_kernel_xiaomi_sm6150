@@ -153,12 +153,96 @@
 	status = "disabled";
 };
 
+
 /*
- * DEBUG: the 6.1 msm_watchdog arms the APSS watchdog and pets it once
- * (last pet ~0.1 s in every run 03 attempt), then bites at 11 s while
- * k61.stop waits for deferred probes. Off until the pet path is fixed;
- * 4.14 already cleared WDT0_EN before kexec.
+ * DEBUG (run 03): probing 1700000.interconnect (aggre1_noc) hangs the CPU
+ * with IRQs off, in the QoS programming (tables are SA6155 automotive:
+ * EMAC AVB, PCIe, ... masters that do not exist on SM6150).
  */
-&wdog {
+&dc_noc {
+	qcom,skip-qos;
+};
+
+&gem_noc {
+	qcom,skip-qos;
+};
+
+&config_noc {
+	qcom,skip-qos;
+};
+
+&system_noc {
+	qcom,skip-qos;
+};
+
+&aggre1_noc {
+	qcom,skip-qos;
+};
+
+&mmss_noc {
+	qcom,skip-qos;
+};
+
+/*
+ * DEBUG (run 03): after kexec the display block is powered down and
+ * disp_rsc (af20000) reads PRNT_CHLD_CONFIG = 0 -> probe -EINVAL, so
+ * disp_bcm_voter never appears and the nocs below defer forever.
+ * Vote through the apps voter only for now.
+ */
+&mc_virt {
+	qcom,bcm-voter-names = "hlos", "disp";
+	qcom,bcm-voters = <&apps_bcm_voter>, <&apps_bcm_voter>;
+};
+
+&gem_noc {
+	qcom,bcm-voter-names = "hlos", "disp";
+	qcom,bcm-voters = <&apps_bcm_voter>, <&apps_bcm_voter>;
+};
+
+&mmss_noc {
+	qcom,bcm-voter-names = "hlos", "disp";
+	qcom,bcm-voters = <&apps_bcm_voter>, <&apps_bcm_voter>;
+};
+
+/* eMMC (4.14 atoll-idp.dtsi settings) */
+&sdhc_1 {
+	/delete-property/ interconnects;
+	/delete-property/ interconnect-names;
+	vdd-supply = <&pm6150_l19>;
+	qcom,vdd-voltage-level = <2960000 2960000>;
+	qcom,vdd-current-level = <0 570000>;
+
+	vdd-io-supply = <&pm6150_l12>;
+	qcom,vdd-io-always-on;
+	qcom,vdd-io-lpm-sup;
+	qcom,vdd-io-voltage-level = <1800000 1800000>;
+	qcom,vdd-io-current-level = <0 325000>;
+
+	pinctrl-names = "active", "sleep";
+	pinctrl-0 = <&sdc1_on>;
+	pinctrl-1 = <&sdc1_off>;
+
+	status = "okay";
+};
+
+/* attempt 29 bisect */
+&sdhc_1 {
+	status = "disabled";
+};
+
+/* attempt 30 bisect: DCVS group off */
+&qcom_dcvs {
+	status = "disabled";
+};
+
+&qcom_memlat {
+	status = "disabled";
+};
+
+&bwmon_llcc {
+	status = "disabled";
+};
+
+&bwmon_ddr {
 	status = "disabled";
 };
