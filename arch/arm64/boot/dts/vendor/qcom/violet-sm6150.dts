@@ -149,6 +149,7 @@
  */
 &usb0 {
 	status = "okay";
+	extcon = <&pm6150_charger>;
 
 	dwc3@a600000 {
 		/delete-property/ usb-role-switch;
