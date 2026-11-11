@@ -483,6 +483,8 @@ static irqreturn_t arm_smmu_context_fault(int irq, void *dev)
 	return IRQ_HANDLED;
 }
 
+static unsigned int k61_skip;
+module_param(k61_skip, uint, 0444);
 static bool k61_hold;
 module_param(k61_hold, bool, 0444);
 static bool k61_noirq;
@@ -2235,8 +2237,12 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 	/* Check for RMRs and install bypass SMRs if any */
 	arm_smmu_rmr_install_bypass_smr(smmu);
 
-	arm_smmu_device_reset(smmu);
-	arm_smmu_test_smr_masks(smmu);
+	dev_info(dev, "k61: step device_reset (skip=%d)\n", !!(k61_skip & 2));
+	if (!(k61_skip & 2))
+		arm_smmu_device_reset(smmu);
+	dev_info(dev, "k61: step test_smr_masks (skip=%d)\n", !!(k61_skip & 4));
+	if (!(k61_skip & 4))
+		arm_smmu_test_smr_masks(smmu);
 
 	err = iommu_device_sysfs_add(&smmu->iommu, smmu->dev, NULL,
 				     "smmu.%pa", &smmu->ioaddr);
