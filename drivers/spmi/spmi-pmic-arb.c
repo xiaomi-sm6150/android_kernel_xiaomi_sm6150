@@ -648,6 +648,13 @@ static void cleanup_irq(struct spmi_pmic_arb_bus *bus, u16 apid, int id)
 	dev_err_ratelimited(&bus->spmic->dev, "%s apid=%d sid=0x%x per=0x%x irq=%d\n",
 			    __func__, apid, sid, per, id);
 	writel_relaxed(irq_mask, pmic_arb->ver_ops->irq_clear(bus, apid));
+	/*
+	 * DEBUG (violet kexec bring-up): 4.14 leaves PMIC peripheral interrupts
+	 * enabled. With no handler here the level stays asserted and the arbiter
+	 * interrupt storms. Stop forwarding this peripheral; requesting the IRQ
+	 * later sets ACC_ENABLE again.
+	 */
+	writel_relaxed(0, pmic_arb->ver_ops->acc_enable(bus, apid));
 }
 
 static int periph_interrupt(struct spmi_pmic_arb_bus *bus, u16 apid)
