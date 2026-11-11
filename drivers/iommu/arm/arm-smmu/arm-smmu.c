@@ -973,6 +973,11 @@ out_power_off:
 	return ret;
 }
 
+static bool k61_hold;
+module_param(k61_hold, bool, 0444);
+static bool k61_noirq;
+module_param(k61_noirq, bool, 0444);
+
 static irqreturn_t arm_smmu_global_fault(int irq, void *dev)
 {
 	u32 gfsr, gfsynr0, gfsynr1, gfsynr2;
@@ -3651,6 +3656,10 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 
 		if (irq < 0)
 			return irq;
+		if (k61_noirq) {
+			dev_info(dev, "k61: NOT requesting global IRQ %d\n", irq);
+			continue;
+		}
 
 		err = devm_request_irq(dev, irq, global_fault, IRQF_SHARED,
 				       "arm-smmu global fault", smmu);
@@ -3712,6 +3721,10 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 	if (smmu->pwr->num_gdscs) {
 		pm_runtime_set_active(dev);
 		pm_runtime_enable(dev);
+		if (k61_hold) {
+			dev_info(dev, "k61: holding runtime PM reference\n");
+			pm_runtime_get_noresume(dev);
+		}
 	}
 
 	return 0;
