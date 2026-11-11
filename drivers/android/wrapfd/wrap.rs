@@ -1300,6 +1300,59 @@ unsafe extern "C" fn wrapfd_release_ownership(
     }
 }
 
+#[cfg(CONFIG_ANDROID_WRAPFD_KUNIT_TEST)]
+#[export]
+/// Empties the wrap on behalf of `dev` like `WRAPFD_DEV_IOC_EMPTY` does for its owner task, for
+/// the wrapfd KUnit test.
+///
+/// Returns 0 on success, or a negative errno on failure:
+/// - `EBADF`: `file` is NULL or not a wrap file.
+/// - `ENODEV`: `dev` is NULL.
+/// - `EBUSY`: the wrap is owned by neither `dev` nor the current task.
+/// - `EINVAL`: the wrap is in use or mapped.
+/// - `ENOENT`: the wrap is empty.
+///
+/// # Safety
+///
+/// - `file` must be NULL or a valid pointer to a live C `struct file`.
+/// - `dev` must be NULL or a valid pointer to a live C `struct device`.
+unsafe extern "C" fn empty_wrapfd(
+    file: *mut bindings::file,
+    dev: *mut bindings::device,
+) -> ffi::c_int {
+    let result = with_wrap_helper(file, "empty_wrapfd", |wrap| {
+        if dev.is_null() {
+            return Err(ENODEV);
+        }
+
+        // SAFETY: `dev` is verified non-null and points to a valid C `struct device`. `get_device`
+        // safely increments its reference count.
+        let device = unsafe { device::Device::get_device(dev) };
+
+        // Drop the content only after releasing the lock, as dropping it notifies the listeners.
+        let _content = {
+            let mut guard = wrap.inner.lock();
+
+            if !guard.owned_by_device(&device) && !guard.owned_by_current_task() {
+                return Err(EBUSY);
+            }
+
+            if matches!(guard.state, WrapState::InUse(_)) || guard.is_mapped_or_notify_unmapped() {
+                return Err(EINVAL);
+            }
+
+            guard.content.take().ok_or(ENOENT)?
+        };
+
+        Ok(())
+    });
+
+    match result {
+        Ok(()) => 0,
+        Err(err) => err.to_errno(),
+    }
+}
+
 #[export]
 /// # Safety
 ///

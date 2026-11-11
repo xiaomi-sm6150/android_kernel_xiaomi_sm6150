@@ -27,3 +27,8 @@ EXPORT_SYMBOL_GPL(wrapfd_release_ownership);
 EXPORT_SYMBOL_GPL(is_wrapfd_file);
 EXPORT_SYMBOL_GPL(wrapfd_allow_guests);
 EXPORT_SYMBOL_GPL(wrapfd_prohibit_guests);
+
+#if IS_ENABLED(CONFIG_ANDROID_WRAPFD_KUNIT_TEST)
+EXPORT_SYMBOL_NS_GPL(create_wrapfd, "EXPORTED_FOR_KUNIT_TESTING");
+EXPORT_SYMBOL_NS_GPL(empty_wrapfd, "EXPORTED_FOR_KUNIT_TESTING");
+#endif
