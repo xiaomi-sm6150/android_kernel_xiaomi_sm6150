@@ -712,6 +712,10 @@ static int blkdev_open(struct inode *inode, struct file *filp)
 		return ret;
 
 	/* DEBUG (k61.stop=init): no block device write opens from userspace */
+	if (k61_stop_ro && (filp->f_mode & FMODE_WRITE)) {
+		pr_warn("k61.stop=ro: refusing write open of %pD\n", filp);
+		return -EROFS;
+	}
 	if (k61_stop_init && (filp->f_mode & FMODE_WRITE))
 		panic("k61.stop: refusing write open of %pD", filp);
 

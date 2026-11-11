@@ -3316,6 +3316,8 @@ static int do_remount(const struct path *path, int sb_flags,
 		return -EPERM;
 
 	/* DEBUG (k61.stop=init): no writable block filesystem mounts */
+	if (k61_stop_ro && sb->s_bdev && !(sb_flags & SB_RDONLY))
+		return -EROFS;
 	if (k61_stop_init && sb->s_bdev && !(sb_flags & SB_RDONLY))
 		panic("k61.stop: refusing rw remount of %s", sb->s_id);
 
@@ -3758,6 +3760,10 @@ static int do_new_mount(const struct path *path, const char *fstype,
 		return -ENODEV;
 
 	/* DEBUG (k61.stop=init): no writable block filesystem mounts */
+	if (k61_stop_ro && (type->fs_flags & FS_REQUIRES_DEV)) {
+		pr_warn("k61.stop=ro: refusing mount of %s\n", fstype);
+		return -EPERM;
+	}
 	if (k61_stop_init && (type->fs_flags & FS_REQUIRES_DEV) &&
 	    !(sb_flags & SB_RDONLY))
 		panic("k61.stop: refusing rw mount of %s on %pd (%s)",
