@@ -1824,6 +1824,52 @@ static bool dev_defer_smr_configuration(struct device *dev)
 	return of_property_read_bool(np, "qcom,iommu-defer-smr-config");
 }
 
+/*
+ * DEBUG (bring-up, kexec from 4.14): with qcom,skip-init the previous kernel
+ * stream map is still live. Before we claim a stream, drop only those stale
+ * hardware SMRs that match it and that we do not own (smrs[].used == false),
+ * so the stream cannot hit two entries or a dead context bank. Everything
+ * else (display, DSPs, ...) keeps its mapping.
+ */
+static void arm_smmu_k61_claim_stream(struct arm_smmu_device *smmu, int owner,
+				      u16 sid, u16 mask)
+{
+	int i;
+
+	if (!smmu->smrs || !smmu->dev->of_node ||
+	    !of_property_read_bool(smmu->dev->of_node, "qcom,skip-init"))
+		return;
+
+	for (i = 0; i < smmu->num_mapping_groups; i++) {
+		u32 smr, hid, hmask;
+
+		if (i == owner || smmu->smrs[i].used)
+			continue;
+
+		smr = arm_smmu_gr0_read(smmu, ARM_SMMU_GR0_SMR(i));
+		if (smmu->features & ARM_SMMU_FEAT_EXIDS) {
+			u32 s2cr = arm_smmu_gr0_read(smmu, ARM_SMMU_GR0_S2CR(i));
+
+			if (!FIELD_GET(ARM_SMMU_S2CR_EXIDVALID, s2cr))
+				continue;
+		} else if (!(smr & ARM_SMMU_SMR_VALID)) {
+			continue;
+		}
+
+		hid = FIELD_GET(ARM_SMMU_SMR_ID, smr);
+		hmask = FIELD_GET(ARM_SMMU_SMR_MASK, smr & ~ARM_SMMU_SMR_VALID);
+		if ((hid ^ sid) & ~(hmask | mask))
+			continue;
+
+		dev_info(smmu->dev,
+			 "k61: dropping stale SMR %d (id 0x%x mask 0x%x) overlapping stream 0x%x/0x%x\n",
+			 i, hid, hmask, sid, mask);
+		arm_smmu_gr0_write(smmu, ARM_SMMU_GR0_SMR(i), 0);
+		arm_smmu_gr0_write(smmu, ARM_SMMU_GR0_S2CR(i),
+				   FIELD_PREP(ARM_SMMU_S2CR_TYPE, S2CR_TYPE_FAULT));
+	}
+}
+
 static int arm_smmu_master_alloc_smes(struct device *dev)
 {
 	struct iommu_fwspec *fwspec = dev_iommu_fwspec_get(dev);
@@ -1864,8 +1910,12 @@ static int arm_smmu_master_alloc_smes(struct device *dev)
 	mutex_unlock(&smmu->stream_map_mutex);
 
 	/* It worked! Now, poke the actual hardware */
-	for_each_cfg_sme(cfg, fwspec, i, idx)
+	for_each_cfg_sme(cfg, fwspec, i, idx) {
+		arm_smmu_k61_claim_stream(smmu, idx,
+				FIELD_GET(ARM_SMMU_SMR_ID, fwspec->ids[i]),
+				FIELD_GET(ARM_SMMU_SMR_MASK, fwspec->ids[i]));
 		arm_smmu_write_sme(smmu, idx);
+	}
 
 	return 0;
 
