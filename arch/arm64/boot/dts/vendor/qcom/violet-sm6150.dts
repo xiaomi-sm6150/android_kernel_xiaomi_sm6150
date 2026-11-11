@@ -206,8 +206,14 @@
 
 /* eMMC (4.14 atoll-idp.dtsi settings) */
 &sdhc_1 {
-	/* boot_conf fuse reads 0x8 on violet (eMMC); sm6150.dtsi has the SA6155 value 0 */
-	boot_device_type = <0x8>;
+	/*
+	 * sdhci-msm bails out with "not boot dev" when the boot_conf fuse
+	 * (SA6155 value in sm6150.dtsi) disagrees; eMMC is the only storage
+	 * on violet, so drop the check.
+	 */
+	/delete-property/ nvmem-cells;
+	/delete-property/ nvmem-cell-names;
+	/delete-property/ boot_device_type;
 	/delete-property/ interconnects;
 	/delete-property/ interconnect-names;
 	vdd-supply = <&pm6150_l19>;
