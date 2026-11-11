@@ -331,7 +331,7 @@ pub fn anon_inode_create_getfile<T: AnonInodeFileInterface>(
 
     // SAFETY:
     // * `name` is a valid NUL-terminated C string.
-    // * `AnonInodeFileVTable::<T>::build()` returns a valid static `file_operations` table.
+    // * `&vtable.fops` references a valid static `file_operations` table.
     // * `priv_data` is a foreign pointer from `T::Ptr::into_foreign` whose ownership is
     //   transferred to the file on success (and freed in `release`) or reclaimed on error.
     // * `context_inode` is optional and may be NULL.
