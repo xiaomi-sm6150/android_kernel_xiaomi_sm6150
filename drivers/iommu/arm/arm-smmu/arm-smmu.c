@@ -973,6 +973,8 @@ out_power_off:
 	return ret;
 }
 
+static bool k61_noattach;
+module_param(k61_noattach, bool, 0444);
 static unsigned int k61_exit;
 module_param(k61_exit, uint, 0444);
 static unsigned int k61_skip;
@@ -2432,6 +2434,10 @@ static struct iommu_device *arm_smmu_probe_device(struct device *dev)
 	struct arm_smmu_master_cfg *cfg;
 	struct iommu_fwspec *fwspec = dev_iommu_fwspec_get(dev);
 	int i, ret;
+
+	pr_info("k61: probe_device %s (noattach=%d)\n", dev_name(dev), k61_noattach);
+	if (k61_noattach)
+		return ERR_PTR(-ENODEV);
 
 	if (using_legacy_binding) {
 		ret = arm_smmu_register_legacy_master(dev, &smmu);
