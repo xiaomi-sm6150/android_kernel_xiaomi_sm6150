@@ -91,6 +91,7 @@
 			   "charge_full_design",
 			   "time_to_full_now";
 	qcom,battery-data = <&mtp_batterydata>;
+	dpdm-supply = <&qusb_phy0>;
 	qcom,sec-charger-config = <0>;
 	qcom,chg-term-src = <1>;
 	qcom,chg-term-current-ma = <(-200)>;
