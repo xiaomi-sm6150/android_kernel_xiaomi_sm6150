@@ -1917,7 +1917,7 @@ static int do_execveat_common(int fd, struct filename *filename,
 		return PTR_ERR(filename);
 
 	/* DEBUG (k61.stop=init): stop at the end of first-stage init */
-	if (k61_stop_init && task_pid_nr(current) == 1 &&
+	if (k61_stop_init && !k61_stop_ro && task_pid_nr(current) == 1 &&
 	    !strcmp(filename->name, "/system/bin/init"))
 		panic("k61.stop: PID 1 exec %s", filename->name);
 
