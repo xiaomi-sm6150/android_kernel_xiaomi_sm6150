@@ -7,7 +7,7 @@ use crate::wrap::{create_wrap_file, Wrap};
 
 use kernel::{
     bindings, c_str,
-    dma_buf::{DmaBuf, DmaBufVmap},
+    dma_buf::{CpuAccess, DmaBuf, DmaBufVmap},
     ffi,
     fs::{file::mode, file::FileDescriptorReservation, file::Offset, LocalFile},
     prelude::*,
@@ -47,9 +47,12 @@ impl DmaBufContent {
         Ok(())
     }
 
-    fn clear(&mut self) -> Result {
+    fn with_content_mapped_for_writing<F>(&mut self, f: F) -> Result
+    where
+        F: FnOnce(&mut Self, CpuAccess<'_, false, true>) -> Result,
+    {
         let map = self.dmabuf.vmap()?;
-        map.begin_cpu_access_to(|mut access| access.memset(0, 0, self.dmabuf.size()))
+        map.begin_cpu_access_to_fallible(|access| f(self, access))
     }
 
     pub(crate) fn is_writable(&self) -> bool {
@@ -118,8 +121,20 @@ impl DmaBufContent {
         };
 
         if clear_content {
-            content.notify_listeners();
-            _ = content.clear();
+            let mut closure_ran = false;
+            if let Err(err) = content.with_content_mapped_for_writing(|content, mut access| {
+                content.notify_listeners();
+                access.memset(0, 0, content.dmabuf.size());
+                closure_ran = true;
+                Ok(())
+            }) {
+                if !closure_ran {
+                    // If we already ran the closure, i.e. the underlying `begin_cpu_access` was
+                    // successful, this error resulted from `end_cpu_access` and we'll ignore it -
+                    // this is consistent with the c-driver's approach.
+                    return Err((err, content));
+                }
+            }
         }
 
         inner_clone.lock().content = Some(content);
