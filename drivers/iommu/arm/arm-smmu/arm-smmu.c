@@ -2313,6 +2313,15 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 		}
 	}
 
+	if (k61_exit == 9) {
+		dev_info(dev, "k61: exit stage 9 (all steps done, unregistering)\n");
+		if (pm_runtime_enabled(dev))
+			pm_runtime_disable(dev);
+		iommu_device_unregister(&smmu->iommu);
+		err = -ENODEV;
+		goto remove_iommu_sysfs_node;
+	}
+
 	return 0;
 }
 

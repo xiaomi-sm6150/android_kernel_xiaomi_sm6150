@@ -273,3 +273,8 @@
 	/delete-property/ interconnects;
 	/delete-property/ qcom,active-only;
 };
+
+/* attempt 49: no cpufreq-hw */
+&cpufreq_hw {
+	status = "disabled";
+};
