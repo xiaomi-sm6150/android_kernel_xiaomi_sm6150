@@ -3719,6 +3719,11 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 		goto out_power_off;
 	}
 
+	if (k61_exit == 6) {
+		dev_info(dev, "k61: exit stage 6 (after sysfs_add)\n");
+		err = -ENODEV;
+		goto remove_iommu_sysfs_node;
+	}
 	#if IS_ENABLED(CONFIG_ARM_PARAVIRT_SMMU_V3)
 	if (of_find_compatible_node(NULL, NULL, "arm,virt-smmu-v3"))
 		register_trace_android_vh_bus_iommu_probe(arm_smmu_iommu_pcie_device_probe,
@@ -3730,10 +3735,22 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 		goto remove_iommu_sysfs_node;
 	}
 
+	if (k61_exit == 7) {
+		dev_info(dev, "k61: exit stage 7 (after iommu_device_register)\n");
+		iommu_device_unregister(&smmu->iommu);
+		err = -ENODEV;
+		goto remove_iommu_sysfs_node;
+	}
 	platform_set_drvdata(pdev, smmu);
 
 	/* Check for RMRs and install bypass SMRs if any */
 	arm_smmu_rmr_install_bypass_smr(smmu);
+	if (k61_exit == 8) {
+		dev_info(dev, "k61: exit stage 8 (after rmr install)\n");
+		iommu_device_unregister(&smmu->iommu);
+		err = -ENODEV;
+		goto remove_iommu_sysfs_node;
+	}
 
 	dev_info(dev, "k61: step device_reset (skip=%d)\n", !!(k61_skip & 2));
 	if (!(k61_skip & 2))
