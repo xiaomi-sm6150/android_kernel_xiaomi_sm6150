@@ -104,3 +104,32 @@
 			2800000 2600000 2400000 2200000 2000000 1800000 1500000
 			1000000 500000>;
 };
+
+/* thermistor channels the charger needs (skin THM2, connector THM4) */
+&pm6150_vadc {
+	sdm_therm@4e {
+		reg = <ADC5_AMUX_THM2_100K_PU>;
+		label = "sdm_therm";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+	};
+
+	conn_therm@50 {
+		reg = <ADC5_AMUX_THM4_100K_PU>;
+		label = "conn_therm";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+	};
+};
+
+/* qg needs an RTC for its timestamps and the SOC alarm timer */
+&pm6150_pmic {
+	pm6150_rtc: rtc@6000 {
+		compatible = "qcom,pm8941-rtc";
+		reg = <0x6000>, <0x6100>;
+		reg-names = "rtc", "alarm";
+		interrupts = <0x0 0x61 0x1 IRQ_TYPE_EDGE_RISING>;
+	};
+};
