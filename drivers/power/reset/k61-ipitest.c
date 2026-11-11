@@ -13,6 +13,10 @@
 #include <linux/wait.h>
 #include <linux/timer.h>
 #include <linux/jiffies.h>
+#include <linux/irq.h>
+#include <linux/interrupt.h>
+#include <linux/irqdesc.h>
+#include <linux/kernel_stat.h>
 #include <linux/sched.h>
 #include <asm/irq_regs.h>
 #include <linux/ptrace.h>
@@ -67,6 +71,34 @@ static int k61_worker(void *arg)
 		c->go = false;
 	}
 	return 0;
+}
+
+static struct timer_list k61_irq_timer;
+static unsigned int k61_irq_last[1024];
+
+static void k61_irq_fn(struct timer_list *t)
+{
+	int irq;
+
+	rcu_read_lock();
+	for_each_irq_nr(irq) {
+		struct irq_desc *d;
+		unsigned int c, delta;
+
+		if (irq >= 1024)
+			break;
+		d = irq_to_desc(irq);
+		if (!d)
+			continue;
+		c = kstat_irqs_usr(irq);
+		delta = c - k61_irq_last[irq];
+		k61_irq_last[irq] = c;
+		if (delta > 40)
+			pr_info("k61irq: irq%d %s +%u/s\n", irq,
+				d->action ? d->action->name : "-", delta);
+	}
+	rcu_read_unlock();
+	mod_timer(&k61_irq_timer, jiffies + HZ);
 }
 
 static struct timer_list k61_hb_timer;
@@ -144,6 +176,8 @@ static int k61_probe_thread(void *arg)
 
 static int __init k61_ipitest_init(void)
 {
+	timer_setup(&k61_irq_timer, k61_irq_fn, 0);
+	mod_timer(&k61_irq_timer, jiffies + HZ);
 	timer_setup(&k61_hb_timer, k61_hb_fn, 0);
 	mod_timer(&k61_hb_timer, jiffies + HZ / 2);
 	kthread_run(k61_probe_thread, NULL, "k61ipitest");

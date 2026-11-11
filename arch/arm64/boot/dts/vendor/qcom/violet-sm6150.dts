@@ -225,29 +225,28 @@
 	status = "okay";
 };
 
-/* attempt 29 bisect */
-&sdhc_1 {
+/* attempt 32 bisect: apps_smmu on, TBUs off */
+&anoc_1_tbu {
 	status = "disabled";
 };
 
-/* attempt 30 bisect: DCVS group off */
-&qcom_dcvs {
+&anoc_2_tbu {
 	status = "disabled";
 };
 
-&qcom_memlat {
+&mnoc_hf_0_tbu {
 	status = "disabled";
 };
 
-&bwmon_llcc {
+&mnoc_sf_0_tbu {
 	status = "disabled";
 };
 
-&bwmon_ddr {
+&compute_dsp_tbu {
 	status = "disabled";
 };
 
-/* attempt 31 bisect: apps_smmu off */
-&apps_smmu {
+&adsp_tbu {
 	status = "disabled";
 };
+
