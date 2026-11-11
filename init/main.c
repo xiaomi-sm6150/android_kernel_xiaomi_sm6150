@@ -1660,8 +1660,8 @@ bool k61_stop_ro;
 
 static void k61_stop_timeout(struct timer_list *t)
 {
-	panic("k61.stop: /system/bin/init not reached within %ds",
-	      K61_STOP_TIMEOUT);
+	panic("k61.stop: timer expired (%ds, init mode %d)",
+	      K61_STOP_TIMEOUT, k61_stop_ro);
 }
 static DEFINE_TIMER(k61_stop_timer, k61_stop_timeout);
 
@@ -1717,8 +1717,7 @@ static int __ref kernel_init(void *unused)
 	if (k61_stop_init) {
 		wait_for_device_probe();
 		driver_probe_state_dump();
-		if (!k61_stop_ro)
-			mod_timer(&k61_stop_timer, jiffies + K61_STOP_TIMEOUT * HZ);
+		mod_timer(&k61_stop_timer, jiffies + (k61_stop_ro ? 150 : K61_STOP_TIMEOUT) * HZ);
 		pr_info("k61.stop: init mode, stopping at the exec of /system/bin/init\n");
 	}
 
