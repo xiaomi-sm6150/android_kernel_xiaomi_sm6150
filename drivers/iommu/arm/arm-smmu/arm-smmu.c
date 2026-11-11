@@ -973,6 +973,8 @@ out_power_off:
 	return ret;
 }
 
+static unsigned int k61_skip;
+module_param(k61_skip, uint, 0444);
 static bool k61_hold;
 module_param(k61_hold, bool, 0444);
 static bool k61_noirq;
@@ -3677,9 +3679,12 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 		goto out_power_off;
 	}
 	smmu->phys_addr = res->start;
-	err = arm_smmu_handoff_cbs(smmu);
-	if (err)
-		goto out_power_off;
+	dev_info(dev, "k61: step handoff_cbs (skip=%d)\n", !!(k61_skip & 1));
+	if (!(k61_skip & 1)) {
+		err = arm_smmu_handoff_cbs(smmu);
+		if (err)
+			goto out_power_off;
+	}
 
 	err = iommu_device_sysfs_add(&smmu->iommu, smmu->dev, NULL,
 				     "smmu.%pa", &smmu->ioaddr);
@@ -3704,9 +3709,16 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 	/* Check for RMRs and install bypass SMRs if any */
 	arm_smmu_rmr_install_bypass_smr(smmu);
 
-	arm_smmu_device_reset(smmu);
-	arm_smmu_test_smr_masks(smmu);
-	arm_smmu_interrupt_selftest(smmu);
+	dev_info(dev, "k61: step device_reset (skip=%d)\n", !!(k61_skip & 2));
+	if (!(k61_skip & 2))
+		arm_smmu_device_reset(smmu);
+	dev_info(dev, "k61: step test_smr_masks (skip=%d)\n", !!(k61_skip & 4));
+	if (!(k61_skip & 4))
+		arm_smmu_test_smr_masks(smmu);
+	dev_info(dev, "k61: step interrupt_selftest (skip=%d)\n", !!(k61_skip & 8));
+	if (!(k61_skip & 8))
+		arm_smmu_interrupt_selftest(smmu);
+	dev_info(dev, "k61: steps done\n");
 
 	/*
 	 * We want to avoid touching dev->power.lock in fastpaths unless
