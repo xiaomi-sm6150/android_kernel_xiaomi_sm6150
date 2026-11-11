@@ -988,6 +988,9 @@ static int rpmh_probe_tcs_config(struct platform_device *pdev, struct rsc_drv *d
 
 	config = readl_relaxed(drv->base + drv->regs[DRV_PRNT_CHLD_CONFIG]);
 
+	pr_err("k61rsc: %s id=%d PRNT_CHLD_CONFIG(@0x%x)=0x%08x tcs_off=0x%x\n",
+	       drv->name, drv->id, drv->regs[DRV_PRNT_CHLD_CONFIG], config, offset);
+
 	max_tcs = config;
 	max_tcs &= DRV_NUM_TCS_MASK << (DRV_NUM_TCS_SHIFT * drv->id);
 	max_tcs = max_tcs >> (DRV_NUM_TCS_SHIFT * drv->id);
@@ -996,8 +999,10 @@ static int rpmh_probe_tcs_config(struct platform_device *pdev, struct rsc_drv *d
 	ncpt = ncpt >> DRV_NCPT_SHIFT;
 
 	n = of_property_count_u32_elems(dn, "qcom,tcs-config");
-	if (n != 2 * TCS_TYPE_NR)
+	if (n != 2 * TCS_TYPE_NR) {
+		pr_err("k61rsc: %s tcs-config elems=%d want %d\n", drv->name, n, 2 * TCS_TYPE_NR);
 		return -EINVAL;
+	}
 
 	for (i = 0; i < TCS_TYPE_NR; i++) {
 		ret = of_property_read_u32_index(dn, "qcom,tcs-config",

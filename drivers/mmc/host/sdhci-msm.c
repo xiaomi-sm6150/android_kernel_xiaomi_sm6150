@@ -2782,7 +2782,7 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 	if (ret)
 		goto pm_runtime_disable;
 
-	pm_runtime_put_autosuspend(&pdev->dev);
+	/* DEBUG (run 03): never runtime-suspend the host (test for the 7.8 s death) */
 
 	return 0;
 
