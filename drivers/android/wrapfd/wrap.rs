@@ -616,7 +616,7 @@ impl Wrap {
 impl AnonInodeFileInterface for Wrap {
     type Ptr = Pin<KBox<Self>>;
 
-    fn release(wrap: Self::Ptr, _file: &File) {
+    fn release(wrap: Self::Ptr) {
         // The driver instance and the associated file are about to go away, let's make sure
         // we don't leave a dangling raw pointer to the file inside the VmaFile enum.
         wrap.inner.lock().vma_file = VmaFile::None;

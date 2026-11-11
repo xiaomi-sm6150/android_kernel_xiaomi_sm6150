@@ -24,7 +24,7 @@ pub trait AnonInodeFileInterface: Sized {
     type Ptr: ForeignOwnable + Send + Sync;
 
     /// Called when the device is released.
-    fn release(device: Self::Ptr, _file: &File) {
+    fn release(device: Self::Ptr) {
         drop(device);
     }
 
@@ -171,19 +171,20 @@ impl<T: AnonInodeFileInterface> AnonInodeFileVTable<T> {
         _inode: *mut bindings::inode,
         file: *mut bindings::file,
     ) -> ffi::c_int {
-        // SAFETY: By the safety contract of this function, `file` is valid. The release call of a
-        // file owns the private data.
-        let private = unsafe { (*file).private_data };
+        // SAFETY: By the safety contract of this function, `file` is valid and we have
+        // exclusive access to `private_data` as the file's refcount has reached zero.
+        let private = unsafe {
+            let p = (*file).private_data;
+            (*file).private_data = core::ptr::null_mut();
+            p
+        };
 
         // SAFETY: This file was created via `anon_inode_create_getfile`, which set `private_data`
         // to a pointer from `T::Ptr::into_foreign`. The release call of a file owns the private
         // data and is called only once, so we can safely reclaim ownership.
         let ptr = unsafe { <T::Ptr as ForeignOwnable>::from_foreign(private) };
 
-        // SAFETY:
-        // * The file is valid for the duration of this call.
-        // * There is no active fdget_pos region on the file on this thread.
-        T::release(ptr, unsafe { File::from_raw_file(file) });
+        T::release(ptr);
 
         0
     }
