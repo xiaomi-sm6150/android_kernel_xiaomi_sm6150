@@ -483,6 +483,8 @@ static irqreturn_t arm_smmu_context_fault(int irq, void *dev)
 	return IRQ_HANDLED;
 }
 
+static unsigned int k61_exit;
+module_param(k61_exit, uint, 0444);
 static unsigned int k61_skip;
 module_param(k61_skip, uint, 0444);
 static bool k61_hold;
@@ -2159,6 +2161,10 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 	smmu = arm_smmu_impl_init(smmu);
 	if (IS_ERR(smmu))
 		return PTR_ERR(smmu);
+	if (k61_exit == 1) {
+		dev_info(dev, "k61: exit stage 1 (after impl_init)\n");
+		return -ENODEV;
+	}
 
 	num_irqs = platform_irq_count(pdev);
 
@@ -2192,10 +2198,18 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 	err = clk_bulk_prepare_enable(smmu->num_clks, smmu->clks);
 	if (err)
 		return err;
+	if (k61_exit == 2) {
+		dev_info(dev, "k61: exit stage 2 (after power_on)\n");
+		return -ENODEV;
+	}
 
 	err = arm_smmu_device_cfg_probe(smmu);
 	if (err)
 		return err;
+	if (k61_exit == 3) {
+		dev_info(dev, "k61: exit stage 3 (after cfg_probe)\n");
+		return -ENODEV;
+	}
 
 	if (smmu->version == ARM_SMMU_V2) {
 		if (smmu->num_context_banks > smmu->num_context_irqs) {
@@ -2232,6 +2246,10 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 					i, irq);
 	}
 
+	if (k61_exit == 4) {
+		dev_info(dev, "k61: exit stage 4 (after global irqs)\n");
+		return -ENODEV;
+	}
 	platform_set_drvdata(pdev, smmu);
 
 	/* Check for RMRs and install bypass SMRs if any */

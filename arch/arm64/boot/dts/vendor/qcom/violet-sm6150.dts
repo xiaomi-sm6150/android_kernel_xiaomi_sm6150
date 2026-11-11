@@ -250,3 +250,26 @@
 	status = "disabled";
 };
 
+
+/* attempt 40 bisect: gpi dma off */
+&gpi_dma0 {
+	status = "disabled";
+};
+
+&gpi_dma1 {
+	status = "disabled";
+};
+
+&qupv3_0 {
+	status = "disabled";
+};
+
+&qupv3_1 {
+	status = "disabled";
+};
+
+/* attempt 42: no icc path on apps_smmu */
+&apps_smmu {
+	/delete-property/ interconnects;
+	/delete-property/ qcom,active-only;
+};
