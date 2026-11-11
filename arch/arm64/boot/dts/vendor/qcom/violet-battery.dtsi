@@ -1,0 +1,106 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * DEBUG (bring-up): violet battery profiles and charger/gauge settings,
+ * ported from the 4.14 xiaomi/violet/violet-sm6150-battery.dtsi to the 6.1
+ * IIO based binding.
+ */
+#include <dt-bindings/iio/qcom,spmi-vadc.h>
+#include <dt-bindings/iio/qti_power_supply_iio.h>
+
+/ {
+	mtp_batterydata: qcom,battery-data {
+		qcom,batt-id-range-pct = <15>;
+		#include "LC_M6300_ATL4000mAh_3633204_FG.dtsi"
+		#include "LC_M6300_Sunwoda4000mAh_3632066_FG.dtsi"
+		#include "LC_M6300_Coslight_4000mAh_3884533_FG.dtsi"
+	};
+};
+
+&pm6150_qg {
+	status = "okay";
+	#io-channel-cells = <1>;
+	io-channels = <&pm6150_vadc ADC5_BAT_THERM_100K_PU>,
+		      <&pm6150_vadc ADC5_BAT_ID_100K_PU>,
+		      <&pm6150_charger PSY_IIO_INPUT_CURRENT_LIMITED>,
+		      <&pm6150_charger PSY_IIO_RECHARGE_SOC>,
+		      <&pm6150_charger PSY_IIO_FORCE_RECHARGE>,
+		      <&pm6150_charger PSY_IIO_CHARGE_DONE>;
+	io-channel-names = "batt-therm",
+			   "batt-id",
+			   "input_current_limited",
+			   "recharge_soc",
+			   "force_recharge",
+			   "charge_done";
+	qcom,battery-data = <&mtp_batterydata>;
+	qcom,qg-iterm-ma = <350>;
+	qcom,s3-entry-ibat-ua = <18000>;
+	qcom,s3-exit-ibat-ua = <38000>;
+	qcom,vbatt-cutoff-mv = <3400>;
+	qcom,hold-soc-while-full;
+	qcom,linearize-soc;
+	qcom,cl-feedback-on;
+};
+
+&pm6150_charger {
+	status = "okay";
+	#io-channel-cells = <1>;
+	io-channels = <&pm6150_vadc ADC5_USB_IN_V_16>,
+		      <&pm6150_vadc ADC5_USB_IN_I>,
+		      <&pm6150_vadc ADC5_CHG_TEMP>,
+		      <&pm6150_vadc ADC5_VPH_PWR>,
+		      <&pm6150_vadc ADC5_DIE_TEMP>,
+		      <&pm6150_vadc ADC5_AMUX_THM2_100K_PU>,
+		      <&pm6150_vadc ADC5_AMUX_THM4_100K_PU>,
+		      <&pm6150_qg PSY_IIO_RESISTANCE_ID>,
+		      <&pm6150_qg PSY_IIO_VOLTAGE_NOW>,
+		      <&pm6150_qg PSY_IIO_TEMP>,
+		      <&pm6150_qg PSY_IIO_CAPACITY>,
+		      <&pm6150_qg PSY_IIO_VOLTAGE_OCV>,
+		      <&pm6150_qg PSY_IIO_VOLTAGE_AVG>,
+		      <&pm6150_qg PSY_IIO_DEBUG_BATTERY>,
+		      <&pm6150_qg PSY_IIO_REAL_CAPACITY>,
+		      <&pm6150_qg PSY_IIO_CC_SOC>,
+		      <&pm6150_qg PSY_IIO_CURRENT_NOW>,
+		      <&pm6150_qg PSY_IIO_VOLTAGE_MAX>,
+		      <&pm6150_qg PSY_IIO_CHARGE_FULL>,
+		      <&pm6150_qg PSY_IIO_CHARGE_COUNTER>,
+		      <&pm6150_qg PSY_IIO_CYCLE_COUNT>,
+		      <&pm6150_qg PSY_IIO_CHARGE_FULL_DESIGN>,
+		      <&pm6150_qg PSY_IIO_TIME_TO_FULL_NOW>;
+	io-channel-names = "usb_in_voltage",
+			   "usb_in_current",
+			   "chg_temp",
+			   "vph_voltage",
+			   "die_temp",
+			   "skin_temp",
+			   "conn_temp",
+			   "resistance_id",
+			   "voltage_now",
+			   "temp",
+			   "capacity",
+			   "voltage_ocv",
+			   "voltage_avg",
+			   "debug_battery",
+			   "real_capacity",
+			   "cc_soc",
+			   "current_now",
+			   "voltage_max",
+			   "charge_full",
+			   "charge_counter",
+			   "cycle_count",
+			   "charge_full_design",
+			   "time_to_full_now";
+	qcom,battery-data = <&mtp_batterydata>;
+	qcom,sec-charger-config = <0>;
+	qcom,chg-term-src = <1>;
+	qcom,chg-term-current-ma = <(-200)>;
+	qcom,auto-recharge-soc = <99>;
+	qcom,sw-jeita-enable;
+	qcom,fcc-stepping-enable;
+	qcom,suspend-input-on-debug-batt;
+	qcom,charger-temp-max = <800>;
+	qcom,smb-temp-max = <800>;
+	qcom,thermal-mitigation = <3000000 2900000
+			2800000 2600000 2400000 2200000 2000000 1800000 1500000
+			1000000 500000>;
+};
