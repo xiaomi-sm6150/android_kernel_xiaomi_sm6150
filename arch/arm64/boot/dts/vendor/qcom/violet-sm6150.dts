@@ -238,31 +238,6 @@
 	status = "okay";
 };
 
-/* attempt 32 bisect: apps_smmu on, TBUs off */
-&anoc_1_tbu {
-	status = "disabled";
-};
-
-&anoc_2_tbu {
-	status = "disabled";
-};
-
-&mnoc_hf_0_tbu {
-	status = "disabled";
-};
-
-&mnoc_sf_0_tbu {
-	status = "disabled";
-};
-
-&compute_dsp_tbu {
-	status = "disabled";
-};
-
-&adsp_tbu {
-	status = "disabled";
-};
-
 
 /* attempt 40 bisect: gpi dma off */
 &gpi_dma0 {
