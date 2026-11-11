@@ -973,6 +973,8 @@ out_power_off:
 	return ret;
 }
 
+static unsigned int k61_exit;
+module_param(k61_exit, uint, 0444);
 static unsigned int k61_skip;
 module_param(k61_skip, uint, 0444);
 static bool k61_hold;
@@ -3593,6 +3595,10 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 	smmu = arm_smmu_impl_init(smmu);
 	if (IS_ERR(smmu))
 		return PTR_ERR(smmu);
+	if (k61_exit == 1) {
+		dev_info(dev, "k61: exit stage 1 (after impl_init)\n");
+		return -ENODEV;
+	}
 
 	num_irqs = platform_irq_count(pdev);
 
@@ -3630,10 +3636,20 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 	err = arm_smmu_power_on(smmu->pwr);
 	if (err)
 		return err;
+	if (k61_exit == 2) {
+		dev_info(dev, "k61: exit stage 2 (after power_on)\n");
+		err = -ENODEV;
+		goto out_power_off;
+	}
 
 	err = arm_smmu_device_cfg_probe(smmu);
 	if (err)
 		goto out_power_off;
+	if (k61_exit == 3) {
+		dev_info(dev, "k61: exit stage 3 (after cfg_probe)\n");
+		err = -ENODEV;
+		goto out_power_off;
+	}
 
 	if (smmu->version == ARM_SMMU_V2) {
 		if (smmu->num_context_banks > smmu->num_context_irqs) {
@@ -3671,6 +3687,11 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 					i, irq);
 	}
 
+	if (k61_exit == 4) {
+		dev_info(dev, "k61: exit stage 4 (after global irqs)\n");
+		err = -ENODEV;
+		goto out_power_off;
+	}
 	/* QCOM Additions */
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {
@@ -3686,6 +3707,11 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 			goto out_power_off;
 	}
 
+	if (k61_exit == 5) {
+		dev_info(dev, "k61: exit stage 5 (after handoff_cbs)\n");
+		err = -ENODEV;
+		goto out_power_off;
+	}
 	err = iommu_device_sysfs_add(&smmu->iommu, smmu->dev, NULL,
 				     "smmu.%pa", &smmu->ioaddr);
 	if (err) {
