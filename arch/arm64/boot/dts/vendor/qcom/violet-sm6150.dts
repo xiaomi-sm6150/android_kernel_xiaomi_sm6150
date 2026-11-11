@@ -206,6 +206,8 @@
 
 /* eMMC (4.14 atoll-idp.dtsi settings) */
 &sdhc_1 {
+	/* boot_conf fuse reads 0x8 on violet (eMMC); sm6150.dtsi has the SA6155 value 0 */
+	boot_device_type = <0x8>;
 	/delete-property/ interconnects;
 	/delete-property/ interconnect-names;
 	vdd-supply = <&pm6150_l19>;
