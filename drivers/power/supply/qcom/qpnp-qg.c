@@ -4694,6 +4694,10 @@ static int qpnp_qg_probe(struct platform_device *pdev)
 	struct iio_dev *indio_dev;
 	struct qg_config *config;
 
+
+	/* The SOC alarm timer needs a wakeup capable RTC; defer before any side effects */
+	if (!alarmtimer_get_rtcdev())
+		return -EPROBE_DEFER;
 	indio_dev = devm_iio_device_alloc(&pdev->dev, sizeof(*chip));
 	if (!indio_dev)
 		return -ENOMEM;
