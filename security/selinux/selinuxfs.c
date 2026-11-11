@@ -15,6 +15,7 @@
 #include <linux/kernel.h>
 #include <linux/pagemap.h>
 #include <linux/slab.h>
+#include <linux/k61-stop.h>
 #include <linux/vmalloc.h>
 #include <linux/fs.h>
 #include <linux/fs_context.h>
@@ -161,6 +162,9 @@ static ssize_t sel_write_enforce(struct file *file, const char __user *buf,
 		goto out;
 
 	new_value = !!new_value;
+	/* DEBUG (bring-up): k61.stop=ro keeps SELinux permissive so a root adbd works */
+	if (k61_stop_ro)
+		new_value = 0;
 
 	old_value = enforcing_enabled(state);
 	if (new_value != old_value) {
