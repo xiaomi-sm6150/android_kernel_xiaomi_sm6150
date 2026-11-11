@@ -502,7 +502,8 @@ static void test_wrap_rdonly_file(struct __test_metadata *_metadata,
 
 	/* Wrapping a read-only file in a read/write wrap should fail. */
 	wrapfd = wrapfd_wrap(self->dev_fd, fd, PROT_READ | PROT_WRITE);
-	ASSERT_NE(wrapfd, 0);
+	ASSERT_LT(wrapfd, 0);
+	ASSERT_EQ(errno, EACCES);
 
 	wrapfd = wrapfd_wrap(self->dev_fd, fd, PROT_READ);
 	ASSERT_TRUE(wrapfd >= 0);
@@ -1657,6 +1658,7 @@ static void test_ioctl(struct __test_metadata *_metadata,
 	char fdinfo_name[64];
 	int fdinfo_fd;
 	int wrapfd;
+	ssize_t n;
 
 	wrapfd = wrapfd_wrap(self->dev_fd, fd, PROT_READ | PROT_WRITE);
 	ASSERT_TRUE(wrapfd >= 0);
@@ -1666,7 +1668,9 @@ static void test_ioctl(struct __test_metadata *_metadata,
 	sprintf(fdinfo_name, "/proc/%d/fdinfo/%d", getpid(), fd);
 	fdinfo_fd = open(fdinfo_name, O_RDONLY);
 	ASSERT_TRUE(fdinfo_fd >= 0);
-	ASSERT_TRUE(read(fdinfo_fd, str, FDINFO_BUF_SIZE) > 0);
+	n = read(fdinfo_fd, str, sizeof(str) - 1);
+	ASSERT_GT(n, 0);
+	str[n] = '\0';
 	ASSERT_NE(strstr(str, buf_name), NULL);
 	close(fdinfo_fd);
 
@@ -1674,7 +1678,9 @@ static void test_ioctl(struct __test_metadata *_metadata,
 	sprintf(fdinfo_name, "/proc/%d/fdinfo/%d", getpid(), wrapfd);
 	fdinfo_fd = open(fdinfo_name, O_RDONLY);
 	ASSERT_TRUE(fdinfo_fd >= 0);
-	ASSERT_TRUE(read(fdinfo_fd, str, FDINFO_BUF_SIZE) > 0);
+	n = read(fdinfo_fd, str, sizeof(str) - 1);
+	ASSERT_GT(n, 0);
+	str[n] = '\0';
 	ASSERT_NE(strstr(str, buf_name), NULL);
 	close(fdinfo_fd);
 
@@ -1704,18 +1710,20 @@ static long get_map_count(int wrapfd)
 	int fdinfo_fd;
 	char *maps_str;
 	unsigned long map_count;
+	ssize_t n;
 
 	sprintf(fdinfo_name, "/proc/%d/fdinfo/%d", getpid(), wrapfd);
 	fdinfo_fd = open(fdinfo_name, O_RDONLY);
 	if (fdinfo_fd < 0)
 		return -1;
 
-	if (read(fdinfo_fd, str, FDINFO_BUF_SIZE) < 0) {
-		close(fdinfo_fd);
-		return -1;
-	}
-
+	n = read(fdinfo_fd, str, sizeof(str) - 1);
 	close(fdinfo_fd);
+
+	if (n < 0)
+		return -1;
+
+	str[n] = '\0';
 
 	maps_str = strstr(str, "maps");
 	if (!maps_str)
