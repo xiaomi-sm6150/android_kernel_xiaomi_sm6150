@@ -90,3 +90,75 @@
 &cdsp_pas {
 	status = "disabled";
 };
+
+/*
+ * DEBUG: bring-up console on the panel. ABL leaves the video-mode panel
+ * scanning out the splash buffer, so fbcon can draw the kernel log there
+ * with no display driver. 1080x2340, 32 bpp.
+ */
+/ {
+	framebuffer@9c000000 {
+		compatible = "simple-framebuffer";
+		reg = <0x0 0x9c000000 0x0 0x9a5a00>;
+		width = <1080>;
+		height = <2340>;
+		stride = <4320>;
+		format = "a8r8g8b8";
+	};
+};
+
+/*
+ * DEBUG: mem_dump_driver_init hangs (kexec from 4.14, run 03 attempt 5),
+ * most likely in its TZ dump-table registration. Crash-dump aid only.
+ */
+&{/soc/mem_dump} {
+	status = "disabled";
+};
+
+/*
+ * DEBUG (kexec only): 4.14 has already given this carveout to the secure
+ * side, so taking it over from HLOS stalls (run 03 attempt 6).
+ */
+&{/soc/qcom,dma-heaps/qcom,secure_cdsp} {
+	status = "disabled";
+};
+
+/*
+ * violet has no powered sensor subsystem (sensors live on the ADSP); 4.14
+ * keeps these SA6155 SSC blocks disabled. Probing the SCC hung every CPU
+ * right after gpu_cc (run 03 attempts 9 to 11).
+ */
+&scc {
+	status = "disabled";
+};
+
+&qupv3_2 {
+	status = "disabled";
+};
+
+&slpi_tlmm {
+	status = "disabled";
+};
+
+/*
+ * DEBUG: USB off for first boot. With apps-smmu still deferred (mnoc_hf_0
+ * TBU), dwc3_otg_sm_work depopulates the dwc3 child and iommu_release_device
+ * dereferences NULL (run 03 attempt 12). The log path is pstore, not USB.
+ */
+&usb0 {
+	status = "disabled";
+};
+
+&usb1 {
+	status = "disabled";
+};
+
+/*
+ * DEBUG: the 6.1 msm_watchdog arms the APSS watchdog and pets it once
+ * (last pet ~0.1 s in every run 03 attempt), then bites at 11 s while
+ * k61.stop waits for deferred probes. Off until the pet path is fixed;
+ * 4.14 already cleared WDT0_EN before kexec.
+ */
+&wdog {
+	status = "disabled";
+};

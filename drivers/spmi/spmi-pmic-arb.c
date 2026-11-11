@@ -631,6 +631,13 @@ static void cleanup_irq(struct spmi_pmic_arb *pmic_arb, u16 apid, int id)
 	dev_err_ratelimited(&pmic_arb->spmic->dev, "%s apid=%d sid=0x%x per=0x%x irq=%d\n",
 			__func__, apid, sid, per, id);
 	writel_relaxed(irq_mask, pmic_arb->ver_ops->irq_clear(pmic_arb, apid));
+	/*
+	 * DEBUG (violet kexec bring-up): 4.14 leaves PMIC peripheral interrupts
+	 * enabled. With no handler here the level stays asserted and the arbiter
+	 * interrupt storms (7.8M in 11 s, run 03 attempt 7). Stop forwarding this
+	 * peripheral; requesting the IRQ later sets ACC_ENABLE again.
+	 */
+	writel_relaxed(0, pmic_arb->ver_ops->acc_enable(pmic_arb, apid));
 }
 
 static int periph_interrupt(struct spmi_pmic_arb *pmic_arb, u16 apid)
@@ -1965,6 +1972,41 @@ static int spmi_pmic_arb_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "unable to create irq_domain\n");
 			err = -ENOMEM;
 			goto err_put_ctrl;
+		}
+
+		/*
+		 * DEBUG (violet kexec bring-up): 4.14 leaves PMIC peripheral
+		 * interrupts enabled in the arbiter. Their apids sit outside
+		 * min_apid..max_apid until mapped here, so the chained handler
+		 * finds nothing and the arbiter interrupt storms (run 03
+		 * attempt 8). Start from the cold-boot state instead; requesting
+		 * an IRQ sets ACC_ENABLE again.
+		 */
+		if (hw_ver >= PMIC_ARB_VERSION_V5_MIN) {
+			int ppid, a, quenched = 0;
+
+			/*
+			 * Only valid mappings that APPS owns for both writes
+			 * and IRQs: apid_data[] entries the map reader never
+			 * filled are zero, and EE 0 is APPS, so an index walk
+			 * touches apids we may not access (bus fault, run 03
+			 * attempt 9).
+			 */
+			for (ppid = 0; ppid < PMIC_ARB_MAX_PPID; ppid++) {
+				if (!(pmic_arb->ppid_to_apid[ppid] & PMIC_ARB_APID_VALID))
+					continue;
+				a = pmic_arb->ppid_to_apid[ppid] & ~PMIC_ARB_APID_VALID;
+				if (pmic_arb->apid_data[a].write_ee != pmic_arb->ee ||
+				    pmic_arb->apid_data[a].irq_ee != pmic_arb->ee)
+					continue;
+				if (readl_relaxed(pmic_arb->ver_ops->acc_enable(pmic_arb, a)) &
+				    SPMI_PIC_ACC_ENABLE_BIT) {
+					writel_relaxed(0, pmic_arb->ver_ops->acc_enable(pmic_arb, a));
+					quenched++;
+				}
+			}
+			dev_info(&pdev->dev, "k61: disabled %d stale PMIC irq apids\n",
+				 quenched);
 		}
 
 		irq_set_chained_handler_and_data(pmic_arb->irq,
