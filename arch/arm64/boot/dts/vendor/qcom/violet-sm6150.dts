@@ -246,3 +246,8 @@
 &bwmon_ddr {
 	status = "disabled";
 };
+
+/* attempt 31 bisect: apps_smmu off */
+&apps_smmu {
+	status = "disabled";
+};
