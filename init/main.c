@@ -1655,6 +1655,7 @@ static bool bringup_stop;
  * within K61_STOP_TIMEOUT seconds, so a hang still ends in a warm reset.
  */
 bool k61_stop_init;
+bool k61_stop_ro;
 #define K61_STOP_TIMEOUT	60
 
 static void k61_stop_timeout(struct timer_list *t)
@@ -1668,6 +1669,8 @@ static int __init bringup_stop_setup(char *str)
 {
 	if (!strcmp(str, "=init"))
 		k61_stop_init = true;
+	else if (!strcmp(str, "=ro"))
+		k61_stop_init = k61_stop_ro = true;
 	else
 		bringup_stop = true;
 	return 1;
@@ -1714,7 +1717,8 @@ static int __ref kernel_init(void *unused)
 	if (k61_stop_init) {
 		wait_for_device_probe();
 		driver_probe_state_dump();
-		mod_timer(&k61_stop_timer, jiffies + K61_STOP_TIMEOUT * HZ);
+		if (!k61_stop_ro)
+			mod_timer(&k61_stop_timer, jiffies + K61_STOP_TIMEOUT * HZ);
 		pr_info("k61.stop: init mode, stopping at the exec of /system/bin/init\n");
 	}
 

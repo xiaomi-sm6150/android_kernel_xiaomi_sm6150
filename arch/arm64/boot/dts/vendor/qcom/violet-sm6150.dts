@@ -146,7 +146,14 @@
  * dereferences NULL (run 03 attempt 12). The log path is pstore, not USB.
  */
 &usb0 {
-	status = "disabled";
+	status = "okay";
+
+	dwc3@a600000 {
+		/* do not touch the stale (skip-init) SMMU state for the USB stream */
+		/delete-property/ iommus;
+		/delete-property/ usb-role-switch;
+		dr_mode = "peripheral";
+	};
 };
 
 &usb1 {

@@ -11,5 +11,8 @@
 #include <linux/types.h>
 
 extern bool k61_stop_init;
+/* k61.stop=ro: like =init, but refuse with an error instead of panicking,
+ * refuse every block-device mount, and do not stop at the exec of init. */
+extern bool k61_stop_ro;
 
 #endif
