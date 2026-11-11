@@ -1690,6 +1690,15 @@ static int __init bringup_hold_setup(char *str)
 }
 __setup("k61.hold=", bringup_hold_setup);
 
+/* "k61.timeout=<s>": panic timer for k61.stop=ro (default 150 s). */
+static unsigned int k61_ro_timeout = 150;
+
+static int __init k61_ro_timeout_setup(char *str)
+{
+	return !kstrtouint(str, 0, &k61_ro_timeout);
+}
+__setup("k61.timeout=", k61_ro_timeout_setup);
+
 static int __ref kernel_init(void *unused)
 {
 	int ret;
@@ -1717,7 +1726,7 @@ static int __ref kernel_init(void *unused)
 	if (k61_stop_init) {
 		wait_for_device_probe();
 		driver_probe_state_dump();
-		mod_timer(&k61_stop_timer, jiffies + (k61_stop_ro ? 150 : K61_STOP_TIMEOUT) * HZ);
+		mod_timer(&k61_stop_timer, jiffies + (k61_stop_ro ? k61_ro_timeout : K61_STOP_TIMEOUT) * HZ);
 		pr_info("k61.stop: init mode, stopping at the exec of /system/bin/init\n");
 	}
 
