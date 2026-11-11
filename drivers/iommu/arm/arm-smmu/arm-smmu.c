@@ -2254,6 +2254,10 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 
 	/* Check for RMRs and install bypass SMRs if any */
 	arm_smmu_rmr_install_bypass_smr(smmu);
+	if (k61_exit == 8) {
+		dev_info(dev, "k61: exit stage 8 (after rmr install)\n");
+		return -ENODEV;
+	}
 
 	dev_info(dev, "k61: step device_reset (skip=%d)\n", !!(k61_skip & 2));
 	if (!(k61_skip & 2))
@@ -2267,11 +2271,24 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 	if (err)
 		return dev_err_probe(dev, err, "Failed to register iommu in sysfs\n");
 
+	if (k61_exit == 6) {
+		dev_info(dev, "k61: exit stage 6 (after sysfs_add)\n");
+		iommu_device_sysfs_remove(&smmu->iommu);
+		return -ENODEV;
+	}
+
 	err = iommu_device_register(&smmu->iommu, &arm_smmu_ops,
 				    using_legacy_binding ? NULL : dev);
 	if (err) {
 		iommu_device_sysfs_remove(&smmu->iommu);
 		return dev_err_probe(dev, err, "Failed to register iommu\n");
+	}
+
+	if (k61_exit == 7) {
+		dev_info(dev, "k61: exit stage 7 (after iommu_device_register)\n");
+		iommu_device_unregister(&smmu->iommu);
+		iommu_device_sysfs_remove(&smmu->iommu);
+		return -ENODEV;
 	}
 
 	/*
