@@ -690,8 +690,8 @@ int qg_soc_init(struct qpnp_qg *chip)
 		alarm_init(&chip->alarm_timer, ALARM_BOOTTIME,
 			qpnp_msoc_timer);
 	} else {
-		pr_err("Failed to get soc alarm-timer\n");
-		return -EINVAL;
+		pr_err("Failed to get soc alarm-timer, deferring\n");
+		return -EPROBE_DEFER;
 	}
 	INIT_WORK(&chip->scale_soc_work, scale_soc_work);
 
