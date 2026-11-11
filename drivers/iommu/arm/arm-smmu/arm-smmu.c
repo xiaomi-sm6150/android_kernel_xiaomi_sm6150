@@ -2138,6 +2138,16 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 	int num_irqs, i, err;
 	u32 global_irqs, pmu_irqs;
 	irqreturn_t (*global_fault)(int irq, void *dev);
+	unsigned int skip = k61_skip;
+
+	/*
+	 * qcom,skip-init: the SMMU was configured by whoever ran before us
+	 * (bootloader, or the 4.14 kernel we were kexec'd from) and masters
+	 * are still using those SMR/context-bank settings. Resetting them
+	 * breaks every live master, so do not reset or probe-write the SMRs.
+	 */
+	if (dev->of_node && of_property_read_bool(dev->of_node, "qcom,skip-init"))
+		skip |= 14;
 
 	smmu = devm_kzalloc(dev, sizeof(*smmu), GFP_KERNEL);
 	if (!smmu) {
@@ -2265,11 +2275,11 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	dev_info(dev, "k61: step device_reset (skip=%d)\n", !!(k61_skip & 2));
-	if (!(k61_skip & 2))
+	dev_info(dev, "k61: step device_reset (skip=%d)\n", !!(skip & 2));
+	if (!(skip & 2))
 		arm_smmu_device_reset(smmu);
-	dev_info(dev, "k61: step test_smr_masks (skip=%d)\n", !!(k61_skip & 4));
-	if (!(k61_skip & 4))
+	dev_info(dev, "k61: step test_smr_masks (skip=%d)\n", !!(skip & 4));
+	if (!(skip & 4))
 		arm_smmu_test_smr_masks(smmu);
 
 	err = iommu_device_sysfs_add(&smmu->iommu, smmu->dev, NULL,
