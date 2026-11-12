@@ -30,6 +30,7 @@
 #include <linux/stat.h>
 #include "../fs/internal.h"
 #include "blk.h"
+#include <linux/k61-stop.h>
 
 struct bdev_inode {
 	struct block_device bdev;
@@ -821,6 +822,14 @@ struct block_device *blkdev_get_by_dev(dev_t dev, fmode_t mode, void *holder)
 	if (!bdev)
 		return ERR_PTR(-ENXIO);
 	disk = bdev->bd_disk;
+
+	/* DEBUG (k61.stop=ro/sys): nothing may open the eMMC for writing */
+	if (k61_stop_ro && (mode & FMODE_WRITE) &&
+	    !strncmp(disk->disk_name, "mmcblk", 6)) {
+		pr_warn("k61.stop=ro: refusing kernel write open of %pg\n", bdev);
+		blkdev_put_no_open(bdev);
+		return ERR_PTR(-EROFS);
+	}
 
 	if (mode & FMODE_EXCL) {
 		ret = bd_prepare_to_claim(bdev, holder);

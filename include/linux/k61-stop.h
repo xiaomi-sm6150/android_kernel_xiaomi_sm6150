@@ -14,5 +14,9 @@ extern bool k61_stop_init;
 /* k61.stop=ro: like =init, but refuse with an error instead of panicking,
  * refuse every block-device mount, and do not stop at the exec of init. */
 extern bool k61_stop_ro;
+/* k61.stop=sys: like =ro, but allow read-only mounts of erofs, or of any
+ * filesystem whose block device is itself read-only (dm-linear/dm-verity
+ * logical partitions), so first-stage init can mount system/vendor/... */
+extern bool k61_stop_sys;
 
 #endif
