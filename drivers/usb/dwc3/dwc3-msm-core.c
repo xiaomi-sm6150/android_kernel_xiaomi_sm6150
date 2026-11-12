@@ -1,6 +1,4 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* DEBUG (violet 6.1 bring-up): dev_dbg to the console/pstore */
-#define DEBUG
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
