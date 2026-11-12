@@ -143,18 +143,15 @@
 };
 
 /*
- * DEBUG: USB off for first boot. With apps-smmu still deferred (mnoc_hf_0
- * TBU), dwc3_otg_sm_work depopulates the dwc3 child and iommu_release_device
- * dereferences NULL (run 03 attempt 12). The log path is pstore, not USB.
+ * Type-C: the pdphy policy engine reports VBUS/role through its extcon
+ * (smb5 only drives its own for micro-USB). dwc3 keeps the SoC default
+ * dr_mode = "otg" + usb-role-switch: in peripheral-only mode dwc3-msm
+ * ignores extcon VBUS events, and without the role switch it never
+ * reaches LPM, so it never starts the gadget (run 03 attempts 98-103).
  */
 &usb0 {
 	status = "okay";
 	extcon = <&pm6150_pdphy>, <&pm6150_charger>;
-
-	dwc3@a600000 {
-		/delete-property/ usb-role-switch;
-		dr_mode = "peripheral";
-	};
 };
 
 &usb1 {
