@@ -1656,6 +1656,7 @@ static bool bringup_stop;
  */
 bool k61_stop_init;
 bool k61_stop_ro;
+bool k61_stop_sys;
 #define K61_STOP_TIMEOUT	60
 
 static void k61_stop_timeout(struct timer_list *t)
@@ -1671,6 +1672,8 @@ static int __init bringup_stop_setup(char *str)
 		k61_stop_init = true;
 	else if (!strcmp(str, "=ro"))
 		k61_stop_init = k61_stop_ro = true;
+	else if (!strcmp(str, "=sys"))
+		k61_stop_init = k61_stop_ro = k61_stop_sys = true;
 	else
 		bringup_stop = true;
 	return 1;
