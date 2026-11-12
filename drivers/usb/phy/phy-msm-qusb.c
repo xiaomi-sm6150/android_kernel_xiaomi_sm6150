@@ -183,6 +183,8 @@ struct qusb_phy {
 	bool			vbus_active;
 	bool			id_state;
 	struct power_supply	*usb_psy;
+	unsigned int		vbus_draw;
+	struct work_struct	vbus_draw_work;
 	struct delayed_work	port_det_w;
 	enum port_state		port_state;
 	unsigned int		dcd_timeout;
@@ -1012,6 +1014,54 @@ static int qusb_phy_regulator_init(struct qusb_phy *qphy)
 
 }
 
+/*
+ * Pass the current the gadget negotiated (usb_gadget_vbus_draw ->
+ * dwc3_gadget_vbus_draw -> usb_phy_set_power) on to the charger, as
+ * phy-msm-m31-eusb2 does. Without it smb5 keeps USB_PSY_VOTER at 100 mA
+ * on an SDP.
+ */
+static void qusb_phy_vbus_draw_work(struct work_struct *w)
+{
+	struct qusb_phy *qphy = container_of(w, struct qusb_phy,
+							vbus_draw_work);
+	union power_supply_propval val = {0};
+	int ret;
+
+	if (!qphy->usb_psy) {
+		qphy->usb_psy = power_supply_get_by_name("usb");
+		if (!qphy->usb_psy) {
+			dev_err(qphy->phy.dev, "Could not get usb psy\n");
+			return;
+		}
+	}
+
+	dev_info(qphy->phy.dev, "Avail curr from USB = %u\n", qphy->vbus_draw);
+	val.intval = 1000 * qphy->vbus_draw;
+	ret = power_supply_set_property(qphy->usb_psy,
+			POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT, &val);
+	if (ret)
+		dev_dbg(qphy->phy.dev, "Error setting ICL:(%d)\n", ret);
+}
+
+static int qusb_phy_set_power(struct usb_phy *phy, unsigned int mA)
+{
+	struct qusb_phy *qphy = container_of(phy, struct qusb_phy, phy);
+
+	/*
+	 * Ignore bus-suspend (2 mA) and disconnect (0) requests: smb5 treats
+	 * any ICL <= 25 mA as USBIN suspend, and suspending the input on
+	 * every bus suspend made the Mac reset and power-cycle the port every
+	 * 5 s (run 03 attempt 105). smb5 resets its own votes on detach.
+	 */
+	if (mA <= 2)
+		return 0;
+
+	qphy->vbus_draw = mA;
+	schedule_work(&qphy->vbus_draw_work);
+
+	return 0;
+}
+
 static void qusb_phy_create_debugfs(struct qusb_phy *qphy)
 {
 	qphy->root = debugfs_create_dir(dev_name(qphy->phy.dev), NULL);
@@ -1658,6 +1708,8 @@ static int qusb_phy_probe(struct platform_device *pdev)
 	qphy->phy.notify_connect        = qusb_phy_notify_connect;
 	qphy->phy.notify_disconnect     = qusb_phy_notify_disconnect;
 	qphy->phy.charger_detect	= qusb_phy_drive_dp_pulse;
+	qphy->phy.set_power		= qusb_phy_set_power;
+	INIT_WORK(&qphy->vbus_draw_work, qusb_phy_vbus_draw_work);
 
 	/*
 	 * On some platforms multiple QUSB PHYs are available. If QUSB PHY is
@@ -1727,6 +1779,7 @@ static int qusb_phy_remove(struct platform_device *pdev)
 
 	debugfs_remove_recursive(qphy->root);
 	usb_remove_phy(&qphy->phy);
+	cancel_work_sync(&qphy->vbus_draw_work);
 	qphy->cable_connected = false;
 	qusb_phy_set_suspend(&qphy->phy, true);
 
