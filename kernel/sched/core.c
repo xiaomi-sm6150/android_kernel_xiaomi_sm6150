@@ -4167,6 +4167,8 @@ static inline bool task_queued_on_rq(struct rq *rq, struct task_struct *task)
 	return task_on_rq_queued(task);
 }
 
+#define MAX_PROXY_CHAIN_DEPTH 1024
+
 /*
  * Returns the unblocked task at the end of the blocked chain starting with p
  * if that chain is composed entirely of tasks enqueued on rq, or NULL otherwise.
@@ -4174,6 +4176,10 @@ static inline bool task_queued_on_rq(struct rq *rq, struct task_struct *task)
 struct task_struct *find_exec_ctx(struct rq *rq, struct task_struct *p)
 {
 	struct task_struct *exec_ctx, *owner;
+	struct task_struct *cycle_checkpoint = p;
+	unsigned int cycle_power = 1;
+	unsigned int cycle_span = 0;
+	int chain_depth = 0;
 
 	if (!sched_proxy_exec())
 		return p;
@@ -4182,12 +4188,29 @@ struct task_struct *find_exec_ctx(struct rq *rq, struct task_struct *p)
 
 	for (exec_ctx = p; task_is_blocked(exec_ctx) && !task_on_cpu(rq, exec_ctx);
 							exec_ctx = owner) {
+		/* Keep Brent's checkpoint state local to this walk. */
+		if (cycle_span == cycle_power) {
+			cycle_checkpoint = exec_ctx;
+			cycle_power <<= 1;
+			cycle_span = 0;
+		}
 		guard(raw_spinlock)(&exec_ctx->blocked_lock);
 		owner = task_blocked_on_owner(exec_ctx);
 		if (!owner || owner == exec_ctx)
 			break;
 
 		if (!task_queued_on_rq(rq, owner) || task_current_donor(rq, owner)) {
+			exec_ctx = NULL;
+			break;
+		}
+
+		/*
+		 * Check for cycles, and worst case limit the depth
+		 * we'll proxy to avoid cyclic deadlocks
+		 */
+		cycle_span++;
+		if ((owner == cycle_checkpoint) ||
+		    (++chain_depth > MAX_PROXY_CHAIN_DEPTH)) {
 			exec_ctx = NULL;
 			break;
 		}
@@ -7460,8 +7483,6 @@ DEFINE_LOCK_GUARD_1(blocked_on_lock, struct blocked_on_lock,
     lock_blocked_on_lock(_T->lock),
     unlock_blocked_on_lock(_T->lock))
 
-
-#define MAX_PROXY_CHAIN_DEPTH 1024
 
 /*
  * Find runnable lock owner to proxy for mutex blocked donor
