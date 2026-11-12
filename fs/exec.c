@@ -25,6 +25,7 @@
 
 #include <linux/kernel_read_file.h>
 #include <linux/k61-stop.h>
+#include <uapi/linux/mount.h>
 #include <linux/slab.h>
 #include <linux/file.h>
 #include <linux/fdtable.h>
@@ -1905,6 +1906,46 @@ out_unmark:
 	return retval;
 }
 
+/*
+ * DEBUG (k61.stop=sys): the real /data and /metadata are encrypted with
+ * keys in TrustZone and must not be touched, and nothing in the read-only
+ * partitions can give second-stage init another fstab. So at PID 1's first
+ * exec of /system/bin/init (selinux_setup, right after switch_root) mount
+ * a tmpfs on both. The vendor fstab entries then fail cleanly (the eMMC
+ * cannot be opened for writing) and init works on the scratch copies.
+ */
+static void k61_stop_sys_scratch(void)
+{
+	static const struct { const char *dir, *opts; } m[] = {
+		{ "/metadata", "mode=0755,size=64m" },
+		{ "/data", "mode=0771,size=1536m" },
+	};
+	static bool done;
+	struct path path;
+	char *opts;
+	int i, ret;
+
+	if (done)
+		return;
+	done = true;
+	/* path_mount() wants a full page of options (it terminates it) */
+	opts = (char *)__get_free_page(GFP_KERNEL);
+	if (!opts)
+		return;
+	for (i = 0; i < ARRAY_SIZE(m); i++) {
+		ret = kern_path(m[i].dir, LOOKUP_FOLLOW, &path);
+		if (!ret) {
+			/* the option parser edits the string in place */
+			strscpy(opts, m[i].opts, PAGE_SIZE);
+			ret = path_mount("tmpfs", &path, "tmpfs",
+					 MS_NOSUID | MS_NODEV, opts);
+			path_put(&path);
+		}
+		pr_info("k61.stop=sys: scratch tmpfs on %s: %d\n", m[i].dir, ret);
+	}
+	free_page((unsigned long)opts);
+}
+
 static int do_execveat_common(int fd, struct filename *filename,
 			      struct user_arg_ptr argv,
 			      struct user_arg_ptr envp,
@@ -1920,6 +1961,10 @@ static int do_execveat_common(int fd, struct filename *filename,
 	if (k61_stop_init && !k61_stop_ro && task_pid_nr(current) == 1 &&
 	    !strcmp(filename->name, "/system/bin/init"))
 		panic("k61.stop: PID 1 exec %s", filename->name);
+	/* DEBUG (k61.stop=sys): scratch /data and /metadata for second stage */
+	if (k61_stop_sys && task_pid_nr(current) == 1 &&
+	    !strcmp(filename->name, "/system/bin/init"))
+		k61_stop_sys_scratch();
 
 	/*
 	 * We move the actual failure in case of RLIMIT_NPROC excess from
