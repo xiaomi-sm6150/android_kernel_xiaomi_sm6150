@@ -13,11 +13,7 @@
 	qcom,mdss-dsi-t-clk-post = <0x0f>;
 	qcom,mdss-dsi-t-clk-pre = <0x37>;
 	qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
-	/*
-	 * 4.14: bl_ctrl_wled. There is no WLED device yet, and the panel
-	 * defers forever without one, so the backlight is left alone.
-	 */
-	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_external";
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
 	qcom,mdss-dsi-bl-min-level = <1>;
 	qcom,mdss-dsi-bl-max-level = <4095>;
 	qcom,platform-te-gpio = <&tlmm 90 0>;

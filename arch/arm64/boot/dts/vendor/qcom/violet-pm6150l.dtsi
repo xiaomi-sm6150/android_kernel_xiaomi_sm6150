@@ -6,6 +6,9 @@
  *
  * LCDB: panel lab/ibb supplies (4.14 violet: the pm6150l default without
  * qcom,voltage-step-ramp).
+ *
+ * WLED: panel backlight. The pm6150l.dtsi node without the flash, torch
+ * and switch LEDs, with violet's 4.14 settings (fs-current-limit, CABC).
  */
 
 #include <dt-bindings/interrupt-controller/irq.h>
@@ -46,6 +49,22 @@
 				regulator-min-microvolt = <4700000>;
 				regulator-max-microvolt = <6275000>;
 			};
+		};
+
+		pm6150l_wled: qcom,wled@d800 {
+			compatible = "qcom,pm6150l-spmi-wled";
+			reg = <0xd800>, <0xd900>;
+			reg-names = "wled-ctrl-base", "wled-sink-base";
+			label = "backlight";
+			interrupts = <0x5 0xd8 0x1 IRQ_TYPE_EDGE_RISING>,
+				     <0x5 0xd8 0x4 IRQ_TYPE_EDGE_BOTH>,
+				     <0x5 0xd8 0x5 IRQ_TYPE_EDGE_BOTH>;
+			interrupt-names = "ovp-irq", "pre-flash-irq",
+					  "flash-irq";
+			qcom,auto-calibration;
+			qcom,fs-current-limit = <25000>;
+			qcom,en-cabc;
+			qcom,cabc-sel = <1>;
 		};
 	};
 };
