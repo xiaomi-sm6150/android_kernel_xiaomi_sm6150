@@ -32,6 +32,14 @@ struct dsi_phy_list_item {
 static LIST_HEAD(dsi_phy_list);
 static DEFINE_MUTEX(dsi_phy_list_lock);
 
+static const struct dsi_ver_spec_info dsi_phy_v2_0 = {
+	.version = DSI_PHY_VERSION_2_0,
+	.lane_cfg_count = 4,
+	.strength_cfg_count = 2,
+	.regulator_cfg_count = 1,
+	.timing_cfg_count = 8,
+};
+
 static const struct dsi_ver_spec_info dsi_phy_v3_0 = {
 	.version = DSI_PHY_VERSION_3_0,
 	.lane_cfg_count = 4,
@@ -89,6 +97,8 @@ static const struct dsi_ver_spec_info dsi_phy_v5_2 = {
 };
 
 static const struct of_device_id msm_dsi_phy_of_match[] = {
+	{ .compatible = "qcom,dsi-phy-v2.0",
+	  .data = &dsi_phy_v2_0,},
 	{ .compatible = "qcom,dsi-phy-v3.0",
 	  .data = &dsi_phy_v3_0,},
 	{ .compatible = "qcom,dsi-phy-v4.0",
