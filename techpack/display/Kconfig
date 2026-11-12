@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config QTI_DISPLAY_LAHAINA
+	bool "Qualcomm SDE/DSI display driver (techpack/display) for lahaina"
+	depends on DRM && ARCH_QCOM && !DRM_MSM
+	select DRM_KMS_HELPER
+	select DRM_MIPI_DSI
+	select DRM_DISPLAY_HELPER
+	select DRM_DISPLAY_DP_HELPER
+	select SYNC_FILE
+	select QCOM_PANEL_EVENT_NOTIFIER
+	help
+	  Build the Qualcomm display-drivers techpack (msm_drm: SDE, DSI,
+	  5nm DSI PLL, RSC, writeback, DP/MST) into the kernel with the lahaina
+	  feature set from config/lahainadisp.conf. The driver keeps the
+	  msm_drm module name, so the msm_drm.dsi_display0= panel selection
+	  from the bootloader still applies.
