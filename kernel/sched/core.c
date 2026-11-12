@@ -4220,9 +4220,10 @@ void move_queued_task_locked(struct rq *src_rq, struct rq *dst_rq, struct task_s
 		if (task_on_cpu(src_rq, task))
 			break;
 
-		if (task_is_blocked(task))
-			owner = task_blocked_on_owner(task);
-
+		scoped_guard (raw_spinlock, &task->blocked_lock) {
+			if (task_is_blocked(task))
+				owner = task_blocked_on_owner(task);
+		}
 		__move_queued_task_locked(src_rq, dst_rq, task);
 		if (task == owner)
 			break;
