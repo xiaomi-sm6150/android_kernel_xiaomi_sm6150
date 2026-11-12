@@ -4687,19 +4687,12 @@ static const struct dev_pm_ops qpnp_qg_pm_ops = {
 	.resume		= qpnp_qg_resume,
 };
 
-/* DEBUG (bring-up): qpnp_qg.k61_noqg=1 skips the gauge probe entirely */
-static bool k61_noqg;
-module_param(k61_noqg, bool, 0444);
-
 static int qpnp_qg_probe(struct platform_device *pdev)
 {
 	int rc = 0, soc = 0, nom_cap_uah;
 	struct qpnp_qg *chip;
 	struct iio_dev *indio_dev;
 	struct qg_config *config;
-
-	if (k61_noqg)
-		return -ENODEV;
 
 
 	/* The SOC alarm timer needs a wakeup capable RTC; defer before any side effects */
