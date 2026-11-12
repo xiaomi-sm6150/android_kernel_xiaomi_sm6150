@@ -4,6 +4,9 @@
 #include "sm6150.dtsi"
 #include "violet-pm6150.dtsi"
 #include "violet-battery.dtsi"
+#include "violet-pm6150l.dtsi"
+#include "violet-sm6150-sde.dtsi"
+#include "violet-display.dtsi"
 
 / {
 	model = "Xiaomi Redmi Note 7 Pro";

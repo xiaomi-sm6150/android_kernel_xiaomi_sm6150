@@ -1,0 +1,51 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * violet: the parts of pm6150l the 6.1 bring-up uses. pm6150l.dtsi is not
+ * included as a whole (GPIOs, ADC, flash, ... are not brought up yet), so
+ * only SID 5 with the LCDB is described here.
+ *
+ * LCDB: panel lab/ibb supplies (4.14 violet: the pm6150l default without
+ * qcom,voltage-step-ramp).
+ */
+
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/spmi/spmi.h>
+
+&spmi_bus {
+	qcom,pm6150l@5 {
+		compatible = "qcom,spmi-pmic";
+		reg = <5 SPMI_USID>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		pm6150l_lcdb: qcom,lcdb@ec00 {
+			compatible = "qcom,lcdb-pm6150l";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0xec00>;
+			interrupts = <0x5 0xec 0x1 IRQ_TYPE_EDGE_RISING>;
+			interrupt-names = "sc-irq";
+
+			lcdb_ldo_vreg: ldo {
+				label = "ldo";
+				regulator-name = "lcdb_ldo";
+				regulator-min-microvolt = <4000000>;
+				regulator-max-microvolt = <6000000>;
+			};
+
+			lcdb_ncp_vreg: ncp {
+				label = "ncp";
+				regulator-name = "lcdb_ncp";
+				regulator-min-microvolt = <4000000>;
+				regulator-max-microvolt = <6000000>;
+			};
+
+			lcdb_bst_vreg: bst {
+				label = "bst";
+				regulator-name = "lcdb_bst";
+				regulator-min-microvolt = <4700000>;
+				regulator-max-microvolt = <6275000>;
+			};
+		};
+	};
+};
