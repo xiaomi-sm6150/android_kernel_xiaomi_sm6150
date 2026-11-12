@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-only
+config TOUCHSCREEN_NT36XXX_I2C
+	tristate "Novatek NT36xxx I2C touchscreen (Qualcomm touch-drivers copy)"
+	depends on I2C && INPUT_TOUCHSCREEN
+	help
+	  Novatek NT36xxx (e.g. NT36672A TDDI) I2C touch driver, copied from
+	  Qualcomm opensource/touch-drivers/nt36xxx for in-kernel builds.
