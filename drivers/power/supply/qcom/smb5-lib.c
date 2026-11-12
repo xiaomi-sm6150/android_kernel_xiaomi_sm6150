@@ -4498,6 +4498,17 @@ int smblib_set_prop_sdp_current_max(struct smb_charger *chg,
 	int rc = 0;
 
 	if (!chg->pd_active) {
+		/*
+		 * Only an SDP (or a float charger the USB driver is still
+		 * probing) takes its ICL from the gadget. 4.14's dwc3-msm
+		 * filtered on the charger type before calling us; in 6.1 the
+		 * USB PHY forwards every request, and on a CDP/DCP the vote
+		 * below would replace the SW_ICL_MAX (1.5 A) with 500 mA.
+		 */
+		if (chg->real_charger_type != POWER_SUPPLY_TYPE_USB &&
+		    chg->real_charger_type != QTI_POWER_SUPPLY_TYPE_USB_FLOAT)
+			return 0;
+
 		rc = smblib_get_prop_usb_present(chg, &pval);
 		if (rc < 0) {
 			smblib_err(chg, "Couldn't get usb present rc = %d\n",
