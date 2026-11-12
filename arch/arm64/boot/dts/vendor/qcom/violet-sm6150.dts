@@ -304,3 +304,20 @@
 &cpufreq_hw {
 	status = "disabled";
 };
+
+/*
+ * Android first-stage init: by-name links and the AVB partition list, as
+ * the 4.14 DT has them (vbmeta, no vbmeta_system: retrofit dynamic
+ * partitions with super in "system"). The fstab comes from the ramdisk.
+ */
+&firmware {
+	android {
+		compatible = "android,firmware";
+		boot_devices = "soc/7c4000.sdhci";
+
+		vbmeta {
+			compatible = "android,vbmeta";
+			parts = "vbmeta,boot,recovery,system,vendor,dtbo";
+		};
+	};
+};
