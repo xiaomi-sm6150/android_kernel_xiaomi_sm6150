@@ -794,6 +794,23 @@ static int pdphy_request_irq(struct usb_pdphy *pdphy,
 	return 0;
 }
 
+/*
+ * DEBUG (violet 6.1 bring-up): "k61.pdphy=<n>" on the cmdline.
+ * 1: stop the probe after the irqs, before usbpd_create() (no policy engine).
+ * 2: stop the probe before touching anything (node present, driver idle).
+ */
+static int k61_pdphy;
+static int __init k61_pdphy_setup(char *str)
+{
+	int v;
+
+	if (!kstrtoint(str, 0, &v))
+		k61_pdphy = v;
+	pr_info("k61.pdphy=%d\n", k61_pdphy);
+	return 1;
+}
+__setup("k61.pdphy=", k61_pdphy_setup);
+
 static int pdphy_probe(struct platform_device *pdev)
 {
 	int ret;
@@ -803,6 +820,11 @@ static int pdphy_probe(struct platform_device *pdev)
 	pdphy = devm_kzalloc(&pdev->dev, sizeof(*pdphy), GFP_KERNEL);
 	if (!pdphy)
 		return -ENOMEM;
+
+	if (k61_pdphy == 2) {
+		dev_info(&pdev->dev, "k61.pdphy=2: probe skipped\n");
+		return -ENODEV;
+	}
 
 	pdphy->regmap = dev_get_regmap(pdev->dev.parent, NULL);
 	if (!pdphy->regmap) {
@@ -873,6 +895,11 @@ static int pdphy_probe(struct platform_device *pdev)
 		(IRQF_TRIGGER_RISING | IRQF_ONESHOT));
 	if (ret < 0)
 		return ret;
+
+	if (k61_pdphy == 1) {
+		dev_info(&pdev->dev, "k61.pdphy=1: stopping before usbpd_create\n");
+		return -ENODEV;
+	}
 
 	/* usbpd_create() could call back to us, so have __pdphy ready */
 	__pdphy = pdphy;
