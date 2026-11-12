@@ -177,11 +177,11 @@ module_param(reglog, bool, 0600);
 #define reglog 0
 #endif /* CONFIG_DRM_MSM_REGISTER_LOGGING */
 
-#if IS_ENABLED(CONFIG_DRM_FBDEV_EMULATION)
+#if IS_ENABLED(CONFIG_DRM_MSM_FBDEV) /* msm_fbdev.c is not shipped */
 static bool fbdev = true;
 MODULE_PARM_DESC(fbdev, "Enable fbdev compat layer");
 module_param(fbdev, bool, 0600);
-#endif /* CONFIG_DRM_FBDEV_EMULATION */
+#endif /* CONFIG_DRM_MSM_FBDEV */
 
 static char *vram = "16m";
 MODULE_PARM_DESC(vram, "Configure VRAM size (for devices without IOMMU/GPUMMU)");
@@ -508,10 +508,10 @@ static int msm_drm_uninit(struct device *dev)
 		priv->registered = false;
 	}
 
-#if IS_ENABLED(CONFIG_DRM_FBDEV_EMULATION)
+#if IS_ENABLED(CONFIG_DRM_MSM_FBDEV) /* msm_fbdev.c is not shipped */
 	if (fbdev && priv->fbdev)
 		msm_fbdev_free(ddev);
-#endif /* CONFIG_DRM_FBDEV_EMULATION */
+#endif /* CONFIG_DRM_MSM_FBDEV */
 	drm_atomic_helper_shutdown(ddev);
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
 	msm_irq_uninstall(ddev);
@@ -998,10 +998,10 @@ static int msm_drm_component_init(struct device *dev)
 		}
 	}
 
-#if IS_ENABLED(CONFIG_DRM_FBDEV_EMULATION)
+#if IS_ENABLED(CONFIG_DRM_MSM_FBDEV) /* msm_fbdev.c is not shipped */
 	if (fbdev)
 		priv->fbdev = msm_fbdev_init(ddev);
-#endif /* CONFIG_DRM_FBDEV_EMULATION */
+#endif /* CONFIG_DRM_MSM_FBDEV */
 
 	/* create drm client only when fbdev is not supported */
 	if (!priv->fbdev) {
