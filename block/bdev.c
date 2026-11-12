@@ -31,6 +31,7 @@
 #include <linux/stat.h>
 #include "../fs/internal.h"
 #include "blk.h"
+#include <linux/k61-stop.h>
 
 /* Should we allow writing to mounted block devices? */
 static bool bdev_allow_write_mounted = IS_ENABLED(CONFIG_BLK_DEV_WRITE_MOUNTED);
@@ -929,6 +930,13 @@ int bdev_open(struct block_device *bdev, blk_mode_t mode, void *holder,
 	bool unblock_events = true;
 	struct gendisk *disk = bdev->bd_disk;
 	int ret;
+
+	/* DEBUG (k61.stop=ro/sys): nothing may open the eMMC for writing */
+	if (k61_stop_ro && (mode & BLK_OPEN_WRITE) &&
+	    !strncmp(disk->disk_name, "mmcblk", 6)) {
+		pr_warn("k61.stop=ro: refusing kernel write open of %pg\n", bdev);
+		return -EROFS;
+	}
 
 	if (holder) {
 		mode |= BLK_OPEN_EXCL;

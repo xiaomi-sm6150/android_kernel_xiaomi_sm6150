@@ -31,6 +31,7 @@
 #include <uapi/linux/mount.h>
 #include <linux/fs_context.h>
 #include <linux/k61-stop.h>
+#include <linux/blkdev.h>
 #include <linux/shmem_fs.h>
 #include <linux/mnt_idmapping.h>
 #include <linux/pidfs.h>
@@ -3743,6 +3744,32 @@ static int do_new_mount_fc(struct fs_context *fc, const struct path *mountpoint,
  * create a new mount for userspace and request it to be added into the
  * namespace's tree
  */
+/*
+ * DEBUG (k61.stop=sys): a block mount is allowed only read-only, and only
+ * for erofs (never writes) or when the block device itself is read-only, so
+ * no journal replay or superblock update can reach the eMMC.
+ */
+static bool k61_stop_sys_mount_ok(const char *fstype, int sb_flags,
+				  const char *name)
+{
+	struct file *f;
+	dev_t dev;
+	bool ro;
+
+	if (!k61_stop_sys || !(sb_flags & SB_RDONLY) || !name)
+		return false;
+	if (!strcmp(fstype, "erofs"))
+		return true;
+	if (lookup_bdev(name, &dev))
+		return false;
+	f = bdev_file_open_by_dev(dev, BLK_OPEN_READ, NULL, NULL);
+	if (IS_ERR(f))
+		return false;
+	ro = bdev_read_only(file_bdev(f));
+	bdev_fput(f);
+	return ro;
+}
+
 static int do_new_mount(const struct path *path, const char *fstype,
 			int sb_flags, int mnt_flags,
 			const char *name, void *data)
@@ -3761,8 +3788,14 @@ static int do_new_mount(const struct path *path, const char *fstype,
 
 	/* DEBUG (k61.stop=init): no writable block filesystem mounts */
 	if (k61_stop_ro && (type->fs_flags & FS_REQUIRES_DEV)) {
-		pr_warn("k61.stop=ro: refusing mount of %s\n", fstype);
-		return -EPERM;
+		if (!k61_stop_sys_mount_ok(fstype, sb_flags, name)) {
+			pr_warn("k61.stop=ro: refusing mount of %s on %s\n",
+				fstype, name ?: "(null)");
+			put_filesystem(type);
+			return -EPERM;
+		}
+		pr_info("k61.stop=sys: read-only mount of %s (%s)\n",
+			name, fstype);
 	}
 	if (k61_stop_init && (type->fs_flags & FS_REQUIRES_DEV) &&
 	    !(sb_flags & SB_RDONLY))

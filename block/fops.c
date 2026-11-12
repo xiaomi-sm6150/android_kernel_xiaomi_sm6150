@@ -711,12 +711,13 @@ static int blkdev_open(struct inode *inode, struct file *filp)
 	if (ret)
 		return ret;
 
-	/* DEBUG (k61.stop=init): no block device write opens from userspace */
-	if (k61_stop_ro && (filp->f_mode & FMODE_WRITE)) {
-		pr_warn("k61.stop=ro: refusing write open of %pD\n", filp);
-		return -EROFS;
-	}
-	if (k61_stop_init && (filp->f_mode & FMODE_WRITE))
+	/*
+	 * DEBUG (k61.stop=init): no block device write opens from userspace.
+	 * For k61.stop=ro/sys, blkdev_get_by_dev() refuses write opens of the
+	 * eMMC (from userspace and from the kernel); loop, zram and dm devices
+	 * on top of them stay usable (apexd needs loop devices).
+	 */
+	if (k61_stop_init && !k61_stop_ro && (filp->f_mode & FMODE_WRITE))
 		panic("k61.stop: refusing write open of %pD", filp);
 
 	bdev = blkdev_get_no_open(inode->i_rdev, true);
