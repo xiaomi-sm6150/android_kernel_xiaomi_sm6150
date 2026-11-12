@@ -3754,20 +3754,24 @@ static bool k61_stop_sys_mount_ok(const char *fstype, int sb_flags,
 {
 	struct file *f;
 	dev_t dev;
-	bool ro;
+	bool ok;
 
-	if (!k61_stop_sys || !(sb_flags & SB_RDONLY) || !name)
+	if (!k61_stop_sys || !name)
 		return false;
-	if (!strcmp(fstype, "erofs"))
+	if ((sb_flags & SB_RDONLY) && !strcmp(fstype, "erofs"))
 		return true;
 	if (lookup_bdev(name, &dev))
 		return false;
 	f = bdev_file_open_by_dev(dev, BLK_OPEN_READ, NULL, NULL);
 	if (IS_ERR(f))
 		return false;
-	ro = bdev_read_only(file_bdev(f));
+	if (sb_flags & SB_RDONLY)
+		ok = bdev_read_only(file_bdev(f));
+	else
+		/* rw: scratch devices (RAM disk, loop, zram) only, never the eMMC */
+		ok = strncmp(file_bdev(f)->bd_disk->disk_name, "mmcblk", 6) != 0;
 	bdev_fput(f);
-	return ro;
+	return ok;
 }
 
 static int do_new_mount(const struct path *path, const char *fstype,
@@ -3794,10 +3798,11 @@ static int do_new_mount(const struct path *path, const char *fstype,
 			put_filesystem(type);
 			return -EPERM;
 		}
-		pr_info("k61.stop=sys: read-only mount of %s (%s)\n",
+		pr_info("k61.stop=sys: %s mount of %s (%s)\n",
+			(sb_flags & SB_RDONLY) ? "read-only" : "scratch rw",
 			name, fstype);
 	}
-	if (k61_stop_init && (type->fs_flags & FS_REQUIRES_DEV) &&
+	if (k61_stop_init && !k61_stop_ro && (type->fs_flags & FS_REQUIRES_DEV) &&
 	    !(sb_flags & SB_RDONLY))
 		panic("k61.stop: refusing rw mount of %s on %pd (%s)",
 		      name ?: "(null)", path->dentry, fstype);
