@@ -77,7 +77,7 @@ void dsi_phy_hw_v2_0_regulator_disable(struct dsi_phy_hw *phy);
 void dsi_phy_hw_v2_0_enable(struct dsi_phy_hw *phy, struct dsi_phy_cfg *cfg);
 void dsi_phy_hw_v2_0_disable(struct dsi_phy_hw *phy, struct dsi_phy_cfg *cfg);
 void dsi_phy_hw_v2_0_idle_on(struct dsi_phy_hw *phy, struct dsi_phy_cfg *cfg);
-void dsi_phy_hw_v2_0_idle_off(struct dsi_phy_hw *phy);
+void dsi_phy_hw_v2_0_idle_off(struct dsi_phy_hw *phy, struct dsi_phy_cfg *cfg);
 int dsi_phy_hw_timing_val_v2_0(struct dsi_phy_per_lane_cfgs *timing_cfg,
 		u32 *timing_val, u32 size);
 void dsi_phy_hw_v2_0_clamp_ctrl(struct dsi_phy_hw *phy, bool enable);
