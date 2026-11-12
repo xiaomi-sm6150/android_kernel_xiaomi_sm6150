@@ -1594,42 +1594,6 @@ exit:
 	return rc;
 }
 
-/*
- * DEBUG (tundra 6.1 bring-up): dump the DSC, INTF1 and DSI0 registers
- * at the splash handoff (bootloader values, consistent with the PPS the
- * panel holds) and after the first commits (6.1 values).
- */
-static void k61_dump_disp_regs(struct sde_kms *sde_kms, const char *tag)
-{
-	static const struct { const char *name; u32 off, len; } r[] = {
-		{ "dsc_top", 0x81000, 0x20 },
-		{ "dsc0_enc", 0x81100, 0x100 },
-		{ "dsc0_ctl", 0x81f00, 0x20 },
-		{ "intf1", 0x36000, 0x2c0 },
-	};
-	void __iomem *dsi;
-	u32 i, j;
-
-	if (!sde_kms->mmio)
-		return;
-	for (i = 0; i < ARRAY_SIZE(r); i++)
-		for (j = 0; j < r[i].len; j += 16)
-			pr_info("k61disp %s %s+%03x: %08x %08x %08x %08x\n",
-				tag, r[i].name, j,
-				readl_relaxed(sde_kms->mmio + r[i].off + j),
-				readl_relaxed(sde_kms->mmio + r[i].off + j + 4),
-				readl_relaxed(sde_kms->mmio + r[i].off + j + 8),
-				readl_relaxed(sde_kms->mmio + r[i].off + j + 12));
-	dsi = ioremap(0xae94000, 0x400);
-	if (!dsi)
-		return;
-	for (j = 0; j < 0x400; j += 16)
-		pr_info("k61disp %s dsi0+%03x: %08x %08x %08x %08x\n", tag, j,
-			readl_relaxed(dsi + j), readl_relaxed(dsi + j + 4),
-			readl_relaxed(dsi + j + 8), readl_relaxed(dsi + j + 12));
-	iounmap(dsi);
-}
-
 static void sde_kms_complete_commit(struct msm_kms *kms,
 		struct drm_atomic_state *old_state)
 {
@@ -1654,13 +1618,6 @@ static void sde_kms_complete_commit(struct msm_kms *kms,
 	if (!sde_kms_power_resource_is_enabled(sde_kms->dev)) {
 		SDE_ERROR("power resource is not enabled\n");
 		return;
-	}
-
-	{
-		static int k61_commits;
-
-		if (++k61_commits == 300)
-			k61_dump_disp_regs(sde_kms, "commit300");
 	}
 
 	SDE_ATRACE_BEGIN("sde_kms_complete_commit");
@@ -3729,7 +3686,6 @@ static int sde_kms_cont_splash_config(struct msm_kms *kms,
 	}
 
 	sde_kms = to_sde_kms(kms);
-	k61_dump_disp_regs(sde_kms, "handoff");
 	dev = sde_kms->dev;
 	if (!dev) {
 		SDE_ERROR("invalid device\n");
