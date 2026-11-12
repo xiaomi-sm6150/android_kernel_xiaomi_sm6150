@@ -27,6 +27,9 @@ static int dsi_pll_clock_register(struct platform_device *pdev,
 	case DSI_PLL_4NM:
 		rc = dsi_pll_clock_register_4nm(pdev, pll_res);
 		break;
+	case DSI_PLL_14NM:
+		rc = dsi_pll_clock_register_14nm(pdev, pll_res);
+		break;
 	default:
 		rc = -EINVAL;
 		break;
@@ -273,6 +276,8 @@ int dsi_pll_init(struct platform_device *pdev, struct dsi_pll_resource **pll)
 		pll_res->pll_revision = DSI_PLL_4NM;
 	else if (!strcmp(label, "dsi_pll_5nm"))
 		pll_res->pll_revision = DSI_PLL_5NM;
+	else if (!strcmp(label, "dsi_pll_14nm"))
+		pll_res->pll_revision = DSI_PLL_14NM;
 	else
 		return -ENOTSUPP;
 
