@@ -683,6 +683,54 @@ static int arm_smmu_alloc_context_bank(struct arm_smmu_domain *smmu_domain,
 	return __arm_smmu_alloc_bitmap(smmu->context_map, start, smmu->num_context_banks);
 }
 
+/*
+ * DEBUG (bring-up, kexec from 4.14): list the live stream map (SMR -> S2CR ->
+ * CB) and, for a CB we are about to take, whether the previous kernel left it
+ * enabled and which stale SMRs still route to it.
+ */
+static void k61_dump_cb(struct arm_smmu_device *smmu, int cb, const char *who)
+{
+	u32 sctlr = arm_smmu_cb_read(smmu, cb, ARM_SMMU_CB_SCTLR);
+	u64 ttbr = arm_smmu_cb_readq(smmu, cb, ARM_SMMU_CB_TTBR0);
+	int i;
+
+	dev_info(smmu->dev, "k61cb: %s gets cb %d: old sctlr 0x%08x ttbr0 0x%016llx\n",
+		 who, cb, sctlr, ttbr);
+	for (i = 0; i < smmu->num_mapping_groups; i++) {
+		u32 smr = arm_smmu_gr0_read(smmu, ARM_SMMU_GR0_SMR(i));
+		u32 s2cr = arm_smmu_gr0_read(smmu, ARM_SMMU_GR0_S2CR(i));
+
+		if (!(smr & ARM_SMMU_SMR_VALID) ||
+		    FIELD_GET(ARM_SMMU_S2CR_TYPE, s2cr) != S2CR_TYPE_TRANS ||
+		    FIELD_GET(ARM_SMMU_S2CR_CBNDX, s2cr) != cb)
+			continue;
+		dev_info(smmu->dev, "k61cb:   cb %d still routed from SMR %d id 0x%x mask 0x%x used=%d\n",
+			 cb, i, (u32)FIELD_GET(ARM_SMMU_SMR_ID, smr),
+			 (u32)FIELD_GET(ARM_SMMU_SMR_MASK, smr & ~ARM_SMMU_SMR_VALID),
+			 smmu->smrs ? smmu->smrs[i].used : -1);
+	}
+}
+
+static void k61_dump_streams(struct arm_smmu_device *smmu)
+{
+	int i;
+
+	for (i = 0; i < smmu->num_mapping_groups; i++) {
+		u32 smr = arm_smmu_gr0_read(smmu, ARM_SMMU_GR0_SMR(i));
+		u32 s2cr = arm_smmu_gr0_read(smmu, ARM_SMMU_GR0_S2CR(i));
+		u32 type = FIELD_GET(ARM_SMMU_S2CR_TYPE, s2cr);
+		u32 cb = FIELD_GET(ARM_SMMU_S2CR_CBNDX, s2cr);
+
+		if (!(smr & ARM_SMMU_SMR_VALID))
+			continue;
+		dev_info(smmu->dev, "k61sme: %2d id 0x%04x mask 0x%04x type %u cb %2u sctlr 0x%08x\n",
+			 i, (u32)FIELD_GET(ARM_SMMU_SMR_ID, smr),
+			 (u32)FIELD_GET(ARM_SMMU_SMR_MASK, smr & ~ARM_SMMU_SMR_VALID),
+			 type, cb, type == S2CR_TYPE_TRANS ?
+			 arm_smmu_cb_read(smmu, cb, ARM_SMMU_CB_SCTLR) : 0);
+	}
+}
+
 static int arm_smmu_init_domain_context(struct arm_smmu_domain *smmu_domain,
 					struct arm_smmu_device *smmu,
 					struct device *dev)
@@ -803,6 +851,7 @@ static int arm_smmu_init_domain_context(struct arm_smmu_domain *smmu_domain,
 	smmu_domain->smmu = smmu;
 
 	cfg->cbndx = ret;
+	k61_dump_cb(smmu, ret, dev ? dev_name(dev) : "?");
 	if (smmu->version < ARM_SMMU_V2) {
 		cfg->irptndx = atomic_inc_return(&smmu->irptndx);
 		cfg->irptndx %= smmu->num_context_irqs;
@@ -1039,6 +1088,8 @@ smr_ok:
 	smmu->smr_mask_mask = FIELD_GET(ARM_SMMU_SMR_MASK, smr);
 }
 
+static bool k61_sme_stale(struct arm_smmu_device *smmu, int i);
+
 static int arm_smmu_find_sme(struct arm_smmu_device *smmu, u16 id, u16 mask)
 {
 	struct arm_smmu_smr *smrs = smmu->smrs;
@@ -1051,6 +1102,8 @@ static int arm_smmu_find_sme(struct arm_smmu_device *smmu, u16 id, u16 mask)
 	/* Validating SMRs is... less so */
 	for (i = 0; i < smmu->num_mapping_groups; ++i) {
 		if (!smrs[i].valid) {
+			if (k61_sme_stale(smmu, i))
+				continue;
 			/*
 			 * Note the first free entry we come across, which
 			 * we'll claim in the end if nothing else matches.
@@ -1094,6 +1147,90 @@ static bool arm_smmu_free_sme(struct arm_smmu_device *smmu, int idx)
 }
 
 /*
+ * kexec from 4.14 with qcom,skip-init: every SME the previous kernel (or the
+ * firmware before it) left valid stays live until we claim that stream.
+ * Keep those SMEs out of find_sme(), and keep the context banks they route
+ * to out of the CB allocator; release both when claim_stream drops one.
+ * Without this, 6.1 reused SME 1 (firmware stream 0x2a0/0xf) for the display
+ * bank, the 0x2a0 master lost its route and the SoC reset ~40 ms later.
+ */
+struct k61_stale {
+	struct arm_smmu_device *smmu;
+	DECLARE_BITMAP(sme, 128);
+	u8 cb_refs[ARM_SMMU_MAX_CBS];
+};
+static struct k61_stale k61_stale_tbl[4];
+
+static struct k61_stale *k61_stale_get(struct arm_smmu_device *smmu, bool create)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(k61_stale_tbl); i++) {
+		if (k61_stale_tbl[i].smmu == smmu)
+			return &k61_stale_tbl[i];
+		if (create && !k61_stale_tbl[i].smmu) {
+			k61_stale_tbl[i].smmu = smmu;
+			return &k61_stale_tbl[i];
+		}
+	}
+	return NULL;
+}
+
+static bool k61_sme_stale(struct arm_smmu_device *smmu, int i)
+{
+	struct k61_stale *st = k61_stale_get(smmu, false);
+
+	return st && i < 128 && test_bit(i, st->sme);
+}
+
+static void k61_reserve_stale(struct arm_smmu_device *smmu)
+{
+	struct k61_stale *st;
+	int i, n = 0;
+
+	if (!smmu->smrs || !of_property_read_bool(smmu->dev->of_node, "qcom,skip-init"))
+		return;
+	st = k61_stale_get(smmu, true);
+	if (!st)
+		return;
+
+	for (i = 0; i < smmu->num_mapping_groups && i < 128; i++) {
+		u32 smr = arm_smmu_gr0_read(smmu, ARM_SMMU_GR0_SMR(i));
+		u32 s2cr = arm_smmu_gr0_read(smmu, ARM_SMMU_GR0_S2CR(i));
+		int cb = FIELD_GET(ARM_SMMU_S2CR_CBNDX, s2cr);
+
+		if (!(smr & ARM_SMMU_SMR_VALID))
+			continue;
+		set_bit(i, st->sme);
+		n++;
+		if (FIELD_GET(ARM_SMMU_S2CR_TYPE, s2cr) == S2CR_TYPE_TRANS &&
+		    cb < smmu->num_context_banks) {
+			st->cb_refs[cb]++;
+			set_bit(cb, smmu->context_map);
+		}
+	}
+	dev_info(smmu->dev, "k61: reserved %d stale SMEs, CB map %*pbl\n",
+		 n, smmu->num_context_banks, smmu->context_map);
+}
+
+static void k61_release_stale(struct arm_smmu_device *smmu, int i, u32 s2cr)
+{
+	struct k61_stale *st = k61_stale_get(smmu, false);
+	int cb = FIELD_GET(ARM_SMMU_S2CR_CBNDX, s2cr);
+
+	if (!st || i >= 128 || !test_and_clear_bit(i, st->sme))
+		return;
+	if (FIELD_GET(ARM_SMMU_S2CR_TYPE, s2cr) != S2CR_TYPE_TRANS ||
+	    cb >= smmu->num_context_banks || !st->cb_refs[cb])
+		return;
+	/* sm6150 hypervisor owns CBs 10-12 (mainline violet port, patch 0017) */
+	if (--st->cb_refs[cb] == 0 && !(cb >= 10 && cb <= 12)) {
+		clear_bit(cb, smmu->context_map);
+		dev_info(smmu->dev, "k61: stale CB %d released\n", cb);
+	}
+}
+
+/*
  * DEBUG (bring-up, kexec from 4.14): with qcom,skip-init the previous kernel
  * stream map is still live. Before we claim a stream, drop only those stale
  * hardware SMRs that match it and that we do not own (smrs[].used == false),
@@ -1133,6 +1270,7 @@ static void arm_smmu_k61_claim_stream(struct arm_smmu_device *smmu, int owner,
 		dev_info(smmu->dev,
 			 "k61: dropping stale SMR %d (id 0x%x mask 0x%x) overlapping stream 0x%x/0x%x\n",
 			 i, hid, hmask, sid, mask);
+		k61_release_stale(smmu, i, arm_smmu_gr0_read(smmu, ARM_SMMU_GR0_S2CR(i)));
 		arm_smmu_gr0_write(smmu, ARM_SMMU_GR0_SMR(i), 0);
 		arm_smmu_gr0_write(smmu, ARM_SMMU_GR0_S2CR(i),
 				   FIELD_PREP(ARM_SMMU_S2CR_TYPE, S2CR_TYPE_FAULT));
@@ -2324,6 +2462,8 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 		dev_info(dev, "k61: exit stage 8 (after rmr install)\n");
 		return -ENODEV;
 	}
+
+	k61_reserve_stale(smmu);
 
 	dev_info(dev, "k61: step device_reset (skip=%d)\n", !!(skip & 2));
 	if (!(skip & 2))
