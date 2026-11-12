@@ -22,18 +22,18 @@
 			"vbif_phys",
 			"regdma_phys";
 
-		clocks = <&gcc GCC_DISP_AHB_CLK>,
-			 <&gcc GCC_DISP_HF_AXI_CLK>,
+		/* GCC_DISP_AHB_CLK is always on and not exposed by 6.1 gcc */
+		clocks = <&gcc GCC_DISP_HF_AXI_CLK>,
 			 <&dispcc DISP_CC_MDSS_AHB_CLK>,
 			 <&dispcc DISP_CC_MDSS_MDP_CLK>,
 			 <&dispcc DISP_CC_MDSS_VSYNC_CLK>,
 			 <&dispcc DISP_CC_MDSS_MDP_LUT_CLK>,
 			 <&dispcc DISP_CC_MDSS_ROT_CLK>;
-		clock-names = "gcc_iface", "gcc_bus",
+		clock-names = "gcc_bus",
 				"iface_clk", "core_clk", "vsync_clk",
 				"lut_clk", "rot_clk";
-		clock-rate = <0 0 0 256000000 19200000 192000000 19200000>;
-		clock-max-rate = <0 0 0 307000000 19200000 307000000 19200000>;
+		clock-rate = <0 0 256000000 19200000 192000000 19200000>;
+		clock-max-rate = <0 0 307000000 19200000 307000000 19200000>;
 
 		/* interrupt config */
 		interrupts = <GIC_SPI 83 IRQ_TYPE_LEVEL_HIGH>;
@@ -43,7 +43,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		connectors = <&sde_wb &sde_dsi &smmu_sde_unsec &smmu_sde_sec>;
+		connectors = <&sde_wb &sde_dsi &smmu_sde_unsec>;
 
 		/* hw blocks */
 		qcom,sde-off = <0x1000>;
@@ -221,13 +221,11 @@
 		qcom,iommu-faults = "non-fatal";
 	};
 
-	smmu_sde_sec: qcom,smmu_sde_sec_cb {
-		compatible = "qcom,smmu_sde_sec";
-		iommus = <&apps_smmu 0x801 0x0>;
-		qcom,iommu-dma-addr-pool = <0x00020000 0xfffe0000>;
-		qcom,iommu-faults = "non-fatal";
-		qcom,iommu-vmid = <0xa>;
-	};
+	/*
+	 * No secure context bank (0x801) yet: attaching it as a secure
+	 * domain goes through TZ, and run 03 attempt 113 reset ~40 ms after
+	 * both display banks were taken over from 4.14.
+	 */
 
 	mdss_dsi0: qcom,mdss_dsi_ctrl0@ae94000 {
 		compatible = "qcom,dsi-ctrl-hw-v2.3";

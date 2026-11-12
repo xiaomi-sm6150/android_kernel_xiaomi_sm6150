@@ -23,6 +23,9 @@
 	qcom,platform-te-gpio = <&tlmm 90 0>;
 	qcom,platform-reset-gpio = <&tlmm 91 0>;
 	qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0";
+	/* 6.1 reads the controller and PHY index from the panel node */
+	qcom,dsi-ctrl-num = <0>;
+	qcom,dsi-phy-num = <0>;
 
 	qcom,mdss-dsi-display-timings {
 		timing@0 {
