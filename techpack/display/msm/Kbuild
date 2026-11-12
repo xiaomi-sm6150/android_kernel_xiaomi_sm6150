@@ -4,9 +4,9 @@ ifeq ($(DISPLAY_ROOT),)
 DISPLAY_ROOT=$(srctree)/techpack/display
 endif
 
-ifeq ($(CONFIG_QTI_DISPLAY_LAHAINA), y)
-	include $(DISPLAY_ROOT)/config/lahainadisp.conf
-	LINUX_INC +=	-include $(DISPLAY_ROOT)/config/lahainadispconf.h
+ifeq ($(CONFIG_QTI_DISPLAY_SM6150), y)
+	include $(DISPLAY_ROOT)/config/sm6150disp.conf
+	LINUX_INC +=	-include $(DISPLAY_ROOT)/config/sm6150dispconf.h
 endif
 
 LINUX_INC +=	-I$(srctree)/include/linux \
