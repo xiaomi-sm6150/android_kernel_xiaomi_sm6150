@@ -1,0 +1,39 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * violet panels. This phone: NT36672A TDDI (shenchao), video mode,
+ * 1080x2340. The 4.14 ft8719 tianma variant is not added yet.
+ *
+ * ABL picks the panel with msm_drm.dsi_display0=, which a kexec cmdline
+ * does not carry, so sde_dsi names it with qcom,dsi-default-panel.
+ */
+
+#include "dsi-panel-nt36672a-shenchao-fhd-video.dtsi"
+
+&dsi_nt36672a_shenchao_video {
+	qcom,mdss-dsi-t-clk-post = <0x0f>;
+	qcom,mdss-dsi-t-clk-pre = <0x37>;
+	qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
+	/*
+	 * 4.14: bl_ctrl_wled. There is no WLED device yet, and the panel
+	 * defers forever without one, so the backlight is left alone.
+	 */
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_external";
+	qcom,mdss-dsi-bl-min-level = <1>;
+	qcom,mdss-dsi-bl-max-level = <4095>;
+	qcom,platform-te-gpio = <&tlmm 90 0>;
+	qcom,platform-reset-gpio = <&tlmm 91 0>;
+	qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0";
+
+	qcom,mdss-dsi-display-timings {
+		timing@0 {
+			qcom,mdss-dsi-panel-phy-timings = [
+				26 21 09 0b 06 02 04 a0
+				26 21 09 0b 06 02 04 a0
+				26 21 09 0b 06 02 04 a0
+				26 21 09 0b 06 02 04 a0
+				26 20 0a 0b 06 02 04 a0];
+			qcom,display-topology = <1 0 1>;
+			qcom,default-topology-index = <0>;
+		};
+	};
+};
