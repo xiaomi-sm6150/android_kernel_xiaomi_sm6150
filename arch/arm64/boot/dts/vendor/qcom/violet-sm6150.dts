@@ -248,8 +248,43 @@
 	status = "disabled";
 };
 
+/*
+ * Panel VDDIO (4.14 dsi display vddio-supply). It also powers the pull-ups
+ * of the touch I2C bus and the NT36672A TDDI I/O: with it off, SDA/SCL sit
+ * low and every transfer times out (run 03 attempts 110/111). Kept on until
+ * the display driver manages it.
+ */
+&pm6150_l13 {
+	regulator-boot-on;
+	regulator-always-on;
+};
+
+/*
+ * QUP0: only SE1 (I2C bus of the NT36672A TDDI touch, 4.14 i2c@884000)
+ * is enabled for now.
+ */
 &qupv3_0 {
-	status = "disabled";
+	status = "okay";
+};
+
+&qupv3_se1_i2c {
+	status = "okay";
+
+	/*
+	 * Novatek NT36672A TDDI touch (this phone: NVT-ts bound at 1-0062 on
+	 * 4.14; the Himax variant at 0x48 is left out). It is powered from the
+	 * panel rails, so it may not answer until the display is up.
+	 */
+	novatek@62 {
+		compatible = "novatek,NVT-ts";
+		reg = <0x62>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <89 IRQ_TYPE_LEVEL_LOW>;
+		novatek,reset-gpio = <&tlmm 88 0x00>;
+		novatek,irq-gpio = <&tlmm 89 0x2001>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ts_int_active &ts_reset_active>;
+	};
 };
 
 &qupv3_1 {
