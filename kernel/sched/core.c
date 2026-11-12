@@ -7414,7 +7414,11 @@ static void proxy_migrate_task(struct rq *rq, struct rq_flags *rf,
 	 * before we release the lock.
 	 */
 	proxy_resched_idle(rq);
-	for (; p; p = p->blocked_donor) {
+	while (p && task_on_rq_queued(p)) {
+		struct task_struct *next = p->blocked_donor;
+
+		/* clear blocked_donor so we can't end up in cycles */
+		p->blocked_donor = NULL;
 		WARN_ON(p == rq->curr);
 		deactivate_task(rq, p, DEQUEUE_NOCLOCK);
 		proxy_set_task_cpu(p, target_cpu);
@@ -7424,6 +7428,7 @@ static void proxy_migrate_task(struct rq *rq, struct rq_flags *rf,
 		 * we hold the rq_lock.
 		 */
 		list_add(&p->se.group_node, &migrate_list);
+		p = next;
 	}
 	proxy_release_rq_lock(rq, rf);
 
