@@ -317,20 +317,27 @@ static int qcom_pas_start(struct rproc *rproc)
 		msleep(100);
 	}
 
+	dev_info(pas->dev, "k61: pas_init(%s)\n", rproc->firmware);
 	ret = qcom_mdt_pas_init(pas->dev, pas->firmware, rproc->firmware, pas->pas_id,
 				pas->mem_phys, &pas->pas_metadata);
+	dev_info(pas->dev, "k61: pas_init: %d\n", ret);
 	if (ret)
 		goto disable_px_supply;
 
+	dev_info(pas->dev, "k61: mdt_load pas=%u mem=%pa size=%zx\n", pas->pas_id,
+		 &pas->mem_phys, pas->mem_size);
 	ret = qcom_mdt_load_no_init(pas->dev, pas->firmware, rproc->firmware,
 				    pas->mem_region, pas->mem_phys, pas->mem_size,
 				    &pas->mem_reloc);
+	dev_info(pas->dev, "k61: mdt_load: %d\n", ret);
 	if (ret)
 		goto release_pas_metadata;
 
 	qcom_pil_info_store(pas->info_name, pas->mem_phys, pas->mem_size);
 
+	dev_info(pas->dev, "k61: auth_and_reset pas=%u\n", pas->pas_id);
 	ret = qcom_scm_pas_auth_and_reset(pas->pas_id);
+	dev_info(pas->dev, "k61: auth_and_reset: %d\n", ret);
 	if (ret) {
 		dev_err(pas->dev,
 			"failed to authenticate image and release reset\n");
