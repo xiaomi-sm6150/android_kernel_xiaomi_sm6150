@@ -232,6 +232,8 @@ static bool qmp_message_empty(struct qmp *qmp)
  *
  * Return: 0 on success, negative errno on failure
  */
+struct qmp *k61_qmp;
+
 int qmp_send(struct qmp *qmp, const void *data, size_t len)
 {
 	long time_left;
@@ -578,6 +580,7 @@ static int qmp_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to register aoss cooling devices\n");
 
 	platform_set_drvdata(pdev, qmp);
+	k61_qmp = qmp;
 	dev_set_drvdata(&pdev->dev, qmp);
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
@@ -692,3 +695,18 @@ module_platform_driver(qmp_driver);
 
 MODULE_DESCRIPTION("Qualcomm AOSS QMP driver");
 MODULE_LICENSE("GPL v2");
+
+/* DEBUG k61: vote a qdss clock message through AOSS */
+int k61_aoss_send(const char *msg)
+{
+	char buf[64];
+	size_t l = strlen(msg);
+
+	if (!k61_qmp || l >= sizeof(buf) - 4)
+		return -ENODEV;
+	memset(buf, 0, sizeof(buf));
+	memcpy(buf, msg, l);
+	while (l % 4)
+		buf[l++] = ' ';
+	return qmp_send(k61_qmp, buf, l);
+}

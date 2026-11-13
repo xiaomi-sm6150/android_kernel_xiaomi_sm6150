@@ -2600,3 +2600,29 @@ IRQCHIP_ACPI_DECLARE(gic_v3_or_v4, ACPI_MADT_TYPE_GENERIC_DISTRIBUTOR,
 		     acpi_validate_gic_table, ACPI_MADT_GIC_VERSION_NONE,
 		     gic_acpi_init);
 #endif
+
+/* DEBUG k61: remote read of a cpu redistributor (works for stuck cpus) */
+void k61_gic_rd_read(int cpu, u32 *ctlr, u32 *en, u32 *pend, u32 *act, u32 *prio0)
+{
+	void __iomem *rd = per_cpu_ptr(gic_data.rdists.rdist, cpu)->rd_base;
+	void __iomem *sgi = rd + SZ_64K;
+
+	*ctlr = readl_relaxed(rd + GICR_CTLR);
+	*en = readl_relaxed(sgi + GICR_ISENABLER0);
+	*pend = readl_relaxed(sgi + GICR_ISPENDR0);
+	*act = readl_relaxed(sgi + GICR_ISACTIVER0);
+	*prio0 = readl_relaxed(sgi + GICR_IPRIORITYR0);
+}
+
+u32 k61_gic_waker(int cpu)
+{
+	void __iomem *rd = per_cpu_ptr(gic_data.rdists.rdist, cpu)->rd_base;
+
+	return readl_relaxed(rd + GICR_WAKER);
+}
+u64 k61_gic_typer(int cpu)
+{
+	void __iomem *rd = per_cpu_ptr(gic_data.rdists.rdist, cpu)->rd_base;
+
+	return gic_read_typer(rd + GICR_TYPER);
+}

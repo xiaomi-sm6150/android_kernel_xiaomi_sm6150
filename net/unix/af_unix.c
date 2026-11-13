@@ -114,6 +114,7 @@
 #include <linux/security.h>
 #include <linux/freezer.h>
 #include <linux/file.h>
+#include <linux/k61-stop.h>
 #include <linux/btf_ids.h>
 
 static atomic_long_t unix_nr_socks;
@@ -1892,6 +1893,44 @@ static void scm_stat_del(struct sock *sk, struct sk_buff *skb)
  *	Send AF_UNIX data.
  */
 
+/*
+ * DEBUG (k61.stop=sys): no adb and no logcat yet, so mirror warning-and-
+ * worse lines sent to logd (/dev/socket/logdw) to the kernel log, where
+ * the pstore console keeps them. A logdw datagram is the 11-byte
+ * android_log_header_t (id, tid, realtime), then prio, "tag\0", "msg\0".
+ */
+static void k61_logdw_mirror(struct sk_buff *skb, struct sock *other,
+			     struct sockaddr_un *sunaddr)
+{
+	const char *path = NULL;
+	char buf[300], *tag, *msg;
+	int n, i;
+	u8 prio;
+
+	if (sunaddr)
+		path = sunaddr->sun_path;
+	else if (other && unix_sk(other)->addr)
+		path = unix_sk(other)->addr->name->sun_path;
+	if (!path || strcmp(path, "/dev/socket/logdw"))
+		return;
+	n = min_t(int, skb->len, sizeof(buf) - 1);
+	if (n < 14 || skb_copy_bits(skb, 0, buf, n))
+		return;
+	buf[n] = 0;
+	prio = buf[11];
+	if (buf[0] == 2 /* LOG_ID_EVENTS */ || prio < 5 || prio > 7)
+		return;
+	tag = buf + 12;
+	msg = tag + strnlen(tag, buf + n - tag);
+	if (msg < buf + n)
+		msg++;
+	for (i = msg - buf; i < n && buf[i]; i++)
+		if (buf[i] == '\n' || buf[i] == '\t')
+			buf[i] = ' ';
+	pr_info("k61logcat[%d %s] %c %s: %s\n", task_tgid_nr(current),
+		current->comm, "??VDIWEF"[prio], tag, msg);
+}
+
 static int unix_dgram_sendmsg(struct socket *sock, struct msghdr *msg,
 			      size_t len)
 {
@@ -1962,6 +2001,9 @@ static int unix_dgram_sendmsg(struct socket *sock, struct msghdr *msg,
 	err = skb_copy_datagram_from_iter(skb, 0, &msg->msg_iter, len);
 	if (err)
 		goto out_free;
+
+	if (k61_stop_sys)
+		k61_logdw_mirror(skb, other, sunaddr);
 
 	timeo = sock_sndtimeo(sk, msg->msg_flags & MSG_DONTWAIT);
 

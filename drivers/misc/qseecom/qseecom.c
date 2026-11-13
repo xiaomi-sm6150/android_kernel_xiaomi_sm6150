@@ -530,7 +530,14 @@ static int __qseecom_scm_call2_locked(uint32_t smc_id, struct qseecom_scm_desc *
 	int retry_count = 0;
 
 	do {
+		pr_emerg("k61qs: cpu%d %s[%d] ENTER smc_id=%#x a0=%#llx a1=%#llx a2=%#llx a3=%#llx\n",
+			 raw_smp_processor_id(), current->comm, current->pid, smc_id,
+			 desc ? desc->args[0] : 0, desc ? desc->args[1] : 0,
+			 desc ? desc->args[2] : 0, desc ? desc->args[3] : 0);
 		ret = qcom_scm_qseecom_call(smc_id, desc, false);
+		pr_emerg("k61qs: cpu%d %s[%d] EXIT smc_id=%#x ret=%d r0=%#llx r1=%#llx\n",
+			 raw_smp_processor_id(), current->comm, current->pid, smc_id, ret,
+			 desc ? desc->ret[0] : 0, desc ? desc->ret[1] : 0);
 		if ((ret == -EBUSY) || (desc && (desc->ret[0] == -QSEE_RESULT_FAIL_APP_BUSY))) {
 			mutex_unlock(&app_access_lock);
 			msleep(QSEECOM_SCM_EBUSY_WAIT_MS);

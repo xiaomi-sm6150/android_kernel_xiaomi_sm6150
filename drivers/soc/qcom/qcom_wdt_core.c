@@ -39,6 +39,8 @@
 #include <linux/sched/debug.h>
 
 extern void k61_dump_curr(int cpu);
+extern void k61_dump_all_cpus(void);
+extern void k61_bark_flush(void);
 
 #define MASK_SIZE        32
 
@@ -699,6 +701,7 @@ static irqreturn_t qcom_wdt_bark_handler(int irq, void *dev_id)
 	unsigned long long t = sched_clock();
 	unsigned long long tp = wdog_dd->last_pet;
 
+	k61_bark_flush();
 	nanosec_rem = do_div(t, 1000000000);
 	dev_info(wdog_dd->dev, "QCOM Apps Watchdog bark! Now = %lu.%06lu\n",
 			(unsigned long) t, nanosec_rem / 1000);
@@ -727,10 +730,11 @@ static irqreturn_t qcom_wdt_bark_handler(int irq, void *dev_id)
 				 wdog_dd->ping_start[c], wdog_dd->ping_end[c]);
 		if (wdog_dd->watchdog_task)
 			sched_show_task(wdog_dd->watchdog_task);
-		for (c = 5; c < 8; c++)
-			k61_dump_curr(c);
-		trigger_all_cpu_backtrace();
+		pr_emerg("k61wdt: pet_timer cpu=%u\n",
+			 wdog_dd->pet_timer.flags & TIMER_CPUMASK);
+		k61_dump_all_cpus();
 		mdelay(700);
+		k61_bark_flush();
 	}
 
 #if defined(CONFIG_ARCH_QTI_VM) && !defined(MODULE)

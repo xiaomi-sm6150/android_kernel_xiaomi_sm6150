@@ -4,6 +4,7 @@
  * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
+#include <linux/sched/clock.h>
 #include <linux/slab.h>
 #include <linux/io.h>
 #include <linux/module.h>
@@ -96,14 +97,24 @@ static inline void *scm_legacy_get_response_buffer(
 	return (void *)rsp + le32_to_cpu(rsp->buf_offset);
 }
 
+extern u64 k61_scm_t[];
+extern u64 k61_scm_fid[];
+extern struct task_struct *k61_scm_task[];
+
 static void __scm_legacy_do(const struct arm_smccc_args *smc,
 			    struct arm_smccc_res *res)
 {
+	int kc = raw_smp_processor_id();
+
+	WRITE_ONCE(k61_scm_fid[kc], smc->args[0]);
+	k61_scm_task[kc] = current;
+	WRITE_ONCE(k61_scm_t[kc], sched_clock());
 	do {
 		arm_smccc_smc(smc->args[0], smc->args[1], smc->args[2],
 			      smc->args[3], smc->args[4], smc->args[5],
 			      smc->args[6], smc->args[7], res);
 	} while (res->a0 == QCOM_SCM_INTERRUPTED);
+	WRITE_ONCE(k61_scm_t[kc], 0);
 }
 
 /**
