@@ -14,6 +14,14 @@
 #include <linux/of_device.h>
 #include <linux/slab.h>
 #include <linux/remoteproc.h>
+
+/*
+ * The 5.4 PIL (qcom,pil-tz-generic) lookup only exists in the lahaina build;
+ * sm6150 gets the ADSP through qcom,rproc-handle, and its SSR name is "lpass".
+ */
+#ifndef CONFIG_QTI_AUDIO_LAHAINA
+#define qcom_rproc_get_pil_tz_generic(name) ((struct rproc *)NULL)
+#endif
 #include <linux/remoteproc/qcom_rproc.h>
 #include <dsp/audio_notifier.h>
 #include "audio_ssr.h"

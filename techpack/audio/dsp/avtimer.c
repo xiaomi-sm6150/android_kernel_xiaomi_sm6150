@@ -12,7 +12,7 @@
 #include <linux/device.h>
 #include <linux/io.h>
 #include <linux/platform_device.h>
-#include <audio/linux/avtimer.h>
+#include <linux/avtimer.h>
 #include <linux/slab.h>
 #include <linux/of.h>
 #include <linux/wait.h>
@@ -488,7 +488,7 @@ static int dev_avtimer_probe(struct platform_device *pdev)
 	}
 	INIT_DELAYED_WORK(&avtimer.ssr_dwork, reset_work);
 
-	avtimer.p_avtimer_lsw = devm_ioremap_nocache(&pdev->dev,
+	avtimer.p_avtimer_lsw = devm_ioremap(&pdev->dev,
 				reg_lsb->start, resource_size(reg_lsb));
 	if (!avtimer.p_avtimer_lsw) {
 		dev_err(&pdev->dev, "%s: ioremap failed for lsb avtimer register",
@@ -496,7 +496,7 @@ static int dev_avtimer_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	avtimer.p_avtimer_msw = devm_ioremap_nocache(&pdev->dev,
+	avtimer.p_avtimer_msw = devm_ioremap(&pdev->dev,
 				reg_msb->start, resource_size(reg_msb));
 	if (!avtimer.p_avtimer_msw) {
 		dev_err(&pdev->dev, "%s: ioremap failed for msb avtimer register",
