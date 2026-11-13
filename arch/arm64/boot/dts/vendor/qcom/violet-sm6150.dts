@@ -100,6 +100,7 @@
 	k61,restart-running;
 	k61,late-boot;
 	k61,no-panic;
+	k61,solo-cpu;
 };
 
 &cdsp_pas {

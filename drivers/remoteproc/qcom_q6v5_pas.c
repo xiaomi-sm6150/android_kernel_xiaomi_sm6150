@@ -10,6 +10,7 @@
 
 #include <linux/clk.h>
 #include <linux/delay.h>
+#include <linux/cpu.h>
 #include <linux/kthread.h>
 #include <linux/namei.h>
 #include <linux/firmware.h>
@@ -1884,11 +1885,47 @@ static int adsp_setup_wakeup(struct qcom_adsp *adsp)
  * k61: the firmware lives on a partition init mounts long after probe, so
  * with "k61,late-boot" the DSP is booted from here once the .mdt is readable.
  */
+/*
+ * k61: the TZ calls that stop and restart a subsystem disturb the other CPUs
+ * (IPIs vanish, ticks stop). Run the whole sequence on CPU0 with the others
+ * offline.
+ */
+static void k61_cpus_down(void)
+{
+	int cpu, ret;
+
+	set_cpus_allowed_ptr(current, cpumask_of(0));
+	for_each_online_cpu(cpu) {
+		if (!cpu)
+			continue;
+		ret = remove_cpu(cpu);
+		if (ret)
+			pr_info("k61: offline cpu%d: %d\n", cpu, ret);
+	}
+	pr_info("k61: running solo on cpu0\n");
+}
+
+static void k61_cpus_up(void)
+{
+	int cpu, ret;
+
+	for_each_present_cpu(cpu) {
+		if (cpu_online(cpu))
+			continue;
+		ret = add_cpu(cpu);
+		if (ret)
+			pr_info("k61: online cpu%d: %d\n", cpu, ret);
+	}
+	set_cpus_allowed_ptr(current, cpu_possible_mask);
+	pr_info("k61: all cpus back\n");
+}
+
 static int k61_late_boot_fn(void *data)
 {
 	struct rproc *rproc = data;
 	char path[128];
 	struct path p;
+	bool solo;
 	int i, ret = -ENOENT;
 
 	for (i = 0; i < 300; i++) {
@@ -1905,7 +1942,12 @@ static int k61_late_boot_fn(void *data)
 		if (!found)
 			continue;
 		path_put(&p);
+		solo = of_property_read_bool(rproc->dev.parent->of_node, "k61,solo-cpu");
+		if (solo)
+			k61_cpus_down();
 		ret = rproc_boot(rproc);
+		if (solo)
+			k61_cpus_up();
 		dev_info(&rproc->dev, "k61: late rproc_boot(%s): %d\n",
 			 rproc->firmware, ret);
 		if (ret != -ENOENT)
