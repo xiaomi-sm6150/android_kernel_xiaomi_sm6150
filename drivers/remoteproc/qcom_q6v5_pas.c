@@ -783,13 +783,18 @@ static int adsp_start(struct rproc *rproc)
 	}
 
 	trace_rproc_qcom_event(dev_name(adsp->dev), "Q6_firmware_loading", "enter");
+	dev_info(adsp->dev, "k61: request_firmware(%s)\n", rproc->firmware);
 	ret = request_firmware(&fw, rproc->firmware, adsp->dev);
+	dev_info(adsp->dev, "k61: request_firmware: %d\n", ret);
 	if (ret)
 		goto free_metadata_dtb;
 
+	dev_info(adsp->dev, "k61: mdt_load pas=%u mem=%pa size=%zx\n", adsp->pas_id,
+		 &adsp->mem_phys, adsp->mem_size);
 	ret = qcom_mdt_load_no_free(adsp->dev, fw, rproc->firmware, adsp->pas_id,
 				    adsp->mem_region, adsp->mem_phys, adsp->mem_size,
 				    &adsp->mem_reloc, adsp->dma_phys_below_32b, adsp->mdata);
+	dev_info(adsp->dev, "k61: mdt_load: %d\n", ret);
 	if (ret)
 		goto free_firmware;
 
@@ -798,7 +803,9 @@ static int adsp_start(struct rproc *rproc)
 	adsp_add_coredump_segments(adsp, fw);
 	trace_rproc_qcom_event(dev_name(adsp->dev), "Q6_auth_reset", "enter");
 
+	dev_info(adsp->dev, "k61: auth_and_reset pas=%u\n", adsp->pas_id);
 	ret = qcom_scm_pas_auth_and_reset(adsp->pas_id);
+	dev_info(adsp->dev, "k61: auth_and_reset: %d\n", ret);
 	if (ret)
 		panic("Panicking, auth and reset failed for remoteproc %s ret=%d\n",
 				rproc->name, ret);
