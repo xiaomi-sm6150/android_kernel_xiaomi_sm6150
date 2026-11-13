@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config QTI_AUDIO_LAHAINA
+	bool "Qualcomm APR audio driver (techpack/audio) for lahaina"
+	depends on SND_SOC && ARCH_QCOM && RPMSG && !QCOM_APR
+	select SND_SOC_COMPRESS
+	select SND_HWDEP
+	select REGMAP_MMIO
+	select REGMAP_I2C
+	help
+	  Build the Qualcomm APR/q6 audio-kernel techpack (APR over glink,
+	  q6 AFE/ASM/ADM/voice/LSM, ASoC platform and DAI drivers, bolero
+	  macros, soundwire, WCD938x and the lahaina machine driver) into
+	  the kernel with the lahaina feature set from
+	  config/lahainaauto.conf.
+
+if QTI_AUDIO_LAHAINA
+
+config SND_PRI_MI2S_AW882XX
+	bool "For aw882xx smartpa pri mi2s config"
+	default n
+	help
+	  Enable it only aw882xx smartpa is connected on pri mi2s.
+
+config SND_ENABLE_QCOM_PMIC_HAPTIC
+	bool "Enable qcom pmic haptic"
+	default n
+	help
+	  Enable it when qcom pmic haptic is used.
+
+config HAPTIC_POWER_ON
+	bool "haptic when power on"
+	default n
+	help
+	  Enable it when haptic power on.
+
+config AW882XX_DRIVER_V1
+	bool "Use aw882xx driver version 1.*"
+	default n
+	help
+	  Enable it only use aw882xx driver version 1.*.
+
+config AW882XX_DUAL_SMARTPA
+	bool "Use dual smartpa"
+	default n
+	help
+	  Enable it only use dual smartpa.
+
+config AW882XX_PARAMS_FROM_BIN
+	bool "params is stored in bin file"
+	default n
+	help
+	  Enable it only for params of smartPA is stored in bin file.
+
+endif
