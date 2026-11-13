@@ -120,8 +120,6 @@
 	k61,late-boot;
 	k61,no-panic;
 	k61,solo-cpu;
-	/* test: boot after the ADSP (4.14 brings both up together, not the CDSP first) */
-	k61,boot-uptime = <70>;
 	/* tell the AOP the CDSP is loading (qcom,signal-aop -> qmp_get(qcom,qmp)) */
 	qcom,signal-aop;
 };
