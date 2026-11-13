@@ -7,9 +7,49 @@
 #include <linux/device.h>
 #include <linux/fs.h>
 #include <linux/uaccess.h>
+#include <linux/k61-stop.h>
 #include "internal.h"
 
 static DEFINE_MUTEX(pmsg_lock);
+
+/*
+ * DEBUG (k61.stop=sys): mirror warning-and-worse logcat lines to the kernel
+ * log, so they survive in the pstore console. liblog writev()s each line as
+ * [pmsg header][log header][prio][tag\0][msg\0]; without .write_iter the
+ * VFS calls write_pmsg() once per segment. Remember the last one-byte
+ * segment (the priority) per open file and print the text segments that
+ * follow a W/E/F priority.
+ */
+static void k61_pmsg_mirror(struct file *file, const char __user *buf,
+			    size_t count)
+{
+	unsigned long prio = (unsigned long)file->private_data;
+	char text[256];
+	size_t n, i;
+
+	if (count == 1) {
+		u8 c;
+
+		if (!get_user(c, (const u8 __user *)buf))
+			file->private_data = (void *)(unsigned long)c;
+		return;
+	}
+	if (prio < 5 || prio > 8 || count < 2)
+		return;
+	n = min(count, sizeof(text) - 1);
+	if (copy_from_user(text, buf, n))
+		return;
+	text[n] = 0;
+	/* text only: binary headers (pmsg 'l' header, log header) are skipped */
+	for (i = 0; i < n && text[i]; i++) {
+		if (text[i] == '\n' || text[i] == '\t')
+			text[i] = ' ';
+		else if ((u8)text[i] < 0x20 || (u8)text[i] == 0x7f)
+			return;
+	}
+	pr_info("k61logcat[%d %s] %c %s\n", task_tgid_nr(current), current->comm,
+		"??VDIWEF"[prio], text);
+}
 
 static ssize_t write_pmsg(struct file *file, const char __user *buf,
 			  size_t count, loff_t *ppos)
@@ -19,6 +59,9 @@ static ssize_t write_pmsg(struct file *file, const char __user *buf,
 
 	if (!count)
 		return 0;
+
+	if (k61_stop_sys)
+		k61_pmsg_mirror(file, buf, count);
 
 	pstore_record_init(&record, psinfo);
 	record.type = PSTORE_TYPE_PMSG;
