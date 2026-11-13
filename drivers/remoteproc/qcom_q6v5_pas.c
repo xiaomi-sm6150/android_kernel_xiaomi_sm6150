@@ -9,6 +9,8 @@
 
 #include <linux/clk.h>
 #include <linux/delay.h>
+#include <linux/kthread.h>
+#include <linux/namei.h>
 #include <linux/firmware.h>
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
@@ -302,6 +304,17 @@ static int qcom_pas_start(struct rproc *rproc)
 				"failed to authenticate dtb image and release reset\n");
 			goto disable_px_supply;
 		}
+	}
+
+	/*
+	 * k61: under kexec the DSP was already started by the previous kernel;
+	 * TZ refuses to re-authenticate a running subsystem, so stop it first.
+	 */
+	if (of_property_read_bool(pas->dev->of_node, "k61,restart-running")) {
+		ret = qcom_scm_pas_shutdown(pas->pas_id);
+		dev_info(pas->dev, "k61: shutdown of running DSP (pas %u): %d\n",
+			 pas->pas_id, ret);
+		msleep(100);
 	}
 
 	ret = qcom_mdt_pas_init(pas->dev, pas->firmware, rproc->firmware, pas->pas_id,
@@ -675,6 +688,32 @@ static void qcom_pas_unassign_memory_region(struct qcom_pas *pas)
 	}
 }
 
+/*
+ * k61: the firmware lives on a partition init mounts long after probe, so
+ * with "k61,late-boot" the DSP is booted from here once the .mdt is readable.
+ */
+static int k61_late_boot_fn(void *data)
+{
+	struct rproc *rproc = data;
+	char path[128];
+	struct path p;
+	int i, ret = -ENOENT;
+
+	snprintf(path, sizeof(path), "/vendor/firmware/%s", rproc->firmware);
+	for (i = 0; i < 300; i++) {
+		ssleep(1);
+		if (kern_path(path, LOOKUP_FOLLOW, &p))
+			continue;
+		path_put(&p);
+		ret = rproc_boot(rproc);
+		dev_info(&rproc->dev, "k61: late rproc_boot(%s): %d\n",
+			 rproc->firmware, ret);
+		if (ret != -ENOENT)
+			break;
+	}
+	return 0;
+}
+
 static int qcom_pas_probe(struct platform_device *pdev)
 {
 	const struct qcom_pas_data *desc;
@@ -716,6 +755,8 @@ static int qcom_pas_probe(struct platform_device *pdev)
 	}
 
 	rproc->auto_boot = desc->auto_boot;
+	if (of_property_read_bool(pdev->dev.of_node, "k61,late-boot"))
+		rproc->auto_boot = false;
 	rproc_coredump_set_elf_info(rproc, ELFCLASS32, EM_NONE);
 
 	pas = rproc->priv;
@@ -781,6 +822,9 @@ static int qcom_pas_probe(struct platform_device *pdev)
 	ret = rproc_add(rproc);
 	if (ret)
 		goto remove_ssr_sysmon;
+
+	if (of_property_read_bool(pdev->dev.of_node, "k61,late-boot"))
+		kthread_run(k61_late_boot_fn, rproc, "k61-%s-boot", rproc->name);
 
 	return 0;
 
