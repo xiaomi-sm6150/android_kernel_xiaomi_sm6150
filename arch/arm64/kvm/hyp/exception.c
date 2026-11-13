@@ -155,6 +155,7 @@ static void enter_exception64(struct kvm_vcpu *vcpu, unsigned long target_mode,
 {
 	u64 offset = get_except64_offset(*vcpu_cpsr(vcpu), target_mode, type);
 	unsigned long sctlr, vbar, old, new;
+	struct kvm *kvm;
 
 	switch (target_mode) {
 	case PSR_MODE_EL1h:
@@ -175,8 +176,10 @@ static void enter_exception64(struct kvm_vcpu *vcpu, unsigned long target_mode,
 	*vcpu_pc(vcpu) = vbar + offset;
 
 	old = *vcpu_cpsr(vcpu);
-	new = get_except64_cpsr(old, kvm_has_mte(kern_hyp_va(vcpu->kvm)), sctlr,
+	kvm = vcpu_get_kvm(vcpu);
+	new = get_except64_cpsr(old, kvm && kvm_has_mte(kvm), sctlr,
 				target_mode);
+	vcpu_put_kvm(vcpu, kvm);
 	*vcpu_cpsr(vcpu) = new;
 	__vcpu_write_spsr(vcpu, target_mode, old);
 }
