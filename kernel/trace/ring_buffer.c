@@ -5506,8 +5506,15 @@ rb_update_iter_read_stamp(struct ring_buffer_iter *iter,
 
 static void rb_read_writer_meta_page(struct ring_buffer_per_cpu *cpu_buffer)
 {
-	local_set(&cpu_buffer->entries, READ_ONCE(cpu_buffer->meta_page->entries));
-	local_set(&cpu_buffer->overrun, READ_ONCE(cpu_buffer->meta_page->overrun));
+	unsigned long entries = READ_ONCE(cpu_buffer->meta_page->entries);
+	unsigned long overrun = READ_ONCE(cpu_buffer->meta_page->overrun);
+
+	/*
+	 * The writer updates page::commit before meta::entries, so
+	 * cpu_buffer->read can exceed meta::entries.
+	 */
+	local_set(&cpu_buffer->entries, max(entries, overrun + cpu_buffer->read));
+	local_set(&cpu_buffer->overrun, overrun);
 	local_set(&cpu_buffer->pages_touched, READ_ONCE(meta_pages_touched(cpu_buffer->meta_page)));
 	local_set(&cpu_buffer->pages_lost, READ_ONCE(meta_pages_lost(cpu_buffer->meta_page)));
 	/*
@@ -5519,6 +5526,7 @@ static void rb_read_writer_meta_page(struct ring_buffer_per_cpu *cpu_buffer)
 static struct buffer_page *
 __rb_get_reader_page_from_writer(struct ring_buffer_per_cpu *cpu_buffer)
 {
+	unsigned long min_entries;
 	u32 prev_reader;
 
 	rb_read_writer_meta_page(cpu_buffer);
@@ -5567,6 +5575,14 @@ out:
 	 * paired with tracing_commit_entry().
 	 */
 	smp_rmb();
+
+	/*
+	 * At least one unread event is committed on reader_page; account for it
+	 * before rb_advance_reader() increments cpu_buffer->read.
+	 */
+	min_entries = local_read(&cpu_buffer->overrun) + cpu_buffer->read + 1;
+	if ((unsigned long)local_read(&cpu_buffer->entries) < min_entries)
+		local_set(&cpu_buffer->entries, min_entries);
 
 	if (!cpu_buffer->reader_page->read)
 		cpu_buffer->read_stamp = cpu_buffer->reader_page->page->time_stamp;
@@ -6327,7 +6343,6 @@ rb_reset_cpu(struct ring_buffer_per_cpu *cpu_buffer)
 			return;
 
 		cpu_buffer->writer->reset(cpu_buffer->cpu);
-		rb_read_writer_meta_page(cpu_buffer);
 
 		/* Read related values, not covered by the meta-page */
 		local_set(&cpu_buffer->pages_read, 0);
@@ -6335,6 +6350,8 @@ rb_reset_cpu(struct ring_buffer_per_cpu *cpu_buffer)
 		cpu_buffer->read_bytes = 0;
 		cpu_buffer->last_overrun = 0;
 		cpu_buffer->reader_page->read = 0;
+
+		rb_read_writer_meta_page(cpu_buffer);
 
 		return;
 	}
