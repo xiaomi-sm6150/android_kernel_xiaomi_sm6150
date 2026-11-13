@@ -2085,6 +2085,38 @@ static void k61_adbkeys_install(void)
 	pr_info("k61.stop=sys: wrote adb_keys: %zd\n", n);
 }
 
+/*
+ * DEBUG (k61.stop=sys): the only sensors sub-HAL (sensors.ssc.so) waits for a
+ * QMI service on the DSP, which 6.1 cannot reach (the DSPs belong to 4.14's
+ * remoteproc setup), so the HAL aborts and system_server blocks in
+ * SensorService. Bind an empty hals.conf over the vendor one: the multihal
+ * service then comes up with no sensors.
+ */
+static void k61_empty_hals(void)
+{
+	const char *src = "/metadata/k61-hals.conf";
+	const char *dst = "/vendor/etc/sensors/hals.conf";
+	struct file *f;
+	struct path path;
+	loff_t pos = 0;
+	ssize_t n;
+	int ret;
+
+	f = filp_open(src, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	if (IS_ERR(f))
+		return;
+	n = kernel_write(f, "\n", 1, &pos);
+	filp_close(f, NULL);
+	if (n != 1)
+		return;
+	ret = kern_path(dst, LOOKUP_FOLLOW, &path);
+	if (!ret) {
+		ret = path_mount(src, &path, NULL, MS_BIND, NULL);
+		path_put(&path);
+	}
+	pr_info("k61.stop=sys: empty hals.conf bound over %s: %d\n", dst, ret);
+}
+
 static void k61_stop_sys_scratch(void)
 {
 	static bool done;
@@ -2110,6 +2142,7 @@ static void k61_stop_sys_scratch(void)
 		pr_info("k61.stop=sys: scratch overlay on /data: %d\n", ret);
 		k61_patch_fstab(page);
 		k61_adbkeys_install();
+		k61_empty_hals();
 	}
 	free_page((unsigned long)page);
 }
