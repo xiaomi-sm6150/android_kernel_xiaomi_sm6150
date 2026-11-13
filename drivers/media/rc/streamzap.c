@@ -365,7 +365,8 @@ static int streamzap_probe(struct usb_interface *intf,
 
 	return 0;
 rc_submit_fail:
-	rc_free_device(sz->rdev);
+	/* ANDROID: rc_unregister_device() also frees the rc_dev */
+	rc_unregister_device(sz->rdev);
 	usb_set_intfdata(intf, NULL);
 rc_dev_fail:
 	usb_free_urb(sz->urb_in);
