@@ -112,7 +112,7 @@
 /*
  * CDSP: same recipe as the ADSP (firmware on the modem partition, kexec
  * inherited instance stopped through TZ, solo-CPU around the TZ calls).
- * The AOP mailbox replaces the qcom,qmp phandle as on the ADSP node.
+ * qcom,signal-aop makes the driver send the AOP load_state message.
  */
 &cdsp_pas {
 	status = "okay";
@@ -120,8 +120,8 @@
 	k61,late-boot;
 	k61,no-panic;
 	k61,solo-cpu;
-	/delete-property/ qcom,qmp;
-	mboxes = <&qmp_aop 0>;
+	/* tell the AOP the CDSP is loading (qcom,signal-aop -> qmp_get(qcom,qmp)) */
+	qcom,signal-aop;
 };
 
 /*
@@ -166,6 +166,15 @@
 		};
 	};
 
+	/* rmt_storage (modem EFS) maps this through /dev/uio0 */
+	qcom,rmtfs_sharedmem@0 {
+		compatible = "qcom,sharedmem-uio";
+		reg = <0x0 0x200000>;
+		reg-names = "rmtfs";
+		qcom,client-id = <0x00000001>;
+		qcom,guard-memory;
+	};
+
 	mpss_pas: remoteproc-mpss@4080000 {
 		compatible = "qcom,sm8150-mpss-pas";
 		reg = <0x4080000 0x100>;
@@ -179,7 +188,8 @@
 		clocks = <&rpmhcc RPMH_CXO_CLK>;
 		clock-names = "xo";
 
-		mboxes = <&qmp_aop 0>;
+		qcom,qmp = <&aoss_qmp>;
+		qcom,signal-aop;
 
 		memory-region = <&pil_modem_mem>;
 
