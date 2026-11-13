@@ -1911,39 +1911,68 @@ out_unmark:
  * keys in TrustZone and must not be touched, and nothing in the read-only
  * partitions can give second-stage init another fstab. So at PID 1's first
  * exec of /system/bin/init (selinux_setup, right after switch_root) mount
- * a tmpfs on both. The vendor fstab entries then fail cleanly (the eMMC
- * cannot be opened for writing) and init works on the scratch copies.
+ * a tmpfs on /metadata, and make /data an overlay whose upper layer lives
+ * in that tmpfs. tmpfs alone would do, but 6.1 tmpfs has no O_DIRECT and
+ * apexd only falls back to buffered loop I/O on erofs, squashfs or
+ * overlayfs. The vendor fstab entries then fail cleanly (the eMMC cannot
+ * be opened for writing) and init works on the scratch copies.
  */
+static int k61_scratch_mount(const char *dir, const char *type,
+			     const char *opts, char *page)
+{
+	struct path path;
+	int ret;
+
+	ret = kern_path(dir, LOOKUP_FOLLOW, &path);
+	if (ret)
+		return ret;
+	/* path_mount() wants a full page of options and edits it in place */
+	strscpy(page, opts, PAGE_SIZE);
+	ret = path_mount(type, &path, type, MS_NOSUID | MS_NODEV, page);
+	path_put(&path);
+	return ret;
+}
+
+static int k61_scratch_mkdir(const char *name)
+{
+	struct path parent;
+	struct dentry *dentry;
+	int ret;
+
+	dentry = kern_path_create(AT_FDCWD, name, &parent, LOOKUP_DIRECTORY);
+	if (IS_ERR(dentry))
+		return PTR_ERR(dentry);
+	ret = vfs_mkdir(mnt_user_ns(parent.mnt), d_inode(parent.dentry),
+			dentry, 0700);
+	done_path_create(&parent, dentry);
+	return ret;
+}
+
 static void k61_stop_sys_scratch(void)
 {
-	static const struct { const char *dir, *opts; } m[] = {
-		{ "/metadata", "mode=0755,size=64m" },
-		{ "/data", "mode=0771,size=1536m" },
-	};
 	static bool done;
-	struct path path;
-	char *opts;
-	int i, ret;
+	char *page;
+	int ret;
 
 	if (done)
 		return;
 	done = true;
-	/* path_mount() wants a full page of options (it terminates it) */
-	opts = (char *)__get_free_page(GFP_KERNEL);
-	if (!opts)
+	page = (char *)__get_free_page(GFP_KERNEL);
+	if (!page)
 		return;
-	for (i = 0; i < ARRAY_SIZE(m); i++) {
-		ret = kern_path(m[i].dir, LOOKUP_FOLLOW, &path);
-		if (!ret) {
-			/* the option parser edits the string in place */
-			strscpy(opts, m[i].opts, PAGE_SIZE);
-			ret = path_mount("tmpfs", &path, "tmpfs",
-					 MS_NOSUID | MS_NODEV, opts);
-			path_put(&path);
-		}
-		pr_info("k61.stop=sys: scratch tmpfs on %s: %d\n", m[i].dir, ret);
+	ret = k61_scratch_mount("/metadata", "tmpfs", "mode=0755,size=1600m", page);
+	pr_info("k61.stop=sys: scratch tmpfs on /metadata: %d\n", ret);
+	if (!ret) {
+		ret = k61_scratch_mkdir("/metadata/.k61u");
+		if (!ret)
+			ret = k61_scratch_mkdir("/metadata/.k61w");
+		if (!ret)
+			ret = k61_scratch_mount("/data", "overlay",
+				"lowerdir=/data,upperdir=/metadata/.k61u,workdir=/metadata/.k61w",
+				page);
+		pr_info("k61.stop=sys: scratch overlay on /data: %d\n", ret);
 	}
-	free_page((unsigned long)opts);
+	free_page((unsigned long)page);
 }
 
 static int do_execveat_common(int fd, struct filename *filename,
