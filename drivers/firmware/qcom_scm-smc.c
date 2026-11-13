@@ -62,10 +62,32 @@ static void __scm_smc_do_quirk(const struct arm_smccc_args *smc,
 	WRITE_ONCE(k61_scm_fid[kc], smc->args[0]);
 	k61_scm_task[kc] = current;
 	u64 t0 = sched_clock();
+	u64 pmr0 = read_sysreg_s(SYS_ICC_PMR_EL1);
+	u64 grp0 = read_sysreg_s(SYS_ICC_IGRPEN1_EL1);
+	u64 bpr0 = read_sysreg_s(SYS_ICC_BPR1_EL1);
+	u64 pmr1, grp1, bpr1;
 
 	WRITE_ONCE(k61_scm_t[kc], t0);
 	__scm_smc_do_quirk_real(smc, res);
 	WRITE_ONCE(k61_scm_t[kc], 0);
+
+	/*
+	 * k61: TZ may leave the GIC CPU interface changed; the kernel runs with
+	 * pseudo-NMI, so a clobbered ICC_PMR_EL1 would silently drop every normal
+	 * IRQ and IPI on this CPU while NMIs still get through.
+	 */
+	pmr1 = read_sysreg_s(SYS_ICC_PMR_EL1);
+	grp1 = read_sysreg_s(SYS_ICC_IGRPEN1_EL1);
+	bpr1 = read_sysreg_s(SYS_ICC_BPR1_EL1);
+	if (pmr1 != pmr0 || grp1 != grp0 || bpr1 != bpr0) {
+		pr_emerg("k61scm: cpu%d fid=%#llx changed GIC iface: PMR %llx->%llx GRPEN1 %llx->%llx BPR1 %llx->%llx\n",
+			 kc, (unsigned long long)smc->args[0],
+			 pmr0, pmr1, grp0, grp1, bpr0, bpr1);
+		write_sysreg_s(pmr0, SYS_ICC_PMR_EL1);
+		write_sysreg_s(bpr0, SYS_ICC_BPR1_EL1);
+		write_sysreg_s(grp0, SYS_ICC_IGRPEN1_EL1);
+		isb();
+	}
 
 	/*
 	 * k61: IPIs sent to this CPU while it sat in a long secure-world call
