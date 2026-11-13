@@ -2126,6 +2126,82 @@ static void k61_empty_hals(void)
 	pr_info("k61.stop=sys: empty hals.conf bound over %s: %d\n", dst, ret);
 }
 
+/*
+ * DEBUG (k61.stop=sys): optional replacement for the vendor sensors HAL. If
+ * the initramfs carries /k61-sensors-hal, copy it to the scratch tmpfs (mode
+ * 0755) and bind it over the vendor binary. The vendor HAL needs the DSP's
+ * QMI service, which 6.1 cannot reach, and crashes; system_server then waits
+ * for sensorservice forever.
+ */
+static void *k61_hal_blob;
+static size_t k61_hal_len;
+
+static int __init k61_hal_blob_init(void)
+{
+	struct file *f;
+	loff_t pos = 0, size;
+	ssize_t n;
+	void *buf;
+
+	if (!k61_stop_sys)
+		return 0;
+	f = filp_open("/k61-sensors-hal", O_RDONLY, 0);
+	if (IS_ERR(f))
+		return 0;
+	size = i_size_read(file_inode(f));
+	if (size <= 0 || size > (16 << 20)) {
+		filp_close(f, NULL);
+		return 0;
+	}
+	buf = vmalloc(size);
+	if (!buf) {
+		filp_close(f, NULL);
+		return 0;
+	}
+	n = kernel_read(f, buf, size, &pos);
+	filp_close(f, NULL);
+	if (n != size) {
+		vfree(buf);
+		return 0;
+	}
+	k61_hal_blob = buf;
+	k61_hal_len = size;
+	pr_info("k61.stop=sys: loaded sensors HAL blob, %zu bytes\n", k61_hal_len);
+	return 0;
+}
+late_initcall(k61_hal_blob_init);
+
+static void k61_hal_blob_install(void)
+{
+	const char *src = "/metadata/k61-sensors-hal";
+	const char *dst = "/vendor/bin/hw/android.hardware.sensors@2.0-service";
+	struct file *f;
+	struct path path;
+	loff_t pos = 0;
+	ssize_t n;
+	int ret;
+
+	if (!k61_hal_blob)
+		return;
+	f = filp_open(src, O_WRONLY | O_CREAT | O_TRUNC, 0755);
+	if (IS_ERR(f)) {
+		pr_info("k61.stop=sys: hal blob create: %ld\n", PTR_ERR(f));
+		return;
+	}
+	n = kernel_write(f, k61_hal_blob, k61_hal_len, &pos);
+	filp_close(f, NULL);
+	if (n != k61_hal_len) {
+		pr_info("k61.stop=sys: hal blob write: %zd\n", n);
+		return;
+	}
+	ret = kern_path(dst, LOOKUP_FOLLOW, &path);
+	if (!ret) {
+		ret = path_mount(src, &path, NULL, MS_BIND, NULL);
+		path_put(&path);
+	}
+	pr_info("k61.stop=sys: sensors HAL bound over %s: %d\n", dst, ret);
+}
+
 static void k61_stop_sys_scratch(void)
 {
 	static bool done;
@@ -2152,6 +2228,7 @@ static void k61_stop_sys_scratch(void)
 		k61_patch_fstab(page);
 		k61_adbkeys_install();
 		k61_empty_hals();
+		k61_hal_blob_install();
 	}
 	free_page((unsigned long)page);
 }
