@@ -52,7 +52,7 @@ ifeq ($(CONFIG_SND_SOC_AUTO), y)
 	endif
 else
 	ifeq ($(KERNEL_BUILD), 0)
-		ifeq ($(CONFIG_ARCH_SM8150), y)
+		ifeq ($(CONFIG_ARCH_SM8150):$(CONFIG_QTI_AUDIO_SM6150), y:)
 			ifdef CONFIG_SND_SOC_SA8155
 				include $(AUDIO_ROOT)/config/sa8155auto.conf
 				INCS    +=  -include $(AUDIO_ROOT)/config/sa8155autoconf.h
@@ -61,7 +61,7 @@ else
 				INCS    +=  -include $(AUDIO_ROOT)/config/sm8150autoconf.h
 			endif
 		endif
-		ifeq ($(CONFIG_ARCH_SM6150), y)
+		ifeq ($(CONFIG_ARCH_SM6150):$(CONFIG_QTI_AUDIO_SM6150), y:)
 			ifdef CONFIG_SND_SOC_SA6155
 				include $(AUDIO_ROOT)/config/sa6155auto.conf
 				INCS    +=  -include $(AUDIO_ROOT)/config/sa6155autoconf.h
@@ -70,12 +70,12 @@ else
 				INCS    +=  -include $(AUDIO_ROOT)/config/sm6150autoconf.h
 			endif
 		endif
-		ifeq ($(CONFIG_ARCH_TRINKET), y)
+		ifeq ($(CONFIG_ARCH_TRINKET):$(CONFIG_QTI_AUDIO_SM6150), y:)
 			include $(AUDIO_ROOT)/config/sm6150auto.conf
 			export
 			INCS    +=  -include $(AUDIO_ROOT)/config/sm6150autoconf.h
 		endif
-		ifeq ($(CONFIG_ARCH_KONA), y)
+		ifeq ($(CONFIG_ARCH_KONA):$(CONFIG_QTI_AUDIO_SM6150), y:)
 			include $(AUDIO_ROOT)/config/konaauto.conf
 			INCS    +=  -include $(AUDIO_ROOT)/config/konaautoconf.h
 		endif
@@ -84,21 +84,21 @@ else
 			export
 			INCS    +=  -include $(AUDIO_ROOT)/config/lahainaautoconf.h
 		endif
-		ifeq ($(CONFIG_ARCH_LITO), y)
+		ifeq ($(CONFIG_ARCH_LITO):$(CONFIG_QTI_AUDIO_SM6150), y:)
 			include $(AUDIO_ROOT)/config/litoauto.conf
 			export
 			INCS    +=  -include $(AUDIO_ROOT)/config/litoautoconf.h
 		endif
 		ifeq ($(CONFIG_ARCH_BENGAL), y)
-			include $(AUDIO_ROOT)/config/bengalauto.conf
+			include $(AUDIO_ROOT)/config/violetauto.conf
 			export
-			INCS    +=  -include $(AUDIO_ROOT)/config/bengalautoconf.h
+			INCS    +=  -include $(AUDIO_ROOT)/config/violetautoconf.h
 		endif
-		ifeq ($(CONFIG_ARCH_SDMSHRIKE), y)
+		ifeq ($(CONFIG_ARCH_SDMSHRIKE):$(CONFIG_QTI_AUDIO_SM6150), y:)
 			include $(AUDIO_ROOT)/config/sm8150auto.conf
 			INCS    +=  -include $(AUDIO_ROOT)/config/sm8150autoconf.h
 		endif
-		ifeq ($(CONFIG_ARCH_QCS405), y)
+		ifeq ($(CONFIG_ARCH_QCS405):$(CONFIG_QTI_AUDIO_SM6150), y:)
 			include $(AUDIO_ROOT)/config/qcs405auto.conf
 			export
 			INCS    +=  -include $(AUDIO_ROOT)/config/qcs405autoconf.h
@@ -276,16 +276,20 @@ KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/vendor/qcom/opensource/audio-kernel/soc/Module
 endif
 
 ifeq ($(KERNEL_BUILD), 1)
+	obj-y	+= wcd937x/
 	obj-y	+= wcd938x/
 	obj-y	+= bolero/
 	obj-y	+= wsa883x/
 	obj-y	+= rouleur/
 endif
 
+# Moto smart amps: only the lahaina (tundra) build has them
+ifeq ($(CONFIG_QTI_AUDIO_LAHAINA), y)
 ifeq ($(CONFIG_AW882XX_DRIVER_V1), y)
 	obj-y   += aw88261/
 else
 	obj-y   += aw882xx/
+endif
 endif
 
 ifeq ($(CONFIG_AW882XX_DUAL_SMARTPA), y)

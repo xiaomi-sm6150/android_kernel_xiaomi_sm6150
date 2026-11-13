@@ -6,6 +6,9 @@
 #ifndef _WCD937X_H
 #define _WCD937X_H
 
+/* 6.1 renamed the 32-bit read helper */
+#define snd_soc_component_read32 snd_soc_component_read
+
 #include <bindings/audio-codec-port-types.h>
 
 #define WCD937X_MAX_SLAVE_CH_TYPES 10
