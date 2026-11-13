@@ -99,6 +99,7 @@
 	status = "okay";
 	k61,restart-running;
 	k61,late-boot;
+	k61,meta-in-region;
 };
 
 &cdsp_pas {
