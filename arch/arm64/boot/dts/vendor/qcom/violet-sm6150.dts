@@ -90,14 +90,13 @@
 };
 
 /*
- * ADSP: firmware is on the modem partition (/vendor/firmware_mnt/image),
- * reached through ../ from the firmware_class path. Under kexec the DSP is
- * already running, so stop it through TZ first and boot it from a thread once
- * the partition is mounted.
+ * ADSP: firmware is on the modem partition; boot with
+ * firmware_class.path=/vendor/firmware,/vendor/firmware_mnt/image. Under
+ * kexec the DSP is already running, so stop it through TZ first and boot it
+ * from a thread once the partition is mounted.
  */
 &adsp_pas {
 	status = "okay";
-	firmware-name = "../firmware_mnt/image/adsp.mdt";
 	k61,restart-running;
 	k61,late-boot;
 };
