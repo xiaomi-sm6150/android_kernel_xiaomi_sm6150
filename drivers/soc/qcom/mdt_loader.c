@@ -10,6 +10,7 @@
 #include <linux/device.h>
 #include <linux/elf.h>
 #include <linux/firmware.h>
+#include <linux/io.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/qcom_scm.h>
@@ -143,6 +144,13 @@ EXPORT_SYMBOL_GPL(qcom_mdt_get_size);
  *
  * Return: pointer to data, or ERR_PTR()
  */
+/*
+ * k61 experiment: if set, the metadata buffer is a mapping of this physical
+ * address instead of a coherent DMA allocation (CMA allocation hangs under kexec).
+ */
+phys_addr_t k61_mdt_meta_phys;
+EXPORT_SYMBOL_GPL(k61_mdt_meta_phys);
+
 void *qcom_mdt_read_metadata(struct device *dev, const struct firmware *fw, const char *firmware,
 			     size_t *data_len, bool dma_phys_below_32b, dma_addr_t *metadata_phys)
 {
@@ -195,7 +203,11 @@ void *qcom_mdt_read_metadata(struct device *dev, const struct firmware *fw, cons
 	 * blob, so make sure it's physically contiguous, 4K aligned and
 	 * non-cachable to avoid XPU violations.
 	 */
-	if (metadata_phys) {
+	if (metadata_phys && k61_mdt_meta_phys) {
+		data = memremap(k61_mdt_meta_phys, ehdr_size + hash_size, MEMREMAP_WC);
+		*metadata_phys = k61_mdt_meta_phys;
+		dev_info(dev, "k61mdt: metadata in region: %px phys=%pa\n", data, metadata_phys);
+	} else if (metadata_phys) {
 		if (!dma_phys_below_32b) {
 			scm_dev = qcom_get_scm_device();
 			if (!scm_dev)
@@ -246,7 +258,9 @@ void *qcom_mdt_read_metadata(struct device *dev, const struct firmware *fw, cons
 
 	return data;
 free_metadata:
-	if (metadata_phys) {
+	if (metadata_phys && k61_mdt_meta_phys) {
+		memunmap(data);
+	} else if (metadata_phys) {
 		if (!dma_phys_below_32b)
 			dma_free_coherent(scm_dev, ehdr_size + hash_size, data, *metadata_phys);
 		else
@@ -540,7 +554,9 @@ void qcom_mdt_free_metadata(struct device *dev, int pas_id, struct qcom_mdt_meta
 
 	if (err && qcom_scm_pas_shutdown_retry(pas_id))
 		panic("Panicking, failed to shutdown peripheral %d\n", pas_id);
-	if (mdata) {
+	if (mdata && k61_mdt_meta_phys) {
+		memunmap(mdata->buf);
+	} else if (mdata) {
 		if (!dma_phys_below_32b) {
 			scm_dev = qcom_get_scm_device();
 			if (!scm_dev) {

@@ -15,6 +15,8 @@
 struct device;
 struct firmware;
 
+extern phys_addr_t k61_mdt_meta_phys;
+
 struct qcom_mdt_metadata {
 	void *buf;
 	dma_addr_t buf_phys;

@@ -789,6 +789,8 @@ static int adsp_start(struct rproc *rproc)
 	if (ret)
 		goto free_metadata_dtb;
 
+	if (of_property_read_bool(adsp->dev->of_node, "k61,meta-in-region"))
+		k61_mdt_meta_phys = adsp->mem_phys + adsp->mem_size - SZ_64K;
 	dev_info(adsp->dev, "k61: mdt_load pas=%u mem=%pa size=%zx\n", adsp->pas_id,
 		 &adsp->mem_phys, adsp->mem_size);
 	ret = qcom_mdt_load_no_free(adsp->dev, fw, rproc->firmware, adsp->pas_id,
