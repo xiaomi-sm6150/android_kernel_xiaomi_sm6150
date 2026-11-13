@@ -1724,9 +1724,10 @@
 			reg = <0x6070 0x4>;
 		};
 
-		gpu_speed_bin: gpu_speed_bin@132 {
-			reg = <0x132 0x2>;
-			bits = <4 8>;
+		/* k61: 4.14 read the raw fuse 0x6004 bits 21..28 (FMAX/4.8MHz bins 0,177,187,...) */
+		gpu_speed_bin: gpu_speed_bin@6004 {
+			reg = <0x6004 0x4>;
+			bits = <21 8>;
 		};
 	};
 
