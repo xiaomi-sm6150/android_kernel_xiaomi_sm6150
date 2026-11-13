@@ -166,6 +166,10 @@
 		};
 	};
 
+};
+
+/* Under /soc (1-cell addressing), as in the 4.14 tree. */
+&soc {
 	/* rmt_storage (modem EFS) maps this through /dev/uio0 */
 	qcom,rmtfs_sharedmem@0 {
 		compatible = "qcom,sharedmem-uio";
