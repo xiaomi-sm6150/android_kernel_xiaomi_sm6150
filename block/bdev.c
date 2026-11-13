@@ -804,6 +804,39 @@ void blkdev_put_no_open(struct block_device *bdev)
  * RETURNS:
  * Reference to the block_device on success, ERR_PTR(-errno) on failure.
  */
+/*
+ * DEBUG (k61.stop=ro/sys): "k61.rw=<name>[,<name>...]" lets these GPT
+ * partitions of the eMMC be opened for writing, e.g. k61.rw=ssd for the
+ * QSEE secure storage that qseecomd writes. Everything else stays refused.
+ */
+static char k61_rw_parts[128];
+
+static int __init k61_rw_setup(char *str)
+{
+	strscpy(k61_rw_parts, str, sizeof(k61_rw_parts));
+	return 1;
+}
+__setup("k61.rw=", k61_rw_setup);
+
+static bool k61_rw_allowed(struct block_device *bdev)
+{
+	const char *name, *p = k61_rw_parts;
+	size_t len;
+
+	if (!bdev->bd_meta_info || !bdev->bd_meta_info->volname[0])
+		return false;
+	name = bdev->bd_meta_info->volname;
+	len = strlen(name);
+	while (*p) {
+		if (!strncmp(p, name, len) && (p[len] == ',' || !p[len]))
+			return true;
+		p = strchrnul(p, ',');
+		if (*p)
+			p++;
+	}
+	return false;
+}
+
 struct block_device *blkdev_get_by_dev(dev_t dev, fmode_t mode, void *holder)
 {
 	bool unblock_events = true;
@@ -825,6 +858,10 @@ struct block_device *blkdev_get_by_dev(dev_t dev, fmode_t mode, void *holder)
 
 	/* DEBUG (k61.stop=ro/sys): nothing may open the eMMC for writing */
 	if (k61_stop_ro && (mode & FMODE_WRITE) &&
+	    !strncmp(disk->disk_name, "mmcblk", 6) && k61_rw_allowed(bdev)) {
+		pr_info("k61.stop=ro: allowing write open of %pg (%s, k61.rw)\n",
+			bdev, bdev->bd_meta_info->volname);
+	} else if (k61_stop_ro && (mode & FMODE_WRITE) &&
 	    !strncmp(disk->disk_name, "mmcblk", 6)) {
 		pr_warn("k61.stop=ro: refusing kernel write open of %pg\n", bdev);
 		blkdev_put_no_open(bdev);
