@@ -109,8 +109,129 @@
 	cx-supply = <&L8A_LEVEL>;
 };
 
+/*
+ * CDSP: same recipe as the ADSP (firmware on the modem partition, kexec
+ * inherited instance stopped through TZ, solo-CPU around the TZ calls).
+ * The AOP mailbox replaces the qcom,qmp phandle as on the ADSP node.
+ */
 &cdsp_pas {
-	status = "disabled";
+	status = "okay";
+	k61,restart-running;
+	k61,late-boot;
+	k61,no-panic;
+	k61,solo-cpu;
+	/delete-property/ qcom,qmp;
+	mboxes = <&qmp_aop 0>;
+};
+
+/*
+ * MPSS: sm8150 PAS data matches (pas 4, smem 421, ssctl 0x12); the 6.1 tree
+ * has no node for it, so it is built from the 4.14 qcom,mss@4080000 PIL node.
+ */
+/ {
+	qcom,smp2p-modem {
+		compatible = "qcom,smp2p";
+		qcom,smem = <435>, <428>;
+		interrupts = <GIC_SPI 451 IRQ_TYPE_EDGE_RISING>;
+		qcom,ipc = <&apcs 0 14>;
+		qcom,local-pid = <0>;
+		qcom,remote-pid = <1>;
+
+		modem_smp2p_out: master-kernel {
+			qcom,entry-name = "master-kernel";
+			#qcom,smem-state-cells = <1>;
+		};
+
+		modem_smp2p_in: slave-kernel {
+			qcom,entry-name = "slave-kernel";
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
+		smp2p_ipa_1_out: qcom,smp2p-ipa-1-out {
+			qcom,entry-name = "ipa";
+			#qcom,smem-state-cells = <1>;
+		};
+
+		smp2p_ipa_1_in: qcom,smp2p-ipa-1-in {
+			qcom,entry-name = "ipa";
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
+		smp2p_wlan_1_in: qcom,smp2p-wlan-1-in {
+			qcom,entry-name = "wlan";
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+	};
+
+	mpss_pas: remoteproc-mpss@4080000 {
+		compatible = "qcom,sm8150-mpss-pas";
+		reg = <0x4080000 0x100>;
+
+		cx-supply = <&VDD_CX_LEVEL>;
+		cx-uV-uA = <RPMH_REGULATOR_LEVEL_TURBO 100000>;
+		mss-supply = <&VDD_MSS_LEVEL>;
+		mss-uV-uA = <RPMH_REGULATOR_LEVEL_TURBO 100000>;
+		reg-names = "cx", "mss";
+
+		clocks = <&rpmhcc RPMH_CXO_CLK>;
+		clock-names = "xo";
+
+		mboxes = <&qmp_aop 0>;
+
+		memory-region = <&pil_modem_mem>;
+
+		interrupts-extended = <&intc GIC_SPI 266 IRQ_TYPE_EDGE_RISING>,
+					<&modem_smp2p_in 0 0>,
+					<&modem_smp2p_in 2 0>,
+					<&modem_smp2p_in 1 0>,
+					<&modem_smp2p_in 3 0>,
+					<&modem_smp2p_in 7 0>;
+
+		interrupt-names = "wdog",
+				"fatal",
+				"handover",
+				"ready",
+				"stop-ack",
+				"shutdown-ack";
+
+		qcom,smem-states = <&modem_smp2p_out 0>;
+		qcom,smem-state-names = "stop";
+
+		k61,restart-running;
+		k61,late-boot;
+		k61,no-panic;
+		k61,solo-cpu;
+
+		glink-edge {
+			qcom,remote-pid = <1>;
+			transport = "smem";
+			mboxes = <&apss_shared 12>;
+			mbox-names = "mpss_smem";
+			interrupts = <GIC_SPI 449 IRQ_TYPE_EDGE_RISING>;
+
+			label = "modem";
+			qcom,glink-label = "mpss";
+
+			qcom,modem_qrtr {
+				qcom,glink-channels = "IPCRTR";
+				qcom,intents = <0x800  5
+						0x2000 3
+						0x4400 2>;
+			};
+
+			qcom,modem_ds {
+				qcom,glink-channels = "DS";
+				qcom,intents = <0x4000 0x2>;
+			};
+
+			qcom,modem_glink_ssr {
+				qcom,glink-channels = "glink_ssr";
+			};
+		};
+	};
 };
 
 /*
