@@ -3964,6 +3964,8 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 	dev_info(dev, "k61: step test_smr_masks (skip=%d)\n", !!(skip & 4));
 	if (!(skip & 4))
 		arm_smmu_test_smr_masks(smmu);
+	else
+		smmu->smr_mask_mask = smmu->streamid_mask; /* k61: skip-init leaves it 0, rejecting masked masters (kgsl) */
 	dev_info(dev, "k61: step interrupt_selftest (skip=%d)\n", !!(skip & 8));
 	if (!(skip & 8))
 		arm_smmu_interrupt_selftest(smmu);
