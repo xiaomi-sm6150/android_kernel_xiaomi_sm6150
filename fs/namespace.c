@@ -3087,10 +3087,22 @@ static int do_new_mount(struct path *path, const char *fstype, int sb_flags,
 	/* DEBUG (k61.stop=init): no writable block filesystem mounts */
 	if (k61_stop_ro && (type->fs_flags & FS_REQUIRES_DEV)) {
 		if (!k61_stop_sys_mount_ok(fstype, sb_flags, name)) {
-			pr_warn("k61.stop=ro: refusing mount of %s on %s\n",
+			/*
+			 * Refusing makes init's mount_all --late return -1, so the
+			 * "nonencrypted" trigger never fires and class main (installd)
+			 * never starts. Mount read-only instead; ext4 gets noload so
+			 * the journal is not replayed onto the eMMC.
+			 */
+			pr_warn("k61.stop=ro: forcing read-only mount of %s on %s\n",
 				fstype, name ?: "(null)");
-			put_filesystem(type);
-			return -EPERM;
+			sb_flags |= SB_RDONLY;
+			if (!strcmp(fstype, "ext4")) {
+				if (data && *(char *)data &&
+				    strlen(data) + 8 < PAGE_SIZE)
+					strcat(data, ",noload");
+				else
+					data = "noload";
+			}
 		}
 		pr_info("k61.stop=sys: %s mount of %s (%s)\n",
 			(sb_flags & SB_RDONLY) ? "read-only" : "scratch rw",
