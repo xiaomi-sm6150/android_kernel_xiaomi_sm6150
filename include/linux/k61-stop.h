@@ -19,4 +19,6 @@ extern bool k61_stop_ro;
  * logical partitions), so first-stage init can mount system/vendor/... */
 extern bool k61_stop_sys;
 
+void k61_efs_scratch(const char **names, int n);
+
 #endif
