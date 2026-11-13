@@ -1975,6 +1975,40 @@ static void k61_stop_sys_scratch(void)
 	free_page((unsigned long)page);
 }
 
+/*
+ * DEBUG (k61.stop=sys, k61.deny=a,b,c): refuse to execve() any path that
+ * contains one of the comma separated substrings, to bisect which userspace
+ * service triggers a hardware hang. Denied execs fail with -ENOENT.
+ */
+static char k61_deny[256];
+
+static int __init k61_deny_setup(char *str)
+{
+	strscpy(k61_deny, str, sizeof(k61_deny));
+	return 1;
+}
+__setup("k61.deny=", k61_deny_setup);
+
+static bool k61_deny_match(const char *name)
+{
+	const char *tok = k61_deny;
+
+	while (*tok) {
+		const char *end = strchrnul(tok, ',');
+		size_t len = end - tok;
+		char buf[64];
+
+		if (len && len < sizeof(buf)) {
+			memcpy(buf, tok, len);
+			buf[len] = 0;
+			if (strstr(name, buf))
+				return true;
+		}
+		tok = *end ? end + 1 : end;
+	}
+	return false;
+}
+
 static int do_execveat_common(int fd, struct filename *filename,
 			      struct user_arg_ptr argv,
 			      struct user_arg_ptr envp,
@@ -1986,14 +2020,29 @@ static int do_execveat_common(int fd, struct filename *filename,
 	if (IS_ERR(filename))
 		return PTR_ERR(filename);
 
+	/* DEBUG (k61.deny=): refuse listed binaries */
+	if (k61_stop_sys && k61_deny[0] && k61_deny_match(filename->name)) {
+		pr_info("k61.deny: refused exec %s\n", filename->name);
+		putname(filename);
+		return -ENOENT;
+	}
 	/* DEBUG (k61.stop=init): stop at the end of first-stage init */
 	if (k61_stop_init && !k61_stop_ro && task_pid_nr(current) == 1 &&
 	    !strcmp(filename->name, "/system/bin/init"))
 		panic("k61.stop: PID 1 exec %s", filename->name);
 	/* DEBUG (k61.stop=sys): scratch /data and /metadata for second stage */
+	/*
+	 * Userdebug init runs overlay_remounter in selinux_setup (1st exec of
+	 * /system/bin/init) and remounts every overlay read-only, so create the
+	 * scratch overlay only at the 2nd exec (second_stage).
+	 */
 	if (k61_stop_sys && task_pid_nr(current) == 1 &&
-	    !strcmp(filename->name, "/system/bin/init"))
-		k61_stop_sys_scratch();
+	    !strcmp(filename->name, "/system/bin/init")) {
+		static int k61_init_execs;
+
+		if (++k61_init_execs >= 2)
+			k61_stop_sys_scratch();
+	}
 
 	/*
 	 * We move the actual failure in case of RLIMIT_NPROC excess from

@@ -408,6 +408,7 @@ static int ovl_remount(struct super_block *sb, int *flags, char *data)
 	struct super_block *upper_sb;
 	int ret = 0;
 
+	pr_info("k61: ovl_remount flags=%#x data=%s\n", *flags, data ? data : "(null)");
 	if (!(*flags & SB_RDONLY) && ovl_force_readonly(ofs))
 		return -EROFS;
 
@@ -456,6 +457,7 @@ enum {
 	OPT_VOLATILE,
 	OPT_OVERRIDE_CREDS_ON,
 	OPT_OVERRIDE_CREDS_OFF,
+	OPT_IGNORE,
 	OPT_ERR,
 };
 
@@ -480,6 +482,20 @@ static const match_table_t ovl_tokens = {
 	{OPT_VOLATILE,			"volatile"},
 	{OPT_OVERRIDE_CREDS_ON,		"override_creds=on"},
 	{OPT_OVERRIDE_CREDS_OFF,	"override_creds=off"},
+	/* k61: Android overlay_remounter passes generic mount options in the data string */
+	{OPT_IGNORE,			"rw"},
+	{OPT_IGNORE,			"ro"},
+	{OPT_IGNORE,			"seclabel"},
+	{OPT_IGNORE,			"nosuid"},
+	{OPT_IGNORE,			"nodev"},
+	{OPT_IGNORE,			"noexec"},
+	{OPT_IGNORE,			"relatime"},
+	{OPT_IGNORE,			"noatime"},
+	{OPT_IGNORE,			"strictatime"},
+	{OPT_IGNORE,			"lazytime"},
+	{OPT_IGNORE,			"nodiratime"},
+	{OPT_IGNORE,			"sync"},
+	{OPT_IGNORE,			"dirsync"},
 	{OPT_ERR,			NULL}
 };
 
@@ -647,6 +663,9 @@ static int ovl_parse_opt(char *opt, struct ovl_config *config)
 
 		case OPT_OVERRIDE_CREDS_OFF:
 			config->override_creds = false;
+			break;
+
+		case OPT_IGNORE:
 			break;
 
 		default:
@@ -2187,6 +2206,7 @@ static int ovl_fill_super(struct super_block *sb, void *data, int silent)
 	kfree(splitlower);
 
 	sb->s_root = root_dentry;
+	pr_info("k61: ovl mounted ro=%d workdir=%d upper_mnt=%d sbflags=%#lx\n", sb_rdonly(sb), !!ofs->workdir, !!ovl_upper_mnt(ofs), sb->s_flags);
 	return 0;
 
 out_free_oe:
