@@ -725,6 +725,39 @@ static void k61_unjam_ipis(void)
 	put_cpu();
 }
 
+/*
+ * k61: when the DSP never signals ready, show what it left in shared memory:
+ * both SMP2P items towards the ADSP and its crash-reason string.
+ */
+static void k61_dump_smem_item(struct device *dev, unsigned int host, unsigned int item)
+{
+	size_t sz = 0;
+	u32 *w = qcom_smem_get(host, item, &sz);
+
+	if (IS_ERR_OR_NULL(w)) {
+		dev_info(dev, "k61smem %u/%u: err %ld\n", host, item, PTR_ERR_OR_ZERO(w));
+		return;
+	}
+	dev_info(dev, "k61smem %u/%u size=%zu: %08x %08x %08x %08x %08x %08x %08x %08x\n",
+		 host, item, sz, w[0], w[1], w[2], w[3], w[4], w[5], w[6], w[7]);
+}
+
+static void k61_dump_dsp_state(struct qcom_adsp *adsp)
+{
+	size_t sz = 0;
+	char *c;
+
+	k61_dump_smem_item(adsp->dev, 2, 443);
+	k61_dump_smem_item(adsp->dev, 2, 429);
+	c = qcom_smem_get(QCOM_SMEM_HOST_ANY, adsp->crash_reason_smem, &sz);
+	if (!IS_ERR_OR_NULL(c) && sz)
+		dev_info(adsp->dev, "k61smem crash_reason(%d): %.80s\n",
+			 adsp->crash_reason_smem, c);
+	else
+		dev_info(adsp->dev, "k61smem crash_reason(%d): none (%ld)\n",
+			 adsp->crash_reason_smem, PTR_ERR_OR_ZERO(c));
+}
+
 static int adsp_start(struct rproc *rproc)
 {
 	struct qcom_adsp *adsp = (struct qcom_adsp *)rproc->priv;
@@ -859,8 +892,10 @@ static int adsp_start(struct rproc *rproc)
 		if (rproc->recovery_disabled && ret &&
 		    !of_property_read_bool(adsp->dev->of_node, "k61,no-panic"))
 			panic("Panicking, remoteproc %s failed to bootup.\n", adsp->rproc->name);
-		else if (ret == -ETIMEDOUT)
+		else if (ret == -ETIMEDOUT) {
 			dev_err(adsp->dev, "start timed out\n");
+			k61_dump_dsp_state(adsp);
+		}
 	}
 
 	adsp->q6v5.seq++;
