@@ -30,7 +30,43 @@ static DEFINE_MUTEX(qcom_scm_lock);
 #define SCM_SMC_FIRST_REG_IDX	2
 #define SCM_SMC_LAST_REG_IDX	(SCM_SMC_FIRST_REG_IDX + SCM_SMC_N_REG_ARGS - 1)
 
+static void __scm_smc_do_quirk_real(const struct arm_smccc_args *smc,
+				    struct arm_smccc_res *res);
+/* DEBUG (run 03): which cpus are inside a secure-world call right now */
+#include <linux/sched/clock.h>
+#include <linux/sched.h>
+u64 k61_scm_t[NR_CPUS];
+u64 k61_scm_fid[NR_CPUS];
+struct task_struct *k61_scm_task[NR_CPUS];
+
+void k61_scm_report(void)
+{
+	int c;
+	u64 now = sched_clock();
+
+	for_each_possible_cpu(c) {
+		u64 t = READ_ONCE(k61_scm_t[c]);
+
+		if (t)
+			pr_emerg("k61scm: cpu%d inside SMC fid=%#llx for %llu ms task=%s\n",
+				 c, READ_ONCE(k61_scm_fid[c]), (now - t) / 1000000,
+				 k61_scm_task[c] ? k61_scm_task[c]->comm : "?");
+	}
+}
+
 static void __scm_smc_do_quirk(const struct arm_smccc_args *smc,
+			       struct arm_smccc_res *res)
+{
+	int kc = raw_smp_processor_id();
+
+	WRITE_ONCE(k61_scm_fid[kc], smc->args[0]);
+	k61_scm_task[kc] = current;
+	WRITE_ONCE(k61_scm_t[kc], sched_clock());
+	__scm_smc_do_quirk_real(smc, res);
+	WRITE_ONCE(k61_scm_t[kc], 0);
+}
+
+static void __scm_smc_do_quirk_real(const struct arm_smccc_args *smc,
 			       struct arm_smccc_res *res)
 {
 	unsigned long a0 = smc->args[0];
