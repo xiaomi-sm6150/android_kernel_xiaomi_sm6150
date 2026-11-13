@@ -5533,9 +5533,12 @@ __rb_get_reader_page_from_writer(struct ring_buffer_per_cpu *cpu_buffer)
 		return cpu_buffer->reader_page;
 	}
 
-	prev_reader = cpu_buffer->meta_page->reader.id;
-	if (cpu_buffer->meta_page->reader.id == cpu_buffer->reader_page->id)
-		WARN_ON(cpu_buffer->writer->get_reader_page(cpu_buffer->cpu));
+	prev_reader = cpu_buffer->reader_page->id;
+	if (cpu_buffer->meta_page->reader.id == prev_reader &&
+	    cpu_buffer->writer->get_reader_page(cpu_buffer->cpu)) {
+		pr_warn_ratelimited("Writer reader page swap failed\n");
+		return NULL;
+	}
 
 	/* nr_pages doesn't include the reader page */
 	if (cpu_buffer->meta_page->reader.id > cpu_buffer->nr_pages) {
@@ -5543,15 +5546,15 @@ __rb_get_reader_page_from_writer(struct ring_buffer_per_cpu *cpu_buffer)
 		return NULL;
 	}
 
+	if (prev_reader == cpu_buffer->meta_page->reader.id)
+		return NULL;
+
 	cpu_buffer->reader_page->page =
 		(void *)cpu_buffer->subbuf_ids[cpu_buffer->meta_page->reader.id];
 	cpu_buffer->reader_page->id = cpu_buffer->meta_page->reader.id;
 	cpu_buffer->reader_page->read = 0;
 	cpu_buffer->read_stamp = cpu_buffer->reader_page->page->time_stamp;
 	cpu_buffer->lost_events = cpu_buffer->meta_page->reader.lost_events;
-
-	WARN_ON(!IS_ENABLED(CONFIG_PKVM_DUMP_TRACE_ON_PANIC) &&
-		prev_reader == cpu_buffer->meta_page->reader.id);
 
 	if (!rb_page_size(cpu_buffer->reader_page))
 		return NULL;
