@@ -5530,11 +5530,8 @@ __rb_get_reader_page_from_writer(struct ring_buffer_per_cpu *cpu_buffer)
 	smp_rmb();
 
 	/* More to read on the reader page */
-	if (cpu_buffer->reader_page->read < rb_page_size(cpu_buffer->reader_page)) {
-		if (cpu_buffer->reader_page->read == 0)
-			cpu_buffer->read_stamp = cpu_buffer->reader_page->page->time_stamp;
-		return cpu_buffer->reader_page;
-	}
+	if (cpu_buffer->reader_page->read < rb_page_size(cpu_buffer->reader_page))
+		goto out;
 
 	if (!rb_num_of_entries(cpu_buffer))
 		return NULL;
@@ -5559,11 +5556,20 @@ __rb_get_reader_page_from_writer(struct ring_buffer_per_cpu *cpu_buffer)
 		(void *)cpu_buffer->subbuf_ids[cpu_buffer->meta_page->reader.id];
 	cpu_buffer->reader_page->id = cpu_buffer->meta_page->reader.id;
 	cpu_buffer->reader_page->read = 0;
-	cpu_buffer->read_stamp = cpu_buffer->reader_page->page->time_stamp;
 	cpu_buffer->lost_events = cpu_buffer->meta_page->reader.lost_events;
 
 	if (!rb_page_size(cpu_buffer->reader_page))
 		return NULL;
+
+out:
+	/*
+	 * Order page::commit read before page::data and page::time_stamp,
+	 * paired with tracing_commit_entry().
+	 */
+	smp_rmb();
+
+	if (!cpu_buffer->reader_page->read)
+		cpu_buffer->read_stamp = cpu_buffer->reader_page->page->time_stamp;
 
 	return cpu_buffer->reader_page;
 }

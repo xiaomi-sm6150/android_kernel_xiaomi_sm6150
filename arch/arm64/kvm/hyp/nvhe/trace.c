@@ -279,6 +279,11 @@ void tracing_commit_entry(void)
 {
 	struct hyp_rb_per_cpu *cpu_buffer = this_cpu_ptr(&trace_rb);
 
+	/*
+	 * Order page::data and page::time_stamp before page::commit. Paired
+	 * with __rb_get_reader_page_from_writer().
+	 */
+	smp_wmb();
 	local_set(&cpu_buffer->tail_page->page->commit,
 		  cpu_buffer->tail_page->write);
 
