@@ -2032,9 +2032,10 @@ out_free:
 
 /*
  * DEBUG (k61.stop=sys): adbd on the scratch /data has no trusted keys, so adb
- * shows "unauthorized". PID 1's first exec is /init from the initramfs, which
- * can carry /k61-adb_keys; remember it here and drop it into the scratch /data
- * as /data/misc/adb/adb_keys once that overlay exists.
+ * shows "unauthorized". The initramfs can carry /k61-adb_keys; read it at
+ * late_initcall (PID 1's first exec goes through kernel_execve and the root is
+ * switched later) and drop it into the scratch /data as
+ * /data/misc/adb/adb_keys once that overlay exists.
  */
 static char *k61_adbkeys;
 static size_t k61_adbkeys_len;
@@ -2064,6 +2065,14 @@ static void k61_adbkeys_load(void)
 	k61_adbkeys_len = n;
 	pr_info("k61.stop=sys: loaded %zd bytes of adb keys\n", n);
 }
+
+static int __init k61_adbkeys_init(void)
+{
+	if (k61_stop_sys)
+		k61_adbkeys_load();
+	return 0;
+}
+late_initcall(k61_adbkeys_init);
 
 static void k61_adbkeys_install(void)
 {
@@ -2202,8 +2211,6 @@ static int do_execveat_common(int fd, struct filename *filename,
 	if (k61_stop_init && !k61_stop_ro && task_pid_nr(current) == 1 &&
 	    !strcmp(filename->name, "/system/bin/init"))
 		panic("k61.stop: PID 1 exec %s", filename->name);
-	if (k61_stop_sys && task_pid_nr(current) == 1 && !k61_adbkeys)
-		k61_adbkeys_load();
 	/* DEBUG (k61.stop=sys): scratch /data and /metadata for second stage */
 	/*
 	 * Userdebug init runs overlay_remounter in selinux_setup (1st exec of
