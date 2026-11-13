@@ -89,9 +89,17 @@
 	gpio-reserved-ranges = <0 4>;
 };
 
-/* Off until Phase 3: nothing at first boot needs a DSP */
+/*
+ * ADSP: firmware is on the modem partition (/vendor/firmware_mnt/image),
+ * reached through ../ from the firmware_class path. Under kexec the DSP is
+ * already running, so stop it through TZ first and boot it from a thread once
+ * the partition is mounted.
+ */
 &adsp_pas {
-	status = "disabled";
+	status = "okay";
+	firmware-name = "../firmware_mnt/image/adsp.mdt";
+	k61,restart-running;
+	k61,late-boot;
 };
 
 &cdsp_pas {

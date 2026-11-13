@@ -10,6 +10,8 @@
 
 #include <linux/clk.h>
 #include <linux/delay.h>
+#include <linux/kthread.h>
+#include <linux/namei.h>
 #include <linux/firmware.h>
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
@@ -767,6 +769,17 @@ static int adsp_start(struct rproc *rproc)
 		if (ret)
 			panic("Panicking, auth and reset failed for remoteproc %s dtb ret=%d\n",
 				rproc->name, ret);
+	}
+
+	/*
+	 * k61: under kexec the DSP was already started by the previous kernel;
+	 * TZ refuses to re-authenticate a running subsystem, so stop it first.
+	 */
+	if (of_property_read_bool(adsp->dev->of_node, "k61,restart-running")) {
+		ret = qcom_scm_pas_shutdown(adsp->pas_id);
+		dev_info(adsp->dev, "k61: shutdown of running DSP (pas %u): %d\n",
+			 adsp->pas_id, ret);
+		msleep(100);
 	}
 
 	trace_rproc_qcom_event(dev_name(adsp->dev), "Q6_firmware_loading", "enter");
@@ -1797,6 +1810,32 @@ static int adsp_setup_wakeup(struct qcom_adsp *adsp)
 	return ret;
 }
 
+/*
+ * k61: the firmware lives on a partition init mounts long after probe, so
+ * with "k61,late-boot" the DSP is booted from here once the .mdt is readable.
+ */
+static int k61_late_boot_fn(void *data)
+{
+	struct rproc *rproc = data;
+	char path[128];
+	struct path p;
+	int i, ret = -ENOENT;
+
+	snprintf(path, sizeof(path), "/vendor/firmware/%s", rproc->firmware);
+	for (i = 0; i < 300; i++) {
+		ssleep(1);
+		if (kern_path(path, LOOKUP_FOLLOW, &p))
+			continue;
+		path_put(&p);
+		ret = rproc_boot(rproc);
+		dev_info(&rproc->dev, "k61: late rproc_boot(%s): %d\n",
+			 rproc->firmware, ret);
+		if (ret != -ENOENT)
+			break;
+	}
+	return 0;
+}
+
 static int adsp_probe(struct platform_device *pdev)
 {
 	const struct adsp_data *desc;
@@ -1833,6 +1872,8 @@ static int adsp_probe(struct platform_device *pdev)
 
 	rproc->recovery_disabled = true;
 	rproc->auto_boot = desc->auto_boot;
+	if (of_property_read_bool(pdev->dev.of_node, "k61,late-boot"))
+		rproc->auto_boot = false;
 	if (desc->uses_elf64)
 		rproc_coredump_set_elf_info(rproc, ELFCLASS64, EM_NONE);
 	else
@@ -1990,6 +2031,9 @@ static int adsp_probe(struct platform_device *pdev)
 	ret = rproc_add(rproc);
 	if (ret)
 		goto destroy_minidump_dev;
+
+	if (of_property_read_bool(pdev->dev.of_node, "k61,late-boot"))
+		kthread_run(k61_late_boot_fn, rproc, "k61-%s-boot", rproc->name);
 
 	mutex_lock(&q6v5_pas_mutex);
 	if (!recovery_set_cb) {
