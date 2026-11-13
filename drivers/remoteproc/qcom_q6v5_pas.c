@@ -831,7 +831,8 @@ static int adsp_start(struct rproc *rproc)
 
 	if (!timeout_disabled) {
 		ret = qcom_q6v5_wait_for_start(&adsp->q6v5, msecs_to_jiffies(5000));
-		if (rproc->recovery_disabled && ret)
+		if (rproc->recovery_disabled && ret &&
+		    !of_property_read_bool(adsp->dev->of_node, "k61,no-panic"))
 			panic("Panicking, remoteproc %s failed to bootup.\n", adsp->rproc->name);
 		else if (ret == -ETIMEDOUT)
 			dev_err(adsp->dev, "start timed out\n");
