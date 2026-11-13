@@ -321,3 +321,13 @@
 		};
 	};
 };
+
+/*
+ * The 6.1 qseecom driver finds its heaps through these phandles; the
+ * sm6150 node only has memory-region.
+ */
+&qcom_qseecom {
+	qseecom_mem = <&qseecom_mem>;
+	qseecom_ta_mem = <&qseecom_ta_mem>;
+	user_contig_mem = <&user_contig_mem>;
+};
