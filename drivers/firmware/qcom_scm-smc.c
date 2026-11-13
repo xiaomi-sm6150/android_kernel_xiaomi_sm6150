@@ -61,9 +61,24 @@ static void __scm_smc_do_quirk(const struct arm_smccc_args *smc,
 
 	WRITE_ONCE(k61_scm_fid[kc], smc->args[0]);
 	k61_scm_task[kc] = current;
-	WRITE_ONCE(k61_scm_t[kc], sched_clock());
+	u64 t0 = sched_clock();
+
+	WRITE_ONCE(k61_scm_t[kc], t0);
 	__scm_smc_do_quirk_real(smc, res);
 	WRITE_ONCE(k61_scm_t[kc], 0);
+
+	/*
+	 * k61: IPIs sent to this CPU while it sat in a long secure-world call
+	 * are lost, which leaves its call queue non-empty and makes every later
+	 * smp_call_function() to it wait forever. Drain it now.
+	 */
+	if (sched_clock() - t0 > 1000000) {
+		unsigned long flags;
+
+		local_irq_save(flags);
+		generic_smp_call_function_single_interrupt();
+		local_irq_restore(flags);
+	}
 }
 
 static void __scm_smc_do_quirk_real(const struct arm_smccc_args *smc,
