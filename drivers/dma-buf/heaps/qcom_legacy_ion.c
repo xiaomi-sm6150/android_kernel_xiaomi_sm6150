@@ -71,6 +71,21 @@ static const struct legacy_ion_heap legacy_ion_heaps[] = {
 	 */
 	{ .id = 0, .name = "ion_system_heap", .type = ION_HEAP_TYPE_SYSTEM,
 	  .heap = "qcom,system", .uncached_heap = "qcom,system-uncached" },
+	/*
+	 * 4.14 msm heap IDs (include/uapi/linux/msm_ion.h of the 4.14 tree),
+	 * used by vendor blobs built against it, e.g. sm6150 violet's
+	 * libQSEEComAPI. They do not overlap the 5.4 bits above.
+	 */
+	{ .id = 27, .name = "qsecom_4.14", .type = ION_HEAP_TYPE_DMA,
+	  .heap = "qcom,qseecom" },
+	{ .id = 19, .name = "qsecom_ta_4.14", .type = ION_HEAP_TYPE_DMA,
+	  .heap = "qcom,qseecom-ta" },
+	{ .id = 26, .name = "user_contig_4.14", .type = ION_HEAP_TYPE_DMA,
+	  .heap = "qcom,user-contig" },
+	{ .id = 22, .name = "adsp_4.14", .type = ION_HEAP_TYPE_DMA,
+	  .heap = "qcom,adsp" },
+	{ .id = 28, .name = "audio_4.14", .type = ION_HEAP_TYPE_DMA,
+	  .heap = "qcom,audio-ml" },
 };
 
 static const char *legacy_ion_backing_heap(const struct legacy_ion_heap *h,
