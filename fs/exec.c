@@ -2147,6 +2147,13 @@ static struct k61_blob k61_blobs[] = {
 	{ "/k61-sensors-hal", "/vendor/bin/hw/android.hardware.sensors@2.0-service" },
 	{ "/k61-lib-a", "/vendor/lib64/sensors.ssc.so" },
 	{ "/k61-lib-b", "/vendor/lib64/libssc.so" },
+	/*
+	 * Lineage health HAL needs sysfs charging-control nodes 6.1 lacks and
+	 * never registers; while it is declared in the VINTF manifest
+	 * system_server's main thread waits for it forever. An empty fragment
+	 * makes waitForDeclaredService() return immediately.
+	 */
+	{ "/k61-vintf-health", "/vendor/etc/vintf/manifest/vendor.lineage.health-service.default.xml" },
 };
 
 static int __init k61_hal_blob_init(void)
