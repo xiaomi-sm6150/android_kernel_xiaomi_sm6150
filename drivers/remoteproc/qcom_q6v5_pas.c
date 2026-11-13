@@ -310,12 +310,12 @@ static void k61_dump_dsp_state(struct qcom_pas *pas)
 	char *c;
 
 	/* the smp2p in/out items of the DSP's own edge */
-	switch (pas->crash_reason_smem) {
-	case 601:	/* cdsp, pid 5 */
+	switch (pas->pas_id) {
+	case 18:	/* cdsp, pid 5 */
 		k61_dump_smem_item(pas->dev, 5, 94);
 		k61_dump_smem_item(pas->dev, 5, 432);
 		break;
-	case 421:	/* modem, pid 1 */
+	case 4:	/* modem, pid 1 */
 		k61_dump_smem_item(pas->dev, 1, 435);
 		k61_dump_smem_item(pas->dev, 1, 428);
 		break;
@@ -815,6 +815,7 @@ static int k61_late_boot_fn(void *data)
 	char path[128];
 	struct path p;
 	bool solo;
+	u32 up;
 	int i, ret = -ENOENT;
 
 	for (i = 0; i < 300; i++) {
@@ -831,6 +832,15 @@ static int k61_late_boot_fn(void *data)
 		if (!found)
 			continue;
 		path_put(&p);
+		/*
+		 * Some DSPs depend on a userspace daemon (the modem on
+		 * rmt_storage): hold the boot until this uptime.
+		 */
+		if (!of_property_read_u32(rproc->dev.parent->of_node,
+					  "k61,boot-uptime", &up)) {
+			while (ktime_get_boottime_seconds() < up)
+				ssleep(1);
+		}
 		solo = of_property_read_bool(rproc->dev.parent->of_node, "k61,solo-cpu");
 		mutex_lock(&k61_boot_lock);
 		if (solo)
