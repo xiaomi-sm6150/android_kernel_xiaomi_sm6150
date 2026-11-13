@@ -1948,6 +1948,88 @@ static int k61_scratch_mkdir(const char *name)
 	return ret;
 }
 
+/*
+ * DEBUG (k61.stop=sys): the vendor fstab asks fs_mgr to mount the real,
+ * encrypted userdata as /data (formattable, FBE, metadata encryption via
+ * vold). /data is already our scratch overlay, so that mount fails, mount_all
+ * --late returns -1 and init never fires "nonencrypted" (class main, installd,
+ * ...). Bind a copy of the fstab over the vendor one in which the userdata
+ * entry is a plain read-only nofail mount (no formattable/check/encryption).
+ */
+#define K61_UD_PREFIX "/dev/block/bootdevice/by-name/userdata"
+#define K61_UD_LINE   K61_UD_PREFIX " /data f2fs ro latemount,wait,nofail\n"
+
+static void k61_patch_fstab(char *page)
+{
+	const char *src = "/vendor/etc/fstab.emmc";
+	const char *dst = "/metadata/k61-fstab.emmc";
+	char *in, *out, *line, *eol;
+	size_t olen = 0;
+	struct file *f;
+	struct path path;
+	loff_t pos = 0;
+	ssize_t n;
+	int ret;
+
+	in = kmalloc(16384, GFP_KERNEL);
+	out = kmalloc(16384, GFP_KERNEL);
+	if (!in || !out)
+		goto out_free;
+
+	f = filp_open(src, O_RDONLY, 0);
+	if (IS_ERR(f)) {
+		pr_info("k61.stop=sys: fstab open %s: %ld\n", src, PTR_ERR(f));
+		goto out_free;
+	}
+	n = kernel_read(f, in, 16383, &pos);
+	filp_close(f, NULL);
+	if (n <= 0) {
+		pr_info("k61.stop=sys: fstab read: %zd\n", n);
+		goto out_free;
+	}
+	in[n] = 0;
+
+	for (line = in; *line; line = eol) {
+		size_t len;
+		const char *repl = NULL;
+
+		eol = strchr(line, '\n');
+		eol = eol ? eol + 1 : line + strlen(line);
+		len = eol - line;
+		if (!strncmp(line, K61_UD_PREFIX, strlen(K61_UD_PREFIX))) {
+			repl = K61_UD_LINE;
+			len = strlen(repl);
+		}
+		if (olen + len >= 16384)
+			goto out_free;
+		memcpy(out + olen, repl ?: line, len);
+		olen += len;
+	}
+
+	f = filp_open(dst, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	if (IS_ERR(f)) {
+		pr_info("k61.stop=sys: fstab create %s: %ld\n", dst, PTR_ERR(f));
+		goto out_free;
+	}
+	pos = 0;
+	n = kernel_write(f, out, olen, &pos);
+	filp_close(f, NULL);
+	if (n != olen) {
+		pr_info("k61.stop=sys: fstab write: %zd\n", n);
+		goto out_free;
+	}
+
+	ret = kern_path(src, LOOKUP_FOLLOW, &path);
+	if (!ret) {
+		ret = path_mount(dst, &path, NULL, MS_BIND, NULL);
+		path_put(&path);
+	}
+	pr_info("k61.stop=sys: patched fstab bind-mounted over %s: %d\n", src, ret);
+out_free:
+	kfree(in);
+	kfree(out);
+}
+
 static void k61_stop_sys_scratch(void)
 {
 	static bool done;
@@ -1971,6 +2053,7 @@ static void k61_stop_sys_scratch(void)
 				"lowerdir=/data,upperdir=/metadata/.k61u,workdir=/metadata/.k61w",
 				page);
 		pr_info("k61.stop=sys: scratch overlay on /data: %d\n", ret);
+		k61_patch_fstab(page);
 	}
 	free_page((unsigned long)page);
 }
