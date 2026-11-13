@@ -218,6 +218,8 @@
 		k61,late-boot;
 		k61,no-panic;
 		k61,solo-cpu;
+		/* rmt_storage (modem EFS) is up at ~40 s uptime */
+		k61,boot-uptime = <45>;
 
 		glink-edge {
 			qcom,remote-pid = <1>;
