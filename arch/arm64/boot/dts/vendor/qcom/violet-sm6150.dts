@@ -101,6 +101,12 @@
 	k61,late-boot;
 	k61,no-panic;
 	k61,solo-cpu;
+	/*
+	 * The driver asks for a regulator named \"cx\" (reg-names), but the node only
+	 * had vdd_cx-supply, so it got a dummy and the ADSP rail (lcx.lvl, retention
+	 * at reset) was never voted to TURBO for boot as 4.14 does.
+	 */
+	cx-supply = <&L8A_LEVEL>;
 };
 
 &cdsp_pas {
