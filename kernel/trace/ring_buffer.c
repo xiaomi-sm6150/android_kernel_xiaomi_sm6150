@@ -5504,7 +5504,7 @@ rb_update_iter_read_stamp(struct ring_buffer_iter *iter,
 	}
 }
 
-static bool rb_read_writer_meta_page(struct ring_buffer_per_cpu *cpu_buffer)
+static void rb_read_writer_meta_page(struct ring_buffer_per_cpu *cpu_buffer)
 {
 	local_set(&cpu_buffer->entries, READ_ONCE(cpu_buffer->meta_page->entries));
 	local_set(&cpu_buffer->overrun, READ_ONCE(cpu_buffer->meta_page->overrun));
@@ -5514,8 +5514,6 @@ static bool rb_read_writer_meta_page(struct ring_buffer_per_cpu *cpu_buffer)
 	 * No need to get the "read" field, it can be tracked here as any
 	 * reader will have to go through a rign_buffer_per_cpu.
 	 */
-
-	return rb_num_of_entries(cpu_buffer);
 }
 
 static struct buffer_page *
@@ -5523,8 +5521,13 @@ __rb_get_reader_page_from_writer(struct ring_buffer_per_cpu *cpu_buffer)
 {
 	u32 prev_reader;
 
-	if (!rb_read_writer_meta_page(cpu_buffer))
-		return NULL;
+	rb_read_writer_meta_page(cpu_buffer);
+
+	/*
+	 * Order meta::entries read before page::commit, paired with
+	 * tracing_commit_entry().
+	 */
+	smp_rmb();
 
 	/* More to read on the reader page */
 	if (cpu_buffer->reader_page->read < rb_page_size(cpu_buffer->reader_page)) {
@@ -5532,6 +5535,9 @@ __rb_get_reader_page_from_writer(struct ring_buffer_per_cpu *cpu_buffer)
 			cpu_buffer->read_stamp = cpu_buffer->reader_page->page->time_stamp;
 		return cpu_buffer->reader_page;
 	}
+
+	if (!rb_num_of_entries(cpu_buffer))
+		return NULL;
 
 	prev_reader = cpu_buffer->reader_page->id;
 	if (cpu_buffer->meta_page->reader.id == prev_reader &&
@@ -6569,7 +6575,8 @@ int ring_buffer_poll_writer(struct trace_buffer *buffer, int cpu)
 		cpu_buffer = buffer->buffers[cpu];
 
 		raw_spin_lock_irqsave(&cpu_buffer->reader_lock, flags);
-		if (rb_read_writer_meta_page(cpu_buffer))
+		rb_read_writer_meta_page(cpu_buffer);
+		if (rb_num_of_entries(cpu_buffer))
 			rb_wakeups(buffer, cpu_buffer);
 		raw_spin_unlock_irqrestore(&cpu_buffer->reader_lock, flags);
 

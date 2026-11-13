@@ -281,6 +281,12 @@ void tracing_commit_entry(void)
 
 	local_set(&cpu_buffer->tail_page->page->commit,
 		  cpu_buffer->tail_page->write);
+
+	/*
+	 * Order page::commit before meta::entries. Paired with
+	 * __rb_get_reader_page_from_writer().
+	 */
+	smp_wmb();
 	WRITE_ONCE(cpu_buffer->meta->entries,
 		   cpu_buffer->meta->entries + 1);
 
