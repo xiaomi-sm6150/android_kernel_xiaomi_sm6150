@@ -713,7 +713,8 @@ void k61_pcsr_report(const char *why)
 	int c, n;
 
 	for (c = 0; c < 8; c++) {
-		if (!k61pcsr_base[c])
+		/* an offline CPU is powered down: its debug registers abort */
+		if (!k61pcsr_base[c] || !cpu_online(c))
 			continue;
 		for (n = 0; n < 3; n++) {
 			u32 prsr, cid, vid;
