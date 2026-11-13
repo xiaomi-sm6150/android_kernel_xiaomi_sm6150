@@ -748,8 +748,20 @@ static void k61_dump_dsp_state(struct qcom_adsp *adsp)
 	size_t sz = 0;
 	char *c;
 
-	k61_dump_smem_item(adsp->dev, 2, 443);
-	k61_dump_smem_item(adsp->dev, 2, 429);
+	/* the smp2p in/out items of the DSP's own edge */
+	switch (adsp->crash_reason_smem) {
+	case 601:	/* cdsp, pid 5 */
+		k61_dump_smem_item(adsp->dev, 5, 94);
+		k61_dump_smem_item(adsp->dev, 5, 432);
+		break;
+	case 421:	/* modem, pid 1 */
+		k61_dump_smem_item(adsp->dev, 1, 435);
+		k61_dump_smem_item(adsp->dev, 1, 428);
+		break;
+	default:	/* adsp, pid 2 */
+		k61_dump_smem_item(adsp->dev, 2, 443);
+		k61_dump_smem_item(adsp->dev, 2, 429);
+	}
 	c = qcom_smem_get(QCOM_SMEM_HOST_ANY, adsp->crash_reason_smem, &sz);
 	if (!IS_ERR_OR_NULL(c) && sz)
 		dev_info(adsp->dev, "k61smem crash_reason(%d): %.80s\n",
