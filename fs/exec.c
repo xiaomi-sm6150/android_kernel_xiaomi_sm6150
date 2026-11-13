@@ -2127,77 +2127,115 @@ static void k61_empty_hals(void)
 }
 
 /*
- * DEBUG (k61.stop=sys): optional replacement for the vendor sensors HAL. If
- * the initramfs carries /k61-sensors-hal, copy it to the scratch tmpfs (mode
- * 0755) and bind it over the vendor binary. The vendor HAL needs the DSP's
- * QMI service, which 6.1 cannot reach, and crashes; system_server then waits
- * for sensorservice forever.
+ * DEBUG (k61.stop=sys): optional replacement for the vendor sensors HAL. The
+ * vendor HAL needs the DSP's QMI service, which 6.1 cannot reach, and crashes;
+ * system_server then waits for sensorservice forever. If the initramfs carries
+ * /k61-sensors-hal, copy it to the scratch tmpfs and bind it over the vendor
+ * binary. /k61-lib-<name> files are added to /vendor/lib64 through an overlay
+ * (the stand-in links libs the old vendor image lacks).
  */
-static void *k61_hal_blob;
-static size_t k61_hal_len;
+struct k61_blob {
+	const char *src;	/* initramfs path */
+	const char *name;	/* file name below the scratch dir / in lib64 */
+	void *buf;
+	size_t len;
+};
+
+static struct k61_blob k61_blobs[] = {
+	{ "/k61-sensors-hal", "sensors-hal" },
+	{ "/k61-lib-libpower.so", "libpower.so" },
+	{ "/k61-lib-android.hardware.sensors@2.1.so", "android.hardware.sensors@2.1.so" },
+};
 
 static int __init k61_hal_blob_init(void)
 {
-	struct file *f;
-	loff_t pos = 0, size;
-	ssize_t n;
-	void *buf;
+	int i;
 
 	if (!k61_stop_sys)
 		return 0;
-	f = filp_open("/k61-sensors-hal", O_RDONLY, 0);
-	if (IS_ERR(f))
-		return 0;
-	size = i_size_read(file_inode(f));
-	if (size <= 0 || size > (16 << 20)) {
+	for (i = 0; i < ARRAY_SIZE(k61_blobs); i++) {
+		struct k61_blob *b = &k61_blobs[i];
+		struct file *f;
+		loff_t pos = 0, size;
+		ssize_t n;
+		void *buf;
+
+		f = filp_open(b->src, O_RDONLY, 0);
+		if (IS_ERR(f))
+			continue;
+		size = i_size_read(file_inode(f));
+		buf = (size > 0 && size <= (16 << 20)) ? vmalloc(size) : NULL;
+		if (!buf) {
+			filp_close(f, NULL);
+			continue;
+		}
+		n = kernel_read(f, buf, size, &pos);
 		filp_close(f, NULL);
-		return 0;
+		if (n != size) {
+			vfree(buf);
+			continue;
+		}
+		b->buf = buf;
+		b->len = size;
+		pr_info("k61.stop=sys: loaded %s, %zu bytes\n", b->src, b->len);
 	}
-	buf = vmalloc(size);
-	if (!buf) {
-		filp_close(f, NULL);
-		return 0;
-	}
-	n = kernel_read(f, buf, size, &pos);
-	filp_close(f, NULL);
-	if (n != size) {
-		vfree(buf);
-		return 0;
-	}
-	k61_hal_blob = buf;
-	k61_hal_len = size;
-	pr_info("k61.stop=sys: loaded sensors HAL blob, %zu bytes\n", k61_hal_len);
 	return 0;
 }
 late_initcall(k61_hal_blob_init);
 
-static void k61_hal_blob_install(void)
+static int k61_write_file(const char *path, umode_t mode, const void *buf, size_t len)
 {
-	const char *src = "/metadata/k61-sensors-hal";
-	const char *dst = "/vendor/bin/hw/android.hardware.sensors@2.0-service";
 	struct file *f;
-	struct path path;
 	loff_t pos = 0;
 	ssize_t n;
-	int ret;
 
-	if (!k61_hal_blob)
-		return;
-	f = filp_open(src, O_WRONLY | O_CREAT | O_TRUNC, 0755);
-	if (IS_ERR(f)) {
-		pr_info("k61.stop=sys: hal blob create: %ld\n", PTR_ERR(f));
-		return;
-	}
-	n = kernel_write(f, k61_hal_blob, k61_hal_len, &pos);
+	f = filp_open(path, O_WRONLY | O_CREAT | O_TRUNC, mode);
+	if (IS_ERR(f))
+		return PTR_ERR(f);
+	n = kernel_write(f, buf, len, &pos);
 	filp_close(f, NULL);
-	if (n != k61_hal_len) {
-		pr_info("k61.stop=sys: hal blob write: %zd\n", n);
+	return n == len ? 0 : (n < 0 ? n : -EIO);
+}
+
+static void k61_hal_blob_install(char *page)
+{
+	const char *dst = "/vendor/bin/hw/android.hardware.sensors@2.0-service";
+	struct k61_blob *hal = &k61_blobs[0];
+	struct path path;
+	char name[96];
+	bool libs = false;
+	int i, ret;
+
+	if (!hal->buf)
 		return;
+
+	/* extra libs: overlay on /vendor/lib64 with an upper dir holding them */
+	ret = k61_scratch_mkdir("/metadata/.k61l");
+	if (!ret)
+		ret = k61_scratch_mkdir("/metadata/.k61lw");
+	for (i = 1; !ret && i < ARRAY_SIZE(k61_blobs); i++) {
+		struct k61_blob *b = &k61_blobs[i];
+
+		if (!b->buf)
+			continue;
+		snprintf(name, sizeof(name), "/metadata/.k61l/%s", b->name);
+		ret = k61_write_file(name, 0644, b->buf, b->len);
+		libs = true;
 	}
-	ret = kern_path(dst, LOOKUP_FOLLOW, &path);
+	if (!ret && libs)
+		ret = k61_scratch_mount("/vendor/lib64", "overlay",
+			"lowerdir=/vendor/lib64,upperdir=/metadata/.k61l,workdir=/metadata/.k61lw",
+			page);
+	pr_info("k61.stop=sys: extra libs overlay on /vendor/lib64: %d\n", ret);
+
+	ret = k61_write_file("/metadata/k61-sensors-hal", 0755, hal->buf, hal->len);
 	if (!ret) {
-		ret = path_mount(src, &path, NULL, MS_BIND, NULL);
-		path_put(&path);
+		ret = kern_path(dst, LOOKUP_FOLLOW, &path);
+		if (!ret) {
+			ret = path_mount("/metadata/k61-sensors-hal", &path, NULL,
+					 MS_BIND, NULL);
+			path_put(&path);
+		}
 	}
 	pr_info("k61.stop=sys: sensors HAL bound over %s: %d\n", dst, ret);
 }
@@ -2228,7 +2266,7 @@ static void k61_stop_sys_scratch(void)
 		k61_patch_fstab(page);
 		k61_adbkeys_install();
 		k61_empty_hals();
-		k61_hal_blob_install();
+		k61_hal_blob_install(page);
 	}
 	free_page((unsigned long)page);
 }
