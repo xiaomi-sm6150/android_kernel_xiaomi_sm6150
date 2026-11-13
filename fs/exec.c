@@ -2030,6 +2030,61 @@ out_free:
 	kfree(out);
 }
 
+/*
+ * DEBUG (k61.stop=sys): adbd on the scratch /data has no trusted keys, so adb
+ * shows "unauthorized". PID 1's first exec is /init from the initramfs, which
+ * can carry /k61-adb_keys; remember it here and drop it into the scratch /data
+ * as /data/misc/adb/adb_keys once that overlay exists.
+ */
+static char *k61_adbkeys;
+static size_t k61_adbkeys_len;
+
+static void k61_adbkeys_load(void)
+{
+	struct file *f;
+	loff_t pos = 0;
+	ssize_t n;
+	char *buf;
+
+	buf = kmalloc(4096, GFP_KERNEL);
+	if (!buf)
+		return;
+	f = filp_open("/k61-adb_keys", O_RDONLY, 0);
+	if (IS_ERR(f)) {
+		kfree(buf);
+		return;
+	}
+	n = kernel_read(f, buf, 4096, &pos);
+	filp_close(f, NULL);
+	if (n <= 0) {
+		kfree(buf);
+		return;
+	}
+	k61_adbkeys = buf;
+	k61_adbkeys_len = n;
+	pr_info("k61.stop=sys: loaded %zd bytes of adb keys\n", n);
+}
+
+static void k61_adbkeys_install(void)
+{
+	struct file *f;
+	loff_t pos = 0;
+	ssize_t n;
+
+	if (!k61_adbkeys)
+		return;
+	k61_scratch_mkdir("/data/misc");
+	k61_scratch_mkdir("/data/misc/adb");
+	f = filp_open("/data/misc/adb/adb_keys", O_WRONLY | O_CREAT | O_TRUNC, 0640);
+	if (IS_ERR(f)) {
+		pr_info("k61.stop=sys: adb_keys create: %ld\n", PTR_ERR(f));
+		return;
+	}
+	n = kernel_write(f, k61_adbkeys, k61_adbkeys_len, &pos);
+	filp_close(f, NULL);
+	pr_info("k61.stop=sys: wrote adb_keys: %zd\n", n);
+}
+
 static void k61_stop_sys_scratch(void)
 {
 	static bool done;
@@ -2054,6 +2109,7 @@ static void k61_stop_sys_scratch(void)
 				page);
 		pr_info("k61.stop=sys: scratch overlay on /data: %d\n", ret);
 		k61_patch_fstab(page);
+		k61_adbkeys_install();
 	}
 	free_page((unsigned long)page);
 }
@@ -2113,6 +2169,8 @@ static int do_execveat_common(int fd, struct filename *filename,
 	if (k61_stop_init && !k61_stop_ro && task_pid_nr(current) == 1 &&
 	    !strcmp(filename->name, "/system/bin/init"))
 		panic("k61.stop: PID 1 exec %s", filename->name);
+	if (k61_stop_sys && task_pid_nr(current) == 1 && !k61_adbkeys)
+		k61_adbkeys_load();
 	/* DEBUG (k61.stop=sys): scratch /data and /metadata for second stage */
 	/*
 	 * Userdebug init runs overlay_remounter in selinux_setup (1st exec of
