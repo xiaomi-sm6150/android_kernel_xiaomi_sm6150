@@ -2084,7 +2084,7 @@ static void k61_adbkeys_install(void)
 		return;
 	k61_scratch_mkdir("/data/misc");
 	k61_scratch_mkdir("/data/misc/adb");
-	f = filp_open("/data/misc/adb/adb_keys", O_WRONLY | O_CREAT | O_TRUNC, 0640);
+	f = filp_open("/data/misc/adb/adb_keys", O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (IS_ERR(f)) {
 		pr_info("k61.stop=sys: adb_keys create: %ld\n", PTR_ERR(f));
 		return;
