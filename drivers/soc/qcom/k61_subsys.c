@@ -8,7 +8,9 @@
  */
 #include <linux/atomic.h>
 #include <linux/device.h>
+#include <linux/fs.h>
 #include <linux/init.h>
+#include <linux/miscdevice.h>
 #include <linux/module.h>
 #include <linux/notifier.h>
 #include <linux/remoteproc/qcom_rproc.h>
@@ -18,10 +20,23 @@ struct k61_subsys {
 	const char *name;	/* msm_subsys name (4.14) */
 	const char *ssr_name;	/* remoteproc SSR name */
 	struct notifier_block nb;
+	struct miscdevice misc;	/* /dev/subsys_<name> */
+	char devname[24];
 	void *notify;
 	atomic_t online;
 	atomic_t crashes;
 	int restart_level;
+};
+
+/*
+ * /dev/subsys_<name>: per_mgr opens it to "subsystem_get" the peripheral. The
+ * DSPs are booted by the k61 late-boot threads, so open/close only has to
+ * succeed.
+ */
+static const struct file_operations k61_subsys_fops = {
+	.owner = THIS_MODULE,
+	.open = nonseekable_open,
+	.llseek = no_llseek,
 };
 
 static struct k61_subsys k61_subsystems[] = {
@@ -143,6 +158,12 @@ static int __init k61_subsys_init(void)
 			put_device(&ss->dev);
 			continue;
 		}
+		snprintf(ss->devname, sizeof(ss->devname), "subsys_%s", ss->name);
+		ss->misc.minor = MISC_DYNAMIC_MINOR;
+		ss->misc.name = ss->devname;
+		ss->misc.fops = &k61_subsys_fops;
+		if (misc_register(&ss->misc))
+			pr_warn("k61_subsys: no /dev/%s\n", ss->devname);
 		ss->nb.notifier_call = k61_ssr_cb;
 		ss->notify = qcom_register_ssr_notifier(ss->ssr_name, &ss->nb);
 		if (IS_ERR(ss->notify))
