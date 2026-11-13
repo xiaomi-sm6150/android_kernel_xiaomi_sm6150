@@ -1821,10 +1821,18 @@ static int k61_late_boot_fn(void *data)
 	struct path p;
 	int i, ret = -ENOENT;
 
-	snprintf(path, sizeof(path), "/vendor/firmware/%s", rproc->firmware);
 	for (i = 0; i < 300; i++) {
+		bool found;
+
 		ssleep(1);
-		if (kern_path(path, LOOKUP_FOLLOW, &p))
+		snprintf(path, sizeof(path), "/vendor/firmware/%s", rproc->firmware);
+		found = !kern_path(path, LOOKUP_FOLLOW, &p);
+		if (!found) {
+			snprintf(path, sizeof(path), "/vendor/firmware_mnt/image/%s",
+				 rproc->firmware);
+			found = !kern_path(path, LOOKUP_FOLLOW, &p);
+		}
+		if (!found)
 			continue;
 		path_put(&p);
 		ret = rproc_boot(rproc);
