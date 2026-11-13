@@ -25,6 +25,7 @@
 
 #include <linux/kernel_read_file.h>
 #include <linux/k61-stop.h>
+#include <linux/xattr.h>
 #include <uapi/linux/mount.h>
 #include <linux/slab.h>
 #include <linux/file.h>
@@ -2266,6 +2267,90 @@ static void k61_stop_sys_scratch(void)
  * contains one of the comma separated substrings, to bisect which userspace
  * service triggers a hardware hang. Denied execs fail with -ENOENT.
  */
+/*
+ * DEBUG (k61.stop=ro/sys): the modem's rmt_storage wants the EFS partitions
+ * (modemst1/2, fsg, fsc) read-write, which the eMMC write guard refuses. Copy
+ * each into a RAM block device and bind that node over the real one: the
+ * modem sees the real EFS content, its writes stay in RAM. The SELinux label of
+ * the real node is copied so the HAL policy still matches.
+ */
+static int k61_efs_one(const char *name, int idx)
+{
+	char src[96], ram[32];
+	struct file *in, *out;
+	struct path real, rpath;
+	char *buf, lbl[256];
+	loff_t rpos = 0, wpos = 0;
+	ssize_t n, l;
+	int ret;
+
+	snprintf(src, sizeof(src), "/dev/block/bootdevice/by-name/%s", name);
+	snprintf(ram, sizeof(ram), "/dev/block/ram%d", idx);
+	ret = kern_path(src, LOOKUP_FOLLOW, &real);
+	if (ret) {
+		pr_info("k61.efs: %s: %d\n", src, ret);
+		return ret;
+	}
+	in = filp_open(src, O_RDONLY | O_LARGEFILE, 0);
+	out = filp_open(ram, O_WRONLY | O_LARGEFILE, 0);
+	if (IS_ERR(out)) {
+		snprintf(ram, sizeof(ram), "/dev/ram%d", idx);
+		out = filp_open(ram, O_WRONLY | O_LARGEFILE, 0);
+	}
+	if (IS_ERR(in) || IS_ERR(out)) {
+		pr_info("k61.efs: %s open in=%ld out=%ld\n", name,
+			IS_ERR(in) ? PTR_ERR(in) : 0, IS_ERR(out) ? PTR_ERR(out) : 0);
+		ret = -ENOENT;
+		goto err_files;
+	}
+	buf = kmalloc(65536, GFP_KERNEL);
+	if (!buf) {
+		ret = -ENOMEM;
+		goto err_files;
+	}
+	while ((n = kernel_read(in, buf, 65536, &rpos)) > 0) {
+		if (wpos + n > SZ_8M) {
+			pr_info("k61.efs: %s larger than 8M, truncated\n", name);
+			break;
+		}
+		l = kernel_write(out, buf, n, &wpos);
+		if (l != n) {
+			pr_info("k61.efs: %s write %zd/%zd\n", name, l, n);
+			ret = -EIO;
+			goto err_buf;
+		}
+	}
+	vfs_fsync(out, 0);
+
+	if (!kern_path(ram, LOOKUP_FOLLOW, &rpath)) {
+		l = vfs_getxattr(mnt_user_ns(real.mnt), real.dentry,
+				 XATTR_NAME_SELINUX, lbl, sizeof(lbl));
+		if (l > 0)
+			vfs_setxattr(mnt_user_ns(rpath.mnt), rpath.dentry,
+				     XATTR_NAME_SELINUX, lbl, l, 0);
+		path_put(&rpath);
+	}
+	ret = path_mount(ram, &real, NULL, MS_BIND, NULL);
+	pr_info("k61.efs: %s (%lld bytes) -> %s bind: %d\n", name, wpos, ram, ret);
+err_buf:
+	kfree(buf);
+err_files:
+	if (!IS_ERR(in))
+		filp_close(in, NULL);
+	if (!IS_ERR(out))
+		filp_close(out, NULL);
+	path_put(&real);
+	return ret;
+}
+
+void k61_efs_scratch(const char **names, int n)
+{
+	int i;
+
+	for (i = 0; i < n; i++)
+		k61_efs_one(names[i], 8 + i);
+}
+
 static char k61_deny[256];
 
 static int __init k61_deny_setup(char *str)
