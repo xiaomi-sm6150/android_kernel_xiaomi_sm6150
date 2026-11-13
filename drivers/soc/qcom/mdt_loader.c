@@ -200,8 +200,12 @@ void *qcom_mdt_read_metadata(struct device *dev, const struct firmware *fw, cons
 			scm_dev = qcom_get_scm_device();
 			if (!scm_dev)
 				return ERR_PTR(-EPROBE_DEFER);
+			dev_info(dev, "k61mdt: scm_dev=%s size=%zu\n", dev_name(scm_dev),
+				 (size_t)(ehdr_size + hash_size));
 			data = dma_alloc_coherent(scm_dev, ehdr_size + hash_size,
 					metadata_phys, GFP_KERNEL);
+			dev_info(dev, "k61mdt: dma_alloc_coherent -> %px phys=%pa\n", data,
+				 metadata_phys);
 		} else {
 			data = dma_alloc_coherent(dev, ehdr_size + hash_size,
 						  metadata_phys, GFP_KERNEL);
@@ -214,7 +218,9 @@ void *qcom_mdt_read_metadata(struct device *dev, const struct firmware *fw, cons
 		return ERR_PTR(-ENOMEM);
 
 	/* copy elf header */
+	dev_info(dev, "k61mdt: memcpy ehdr %zu\n", (size_t)ehdr_size);
 	memcpy(data, fw->data, ehdr_size);
+	dev_info(dev, "k61mdt: ehdr copied\n");
 
 	if (qcom_mdt_bins_are_split(fw)) {
 		fw_name = kstrdup(firmware, GFP_KERNEL);
