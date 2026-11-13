@@ -23,6 +23,13 @@ struct wrapfd_wrap {
 
 /* wrapfd_monitor.events bit values */
 #define WRAPFD_EVENT_MAP	(1 << 0)
+/*
+ * WRAPFD_EVENT_UNMAP events are not guaranteed to be generated for each mapping
+ * (users should not expect a one-to-one correspondence with WRAPFD_EVENT_MAP
+ * events), but they are guaranteed to fire at least once when no mappings exist
+ * anymore (i.e. there are no mmaps in progress and no existing userspace mappings)
+ * or when a mappable reference was removed.
+ */
 #define WRAPFD_EVENT_UNMAP	(1 << 1)
 #define WRAPFD_EVENT_OWN	(1 << 2)
 #define WRAPFD_EVENT_UNOWN	(1 << 3)
