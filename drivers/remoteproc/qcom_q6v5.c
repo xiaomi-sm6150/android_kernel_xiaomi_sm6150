@@ -111,6 +111,11 @@ static void qcom_q6v5_crash_handler_work(struct work_struct *work)
 	 * sync() and fclose() on attempting the dump.
 	 */
 	msleep(100);
+	if (of_property_read_bool(q6v5->dev->of_node, "k61,no-panic")) {
+		dev_err(q6v5->dev, "k61: remoteproc %s crashed, not panicking\n",
+			q6v5->rproc->name);
+		return;
+	}
 	panic("Panicking, remoteproc %s crashed\n", q6v5->rproc->name);
 }
 
