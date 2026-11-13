@@ -19,7 +19,7 @@ ifeq ($(KERNEL_BUILD), 0)
 		export
 		INCS    +=  -include $(AUDIO_ROOT)/config/lahainaautoconf.h
 	endif
-	ifeq ($(CONFIG_ARCH_LITO), y)
+	ifeq ($(CONFIG_ARCH_LITO):$(CONFIG_QTI_AUDIO_SM6150), y:)
 		include $(AUDIO_ROOT)/config/litoauto.conf
 		INCS    +=  -include $(AUDIO_ROOT)/config/litoautoconf.h
 	endif

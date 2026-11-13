@@ -17,19 +17,19 @@ ifeq ($(KERNEL_BUILD), 0)
 	# These are configurable via Kconfig for kernel-based builds
 	# Need to explicitly configure for Android-based builds
 
-	ifeq ($(CONFIG_ARCH_SDM670), y)
+	ifeq ($(CONFIG_ARCH_SDM670):$(CONFIG_QTI_AUDIO_SM6150), y:)
 		include $(AUDIO_ROOT)/config/sdm670auto.conf
 		export
 		INCS    +=  -include $(AUDIO_ROOT)/config/sdm670autoconf.h
 	endif
 
-	ifeq ($(CONFIG_ARCH_SM8150), y)
+	ifeq ($(CONFIG_ARCH_SM8150):$(CONFIG_QTI_AUDIO_SM6150), y:)
 		include $(AUDIO_ROOT)/config/sm8150auto.conf
 		export
 		INCS    +=  -include $(AUDIO_ROOT)/config/sm8150autoconf.h
 	endif
 
-	ifeq ($(CONFIG_ARCH_SDMSHRIKE), y)
+	ifeq ($(CONFIG_ARCH_SDMSHRIKE):$(CONFIG_QTI_AUDIO_SM6150), y:)
 		include $(AUDIO_ROOT)/config/sm8150auto.conf
 		export
 		INCS    +=  -include $(AUDIO_ROOT)/config/sm8150autoconf.h

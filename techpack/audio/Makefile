@@ -3,6 +3,9 @@ ifeq ($(CONFIG_QTI_AUDIO_LAHAINA), y)
 # built into the kernel from techpack/audio
 LEGACY_PATH=$(srctree)/techpack/audio
 CONFIG_ARCH_LAHAINA := y
+else ifeq ($(CONFIG_QTI_AUDIO_SM6150), y)
+LEGACY_PATH=$(srctree)/techpack/audio
+CONFIG_ARCH_BENGAL := y
 else ifeq ($(QTI_TECHPACK_KERNEL_6_1), true)
 LEGACY_PATH=$(PWD)/../../../../vendor/qcom/opensource/audio-kernel
 else
@@ -20,34 +23,37 @@ else
 include $(LEGACY_PATH)/config/gvmauto.conf
 endif
 endif
-ifeq ($(CONFIG_ARCH_SDXPOORWILLS), y)
+ifeq ($(CONFIG_ARCH_SDXPOORWILLS):$(CONFIG_QTI_AUDIO_SM6150), y:)
 include $(LEGACY_PATH)/config/sdxpoorwillsauto.conf
 export
 endif
-ifeq ($(CONFIG_ARCH_SM8150), y)
+ifeq ($(CONFIG_ARCH_SM8150):$(CONFIG_QTI_AUDIO_SM6150), y:)
 include $(LEGACY_PATH)/config/sm8150auto.conf
 export
 endif
-ifeq ($(CONFIG_ARCH_SDMSHRIKE), y)
+ifeq ($(CONFIG_ARCH_SDMSHRIKE):$(CONFIG_QTI_AUDIO_SM6150), y:)
 include $(LEGACY_PATH)/config/sm8150auto.conf
 export
 endif
-ifeq ($(CONFIG_ARCH_KONA), y)
+ifeq ($(CONFIG_ARCH_KONA):$(CONFIG_QTI_AUDIO_SM6150), y:)
 include $(LEGACY_PATH)/config/konaauto.conf
 endif
 ifeq ($(CONFIG_ARCH_LAHAINA), y)
 include $(LEGACY_PATH)/config/lahainaauto.conf
 endif
-ifeq ($(CONFIG_ARCH_HOLI), y)
+ifeq ($(CONFIG_ARCH_BENGAL), y)
+include $(LEGACY_PATH)/config/violetauto.conf
+endif
+ifeq ($(CONFIG_ARCH_HOLI):$(CONFIG_QTI_AUDIO_SM6150), y:)
 include $(LEGACY_PATH)/config/holiauto.conf
 endif
-ifeq ($(CONFIG_ARCH_SA8155), y)
+ifeq ($(CONFIG_ARCH_SA8155):$(CONFIG_QTI_AUDIO_SM6150), y:)
 include $(LEGACY_PATH)/config/sa8155auto.conf
 endif
-ifeq ($(CONFIG_ARCH_SA6155), y)
+ifeq ($(CONFIG_ARCH_SA6155):$(CONFIG_QTI_AUDIO_SM6150), y:)
 include $(LEGACY_PATH)/config/sa6155auto.conf
 endif
-ifeq ($(CONFIG_ARCH_SM6150), y)
+ifeq ($(CONFIG_ARCH_SM6150):$(CONFIG_QTI_AUDIO_SM6150), y:)
 include $(LEGACY_PATH)/config/sm6150auto.conf
 endif
 endif
@@ -71,19 +77,19 @@ LINUXINCLUDE    += \
                 -include $(LEGACY_PATH)/config/gvmautoconf.h
 endif
 endif
-ifeq ($(CONFIG_ARCH_SDXPOORWILLS), y)
+ifeq ($(CONFIG_ARCH_SDXPOORWILLS):$(CONFIG_QTI_AUDIO_SM6150), y:)
 LINUXINCLUDE    += \
                 -include $(LEGACY_PATH)/config/sdxpoorwillsautoconf.h
 endif
-ifeq ($(CONFIG_ARCH_SM8150), y)
+ifeq ($(CONFIG_ARCH_SM8150):$(CONFIG_QTI_AUDIO_SM6150), y:)
 LINUXINCLUDE    += \
                 -include $(LEGACY_PATH)/config/sm8150autoconf.h
 endif
-ifeq ($(CONFIG_ARCH_SDMSHRIKE), y)
+ifeq ($(CONFIG_ARCH_SDMSHRIKE):$(CONFIG_QTI_AUDIO_SM6150), y:)
 LINUXINCLUDE    += \
                 -include $(LEGACY_PATH)/config/sm8150autoconf.h
 endif
-ifeq ($(CONFIG_ARCH_KONA), y)
+ifeq ($(CONFIG_ARCH_KONA):$(CONFIG_QTI_AUDIO_SM6150), y:)
 LINUXINCLUDE    += \
                 -include $(LEGACY_PATH)/config/konaautoconf.h
 endif
@@ -91,19 +97,23 @@ ifeq ($(CONFIG_ARCH_LAHAINA), y)
 LINUXINCLUDE    += \
                 -include $(LEGACY_PATH)/config/lahainaautoconf.h
 endif
-ifeq ($(CONFIG_ARCH_HOLI), y)
+ifeq ($(CONFIG_ARCH_BENGAL), y)
+LINUXINCLUDE    += \
+                -include $(LEGACY_PATH)/config/violetautoconf.h
+endif
+ifeq ($(CONFIG_ARCH_HOLI):$(CONFIG_QTI_AUDIO_SM6150), y:)
 LINUXINCLUDE    += \
                 -include $(LEGACY_PATH)/config/holiautoconf.h
 endif
-ifeq ($(CONFIG_ARCH_SA8155), y)
+ifeq ($(CONFIG_ARCH_SA8155):$(CONFIG_QTI_AUDIO_SM6150), y:)
 LINUXINCLUDE    += \
                 -include $(LEGACY_PATH)/config/sa8155autoconf.h
 endif
-ifeq ($(CONFIG_ARCH_SA6155), y)
+ifeq ($(CONFIG_ARCH_SA6155):$(CONFIG_QTI_AUDIO_SM6150), y:)
 LINUXINCLUDE    += \
                 -include $(LEGACY_PATH)/config/sa6155autoconf.h
 endif
-ifeq ($(CONFIG_ARCH_SM6150), y)
+ifeq ($(CONFIG_ARCH_SM6150):$(CONFIG_QTI_AUDIO_SM6150), y:)
 LINUXINCLUDE    += \
                 -include $(LEGACY_PATH)/config/sm6150autoconf.h
 endif

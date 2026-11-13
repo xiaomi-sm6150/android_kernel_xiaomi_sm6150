@@ -14,6 +14,18 @@ config QTI_AUDIO_LAHAINA
 	  the kernel with the lahaina feature set from
 	  config/lahainaauto.conf.
 
+config QTI_AUDIO_SM6150
+	bool "Qualcomm APR audio driver (techpack/audio) for sm6150 (violet)"
+	depends on SND_SOC && ARCH_QCOM && RPMSG && !QCOM_APR && !QTI_AUDIO_LAHAINA
+	select SND_SOC_COMPRESS
+	select SND_HWDEP
+	select REGMAP_MMIO
+	select REGMAP_I2C
+	help
+	  Build the APR/q6 audio-kernel techpack into the kernel with the
+	  bengal feature set (bolero macros + WCD937x over soundwire), which
+	  matches the sm6150 audio hardware, from config/bengalauto.conf.
+
 if QTI_AUDIO_LAHAINA
 
 config SND_PRI_MI2S_AW882XX
