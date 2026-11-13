@@ -202,7 +202,9 @@ void *qcom_mdt_read_metadata(const struct firmware *fw, size_t *data_len,
 		return ERR_PTR(-ENOMEM);
 
 	/* Copy ELF header */
+	dev_info(dev, "k61mdt: memcpy ehdr %zu\n", (size_t)ehdr_size);
 	memcpy(data, fw->data, ehdr_size);
+	dev_info(dev, "k61mdt: ehdr copied\n");
 
 	if (ehdr_size + hash_size == fw->size) {
 		/* Firmware is split and hash is packed following the ELF header */
