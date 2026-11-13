@@ -1920,6 +1920,9 @@ static void k61_cpus_up(void)
 	pr_info("k61: all cpus back\n");
 }
 
+/* One DSP at a time: the solo-CPU windows of adsp/cdsp/mpss must not overlap. */
+static DEFINE_MUTEX(k61_boot_lock);
+
 static int k61_late_boot_fn(void *data)
 {
 	struct rproc *rproc = data;
@@ -1943,11 +1946,13 @@ static int k61_late_boot_fn(void *data)
 			continue;
 		path_put(&p);
 		solo = of_property_read_bool(rproc->dev.parent->of_node, "k61,solo-cpu");
+		mutex_lock(&k61_boot_lock);
 		if (solo)
 			k61_cpus_down();
 		ret = rproc_boot(rproc);
 		if (solo)
 			k61_cpus_up();
+		mutex_unlock(&k61_boot_lock);
 		dev_info(&rproc->dev, "k61: late rproc_boot(%s): %d\n",
 			 rproc->firmware, ret);
 		if (ret != -ENOENT)
