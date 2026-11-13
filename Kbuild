@@ -94,6 +94,7 @@ obj-y			+= $(ARCH_LIB)
 obj-y			+= drivers/
 obj-y			+= sound/
 obj-$(CONFIG_QTI_DISPLAY_SM6150) += techpack/display/
+obj-$(CONFIG_QTI_AUDIO_LAHAINA) += techpack/audio/
 obj-$(CONFIG_SAMPLES)	+= samples/
 obj-$(CONFIG_NET)	+= net/
 obj-y			+= virt/

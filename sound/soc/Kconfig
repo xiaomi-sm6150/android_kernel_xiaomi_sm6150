@@ -115,5 +115,8 @@ source "sound/soc/codecs/Kconfig"
 # generic frame-work
 source "sound/soc/generic/Kconfig"
 
+# Qualcomm APR audio techpack
+source "techpack/audio/Kconfig"
+
 endif	# SND_SOC
 
