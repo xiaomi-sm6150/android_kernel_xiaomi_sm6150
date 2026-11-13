@@ -286,6 +286,39 @@ static void k61_unjam_ipis(void)
 	put_cpu();
 }
 
+/*
+ * k61: when the DSP never signals ready, show what it left in shared memory:
+ * both SMP2P items towards the ADSP and its crash-reason string.
+ */
+static void k61_dump_smem_item(struct device *dev, unsigned int host, unsigned int item)
+{
+	size_t sz = 0;
+	u32 *w = qcom_smem_get(host, item, &sz);
+
+	if (IS_ERR_OR_NULL(w)) {
+		dev_info(dev, "k61smem %u/%u: err %ld\n", host, item, PTR_ERR_OR_ZERO(w));
+		return;
+	}
+	dev_info(dev, "k61smem %u/%u size=%zu: %08x %08x %08x %08x %08x %08x %08x %08x\n",
+		 host, item, sz, w[0], w[1], w[2], w[3], w[4], w[5], w[6], w[7]);
+}
+
+static void k61_dump_dsp_state(struct qcom_pas *pas)
+{
+	size_t sz = 0;
+	char *c;
+
+	k61_dump_smem_item(pas->dev, 2, 443);
+	k61_dump_smem_item(pas->dev, 2, 429);
+	c = qcom_smem_get(QCOM_SMEM_HOST_ANY, pas->crash_reason_smem, &sz);
+	if (!IS_ERR_OR_NULL(c) && sz)
+		dev_info(pas->dev, "k61smem crash_reason(%d): %.80s\n",
+			 pas->crash_reason_smem, c);
+	else
+		dev_info(pas->dev, "k61smem crash_reason(%d): none (%ld)\n",
+			 pas->crash_reason_smem, PTR_ERR_OR_ZERO(c));
+}
+
 static int qcom_pas_start(struct rproc *rproc)
 {
 	struct qcom_pas *pas = rproc->priv;
@@ -372,6 +405,7 @@ static int qcom_pas_start(struct rproc *rproc)
 	ret = qcom_q6v5_wait_for_start(&pas->q6v5, msecs_to_jiffies(5000));
 	if (ret == -ETIMEDOUT) {
 		dev_err(pas->dev, "start timed out\n");
+		k61_dump_dsp_state(pas);
 		qcom_scm_pas_shutdown(pas->pas_id);
 		goto release_pas_metadata;
 	}
