@@ -17,6 +17,7 @@
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/k61-stop.h>
 #include <linux/of_address.h>
 #include <linux/of_device.h>
 #include <linux/of_reserved_mem.h>
@@ -1958,6 +1959,18 @@ static int k61_late_boot_fn(void *data)
 		if (!found)
 			continue;
 		path_put(&p);
+		/* EFS partitions for rmt_storage: RAM copies bound over the real ones */
+		ret = of_property_count_strings(rproc->dev.parent->of_node,
+						"k61,efs-scratch");
+		if (ret > 0 && ret <= 8) {
+			const char *names[8];
+
+			ret = of_property_read_string_array(rproc->dev.parent->of_node,
+							    "k61,efs-scratch", names, ret);
+			if (ret > 0)
+				k61_efs_scratch(names, ret);
+		}
+		ret = -ENOENT;
 		/*
 		 * Some DSPs depend on a userspace daemon (the modem on
 		 * rmt_storage): hold the boot until this uptime.
