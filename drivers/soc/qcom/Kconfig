@@ -1355,4 +1355,11 @@ config QCOM_KERNEL_BASED_RESTORE
 	  Requires hibernation support in the kernel.
 	  If not sure, say N.
 
+config K61_SUBSYS_SHIM
+	bool "msm_subsys sysfs shim for the 4.14 vendor userspace"
+	depends on QCOM_COMMON || ARCH_QCOM
+	help
+	  Exposes /sys/bus/msm_subsys/devices/subsysN/{name,state,...} backed by
+	  remoteproc SSR notifications, as libmdmdetect/pd-mapper/per_mgr expect.
+
 endmenu
