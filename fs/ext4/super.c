@@ -1709,6 +1709,7 @@ static const struct fs_parameter_spec ext4_param_specs[] = {
 	fsparam_enum	("errors",		Opt_errors, ext4_param_errors),
 	fsparam_flag	("nouid32",		Opt_nouid32),
 	fsparam_flag	("debug",		Opt_debug),
+	fsparam_flag	("no_sehash_xattr",	Opt_removed),	/* downstream 4.14 option (persist mount) */
 	fsparam_flag	("oldalloc",		Opt_removed),
 	fsparam_flag	("orlov",		Opt_removed),
 	fsparam_flag	("user_xattr",		Opt_user_xattr),
