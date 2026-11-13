@@ -296,8 +296,10 @@ static int __qcom_mdt_load(struct device *dev, const struct firmware *fw, const 
 		return -ENOMEM;
 
 	if (pas_init) {
+		dev_info(dev, "k61mdt: read_metadata\n");
 		metadata = qcom_mdt_read_metadata(dev, fw, firmware, &metadata_len,
 						  dma_phys_below_32b, &metadata_phys);
+		dev_info(dev, "k61mdt: metadata %pe phys=%pa len=%zu\n", metadata, &metadata_phys, metadata_len);
 		if (IS_ERR(metadata)) {
 			ret = PTR_ERR(metadata);
 			dev_err(dev, "error %d reading firmware %s metadata\n",
@@ -311,7 +313,9 @@ static int __qcom_mdt_load(struct device *dev, const struct firmware *fw, const 
 			mdata->size = metadata_len;
 		}
 
+		dev_info(dev, "k61mdt: pas_init_image\n");
 		ret = qcom_scm_pas_init_image(pas_id, metadata_phys);
+		dev_info(dev, "k61mdt: pas_init_image: %d\n", ret);
 		if (ret) {
 			dev_err(dev, "invalid firmware metadata\n");
 			goto deinit;
@@ -336,8 +340,10 @@ static int __qcom_mdt_load(struct device *dev, const struct firmware *fw, const 
 
 	if (relocate) {
 		if (pas_init) {
+			dev_info(dev, "k61mdt: pas_mem_setup\n");
 			ret = qcom_scm_pas_mem_setup(pas_id, mem_phys,
 						     max_addr - min_addr);
+			dev_info(dev, "k61mdt: pas_mem_setup: %d\n", ret);
 			if (ret) {
 				dev_err(dev, "unable to setup relocation\n");
 				goto deinit;
@@ -380,6 +386,10 @@ static int __qcom_mdt_load(struct device *dev, const struct firmware *fw, const 
 
 		ptr = mem_region + offset;
 
+		if (phdr->p_filesz)
+			dev_info(dev, "k61mdt: seg %d off=%llx size=%llx -> %pa\n", i,
+				 (unsigned long long)offset,
+				 (unsigned long long)phdr->p_filesz, &mem_phys);
 		if (phdr->p_filesz) {
 			if (!is_split) {
 				/* Firmware is large enough to be non-split */
