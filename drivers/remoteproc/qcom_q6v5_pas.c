@@ -703,6 +703,28 @@ out:
 }
 EXPORT_SYMBOL_GPL(qcom_rproc_set_dtb_firmware);
 
+/*
+ * k61: IPIs sent to a CPU while it is inside a long TZ call (pas_shutdown takes
+ * about 1.4 s) are lost. The target call queue then stays non-empty, so nobody
+ * sends another IPI and every later smp_call_function() to that CPU waits
+ * forever (init hung in invalidate_bh_lrus). Drain our own queue and wake all
+ * other CPUs so they drain theirs.
+ */
+static void k61_unjam_ipis(void)
+{
+	unsigned long flags;
+	int cpu, me;
+
+	me = get_cpu();
+	local_irq_save(flags);
+	generic_smp_call_function_single_interrupt();
+	local_irq_restore(flags);
+	for_each_online_cpu(cpu)
+		if (cpu != me)
+			smp_send_reschedule(cpu);
+	put_cpu();
+}
+
 static int adsp_start(struct rproc *rproc)
 {
 	struct qcom_adsp *adsp = (struct qcom_adsp *)rproc->priv;
@@ -777,9 +799,11 @@ static int adsp_start(struct rproc *rproc)
 	 */
 	if (of_property_read_bool(adsp->dev->of_node, "k61,restart-running")) {
 		ret = qcom_scm_pas_shutdown(adsp->pas_id);
+		k61_unjam_ipis();
 		dev_info(adsp->dev, "k61: shutdown of running DSP (pas %u): %d\n",
 			 adsp->pas_id, ret);
 		msleep(100);
+		k61_unjam_ipis();
 	}
 
 	trace_rproc_qcom_event(dev_name(adsp->dev), "Q6_firmware_loading", "enter");
@@ -807,6 +831,7 @@ static int adsp_start(struct rproc *rproc)
 
 	dev_info(adsp->dev, "k61: auth_and_reset pas=%u\n", adsp->pas_id);
 	ret = qcom_scm_pas_auth_and_reset(adsp->pas_id);
+	k61_unjam_ipis();
 	dev_info(adsp->dev, "k61: auth_and_reset: %d\n", ret);
 	if (ret)
 		panic("Panicking, auth and reset failed for remoteproc %s ret=%d\n",
