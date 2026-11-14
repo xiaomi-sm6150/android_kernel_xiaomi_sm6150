@@ -4298,8 +4298,8 @@ static int msm_int_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	msm_add_mi2s_snd_controls(component);
 	msm_add_auxpcm_snd_controls(component);
 
-	snd_soc_dapm_new_controls(dapm, msm_int_dapm_widgets,
-				ARRAY_SIZE(msm_int_dapm_widgets));
+	/* the mic widgets are card widgets now (6.1 adds the DT routes before link init) */
+	dapm = &rtd->card->dapm;
 
 	snd_soc_dapm_ignore_suspend(dapm, "Digital Mic0");
 	snd_soc_dapm_ignore_suspend(dapm, "Digital Mic1");
@@ -6189,6 +6189,10 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	card->dev = &pdev->dev;
 	platform_set_drvdata(pdev, card);
 	snd_soc_card_set_drvdata(card, pdata);
+	card->dapm_widgets = msm_int_dapm_widgets;
+	card->num_dapm_widgets = ARRAY_SIZE(msm_int_dapm_widgets);
+	/* platform routing routes name DAI links this board does not have */
+	card->disable_route_checks = true;
 
 	ret = snd_soc_of_parse_card_name(card, "qcom,model");
 	if (ret) {
