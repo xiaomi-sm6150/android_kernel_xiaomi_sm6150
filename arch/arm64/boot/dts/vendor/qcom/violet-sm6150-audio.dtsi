@@ -237,21 +237,14 @@
 };
 
 /*
- * The 6.1 bolero driver also wants a LPASS audio hw vote clock, but the sm6150
+ * The 6.1 bolero/swr drivers ask for a LPASS audio hw vote clock, but the sm6150
  * ADSP firmware only knows the core hw vote (the AFE answers ADSP_EUNSUPPORTED
- * to the audio one): back it with the core vote.
+ * to the audio one) and audio-ref-clk cannot register the same source twice:
+ * hand them the core vote clock under that name.
  */
-&soc {
-	lpass_audio_hw_vote: lpass_audio_hw_vote {
-		compatible = "qcom,audio-ref-clk";
-		qcom,codec-ext-clk-src = <AUDIO_LPASS_CORE_HW_VOTE>;
-		#clock-cells = <1>;
-	};
-};
-
 &bolero {
 	clock-names = "lpass_core_hw_vote", "lpass_audio_hw_vote";
-	clocks = <&lpass_core_hw_vote 0>, <&lpass_audio_hw_vote 0>;
+	clocks = <&lpass_core_hw_vote 0>, <&lpass_core_hw_vote 0>;
 };
 
 /*
@@ -299,15 +292,15 @@
 
 &swr0 {
 	clock-names = "lpass_audio_hw_vote";
-	clocks = <&lpass_audio_hw_vote 0>;
+	clocks = <&lpass_core_hw_vote 0>;
 };
 
 &swr1 {
 	clock-names = "lpass_audio_hw_vote";
-	clocks = <&lpass_audio_hw_vote 0>;
+	clocks = <&lpass_core_hw_vote 0>;
 };
 
 &swr2 {
 	clock-names = "lpass_audio_hw_vote";
-	clocks = <&lpass_audio_hw_vote 0>;
+	clocks = <&lpass_core_hw_vote 0>;
 };
