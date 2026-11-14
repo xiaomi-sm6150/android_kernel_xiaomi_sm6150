@@ -451,8 +451,9 @@
 	};
 };
 
+/* QUP1: SE4 is the TAS2563 speaker amp i2c (the audio dtsi enables the bus) */
 &qupv3_1 {
-	status = "disabled";
+	status = "okay";
 };
 
 /* attempt 42: no icc path on apps_smmu */

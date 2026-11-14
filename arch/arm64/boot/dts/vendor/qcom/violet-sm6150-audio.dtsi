@@ -53,11 +53,6 @@
     /delete-property/ qcom,wsa-devs;
 };
 
-/* the QUP wrapper that owns the TAS2563 i2c bus */
-&qupv3_1 {
-    status = "ok";
-};
-
 &qupv3_se4_i2c {
     status = "ok";
     tas2563_amp: tas2563@4c {
