@@ -304,3 +304,19 @@
 	clock-names = "lpass_audio_hw_vote";
 	clocks = <&lpass_core_hw_vote 0>;
 };
+
+/* swr_register_master takes its bus number from these aliases */
+&{/aliases} {
+	swr0 = &swr0;
+	swr1 = &swr1;
+	swr2 = &swr2;
+};
+
+/* the sm6150 LPASS soundwire is v1.5 (read back from the HW: 0x1050000) */
+&swr1 {
+	qcom,swr-master-version = <0x01050000>;
+};
+
+&swr2 {
+	qcom,swr-master-version = <0x01050000>;
+};
