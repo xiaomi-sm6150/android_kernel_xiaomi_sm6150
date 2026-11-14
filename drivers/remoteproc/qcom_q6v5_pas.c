@@ -845,6 +845,23 @@ static int adsp_start(struct rproc *rproc)
 	 * TZ refuses to re-authenticate a running subsystem, so stop it first.
 	 */
 	if (of_property_read_bool(adsp->dev->of_node, "k61,restart-running")) {
+		/*
+		 * 4.14 stops a DSP gracefully (smp2p stop bit, wait for the
+		 * stop-ack) before the TZ shutdown. The ADSP copes without it;
+		 * the CDSP's next TZ auth never returned after a plain
+		 * pas_shutdown of the 4.14-started instance.
+		 */
+		if (of_property_read_bool(adsp->dev->of_node, "k61,graceful-stop")) {
+			struct qcom_q6v5 *q6 = &adsp->q6v5;
+
+			reinit_completion(&q6->stop_done);
+			qcom_smem_state_update_bits(q6->state, BIT(q6->stop_bit),
+						    BIT(q6->stop_bit));
+			ret = wait_for_completion_timeout(&q6->stop_done, 3 * HZ);
+			qcom_smem_state_update_bits(q6->state, BIT(q6->stop_bit), 0);
+			dev_info(adsp->dev, "k61: graceful stop request: %s\n",
+				 ret ? "acked" : "timed out");
+		}
 		ret = qcom_scm_pas_shutdown(adsp->pas_id);
 		k61_unjam_ipis();
 		dev_info(adsp->dev, "k61: shutdown of running DSP (pas %u): %d\n",
