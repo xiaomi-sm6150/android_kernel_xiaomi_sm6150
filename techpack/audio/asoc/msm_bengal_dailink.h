@@ -315,7 +315,8 @@ SND_SOC_DAILINK_DEFS(pri_mi2s_rx,
 SND_SOC_DAILINK_DEFS(pri_mi2s_tx,
 	/* violet: each MI2S DT node registers one DAI, indexed by dev-id; dev-id 1 is "Primary MI2S_TX" */
 	DAILINK_COMP_ARRAY(COMP_CPU("msm-dai-q6-mi2s.1")),
-	DAILINK_COMP_ARRAY(COMP_CODEC("msm-stub-codec.1", "msm-stub-tx")),
+	/* violet: the TAS2563 IV-sense data comes back on the primary MI2S */
+	DAILINK_COMP_ARRAY(COMP_CODEC("tas2563", "tas2562-amplifier")),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("msm-pcm-routing")));
 
 SND_SOC_DAILINK_DEFS(sec_mi2s_rx,
