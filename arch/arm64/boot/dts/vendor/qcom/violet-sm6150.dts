@@ -9,6 +9,9 @@
 #include "violet-display.dtsi"
 #include "sm6150-gpu.dtsi"
 #include "sm6150-gpu-pwrlevels.dtsi"
+#include "sm6150-audio.dtsi"
+#include "sm6150-audio-overlay.dtsi"
+#include "violet-sm6150-audio.dtsi"
 
 / {
 	model = "Xiaomi Redmi Note 7 Pro";
