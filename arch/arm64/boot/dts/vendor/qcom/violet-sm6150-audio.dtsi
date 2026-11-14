@@ -320,3 +320,8 @@
 &swr2 {
 	qcom,swr-master-version = <0x01050000>;
 };
+
+/* the 4.14 kernel leaves the codec reset high and the chip enumerated: pulse it */
+&wcd937x_codec {
+	k61,force-reset;
+};
