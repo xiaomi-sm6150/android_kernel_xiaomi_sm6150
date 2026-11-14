@@ -7447,8 +7447,11 @@ static int msm_dai_q6_mi2s_platform_data_validation(
 		goto rtn;
 	}
 
-	if (strnstr(dev_name(&pdev->dev), "rx", strlen(dev_name(&pdev->dev)))
-		!= NULL) {
+	/*
+	 * An RX DAI has a playback stream. The node name ("...-rx") is not a
+	 * reliable hint: the shared sm6150 DT names the nodes per interface.
+	 */
+	if (dai_driver->playback.stream_name) {
 		if (ch_cnt) {
 			dai_data->mi2s_dai.mi2s_dai_data.port_config.i2s.channel_mode =
 			sd_line;
