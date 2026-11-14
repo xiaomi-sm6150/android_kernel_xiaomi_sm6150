@@ -325,3 +325,14 @@
 &wcd937x_codec {
 	k61,force-reset;
 };
+
+/*
+ * The 6.1 bengal machine driver builds its DAI link list from these: add the
+ * bolero RX/TX and VA CDC-DMA links, and drop the WCN BT/FM links (they name a
+ * slimbus BT codec that does not exist here, which would keep the card deferred).
+ */
+&sm6150_snd {
+	qcom,rxtx-bolero-codec = <1>;
+	qcom,va-bolero-codec = <1>;
+	qcom,wcn-btfm = <0>;
+};
