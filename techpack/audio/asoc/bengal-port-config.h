@@ -62,7 +62,8 @@ static struct port_params tx_frame_params_wcd937x[SWR_MSTR_PORT_LEN] = {
 };
 
 static struct swr_mstr_port_map sm_port_map[] = {
-	{VA_MACRO, SWR_UC0, tx_frame_params_wcd937x},
+	/* violet: the WCD937x TX soundwire master hangs off the TX macro, not the VA macro */
+	{TX_MACRO, SWR_UC0, tx_frame_params_wcd937x},
 	{RX_MACRO, SWR_UC0, rx_frame_params_default},
 	{RX_MACRO, SWR_UC1, rx_frame_params_dsd},
 };
