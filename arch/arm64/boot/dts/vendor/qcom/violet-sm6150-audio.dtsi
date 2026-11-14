@@ -249,3 +249,61 @@
 	clock-names = "lpass_core_hw_vote", "lpass_audio_hw_vote";
 	clocks = <&lpass_core_hw_vote 0>, <&lpass_audio_hw_vote 0>;
 };
+
+/*
+ * 6.1 bolero (bengal-style bindings): a clock resource manager child, a default
+ * clock id per macro, and the audio hw vote clock on the soundwire masters.
+ * Clock ids: TX_CORE_CLK 0, RX_CORE_CLK 1, VA_CORE_CLK 3.
+ */
+&soc {
+	clock_audio_va_2: va_npl_clk {
+		compatible = "qcom,audio-ref-clk";
+		qcom,codec-ext-clk-src = <AUDIO_LPASS_MCLK_8>;
+		qcom,codec-lpass-ext-clk-freq = <19200000>;
+		qcom,codec-lpass-clk-id = <0x310>;
+		#clock-cells = <1>;
+	};
+};
+
+&bolero {
+	bolero-clk-rsc-mngr {
+		compatible = "qcom,bolero-clk-rsc-mngr";
+		qcom,fs-gen-sequence = <0x3000 0x1 0x1>, <0x3004 0x3 0x3>,
+					<0x3004 0x3 0x1>, <0x3080 0x2 0x2>;
+		qcom,rx_mclk_mode_muxsel = <0x62c25020>;
+		clock-names = "tx_core_clk", "tx_npl_clk", "rx_core_clk",
+			"rx_npl_clk", "va_core_clk", "va_npl_clk";
+		clocks = <&clock_audio_tx_1 0>, <&clock_audio_tx_2 0>,
+			<&clock_audio_rx_1 0>, <&clock_audio_rx_2 0>,
+			<&clock_audio_va 0>, <&clock_audio_va_2 0>;
+	};
+};
+
+&tx_macro {
+	qcom,default-clk-id = <0>;
+};
+
+&rx_macro {
+	qcom,default-clk-id = <0>;
+};
+
+&va_macro {
+	qcom,default-clk-id = <0>;
+	qcom,va-clk-mux-select = <1>;
+	qcom,is-used-swr-gpio = <0>;
+};
+
+&swr0 {
+	clock-names = "lpass_audio_hw_vote";
+	clocks = <&lpass_audio_hw_vote 0>;
+};
+
+&swr1 {
+	clock-names = "lpass_audio_hw_vote";
+	clocks = <&lpass_audio_hw_vote 0>;
+};
+
+&swr2 {
+	clock-names = "lpass_audio_hw_vote";
+	clocks = <&lpass_audio_hw_vote 0>;
+};
