@@ -313,7 +313,8 @@ SND_SOC_DAILINK_DEFS(pri_mi2s_rx,
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("msm-pcm-routing")));
 
 SND_SOC_DAILINK_DEFS(pri_mi2s_tx,
-	DAILINK_COMP_ARRAY(COMP_CPU("msm-dai-q6-mi2s.0")),
+	/* violet: each MI2S DT node registers one DAI, indexed by dev-id; dev-id 1 is "Primary MI2S_TX" */
+	DAILINK_COMP_ARRAY(COMP_CPU("msm-dai-q6-mi2s.1")),
 	DAILINK_COMP_ARRAY(COMP_CODEC("msm-stub-codec.1", "msm-stub-tx")),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("msm-pcm-routing")));
 
