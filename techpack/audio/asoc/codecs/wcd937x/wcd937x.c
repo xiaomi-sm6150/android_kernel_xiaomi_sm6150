@@ -3054,6 +3054,7 @@ static int wcd937x_reset(struct device *dev)
 	struct wcd937x_priv *wcd937x = NULL;
 	int rc = 0;
 	int value = 0;
+	bool force;
 
 	if (!dev)
 		return -ENODEV;
@@ -3068,8 +3069,14 @@ static int wcd937x_reset(struct device *dev)
 		return -EINVAL;
 	}
 
+	/*
+	 * After a kexec the previous kernel left the reset line high and the
+	 * chip enumerated on the old soundwire bus: pulse it regardless
+	 * ("k61,force-reset").
+	 */
+	force = of_property_read_bool(dev->of_node, "k61,force-reset");
 	value = msm_cdc_pinctrl_get_state(wcd937x->rst_np);
-	if (value > 0)
+	if (value > 0 && !force)
 		return 0;
 
 	rc = msm_cdc_pinctrl_select_sleep_state(wcd937x->rst_np);
@@ -3079,7 +3086,10 @@ static int wcd937x_reset(struct device *dev)
 		return rc;
 	}
 	/* 20ms sleep required after pulling the reset gpio to LOW */
-	usleep_range(20, 30);
+	if (force)
+		msleep(20);
+	else
+		usleep_range(20, 30);
 
 	rc = msm_cdc_pinctrl_select_active_state(wcd937x->rst_np);
 	if (rc) {
@@ -3088,7 +3098,10 @@ static int wcd937x_reset(struct device *dev)
 		return rc;
 	}
 	/* 20ms sleep required after pulling the reset gpio to HIGH */
-	usleep_range(20, 30);
+	if (force)
+		msleep(20);
+	else
+		usleep_range(20, 30);
 
 	return rc;
 }
