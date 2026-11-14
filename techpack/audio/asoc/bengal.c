@@ -5633,6 +5633,24 @@ static int msm_populate_dai_link_component_of_node(
 				}
 				dai_link[i].cpus->of_node = np;
 				dai_link[i].cpus->dai_name = NULL;
+				/*
+				 * violet: one MI2S component exports both the RX and
+				 * TX DAI; with no dai_name 6.1 binds the first (RX).
+				 */
+				switch (dai_link[i].id) {
+				case MSM_BACKEND_DAI_PRI_MI2S_TX:
+					dai_link[i].cpus->dai_name = "Primary MI2S_TX";
+					break;
+				case MSM_BACKEND_DAI_SECONDARY_MI2S_TX:
+					dai_link[i].cpus->dai_name = "Secondary MI2S_TX";
+					break;
+				case MSM_BACKEND_DAI_TERTIARY_MI2S_TX:
+					dai_link[i].cpus->dai_name = "Tertiary MI2S_TX";
+					break;
+				case MSM_BACKEND_DAI_QUATERNARY_MI2S_TX:
+					dai_link[i].cpus->dai_name = "Quaternary MI2S_TX";
+					break;
+				}
 			}
 		}
 
