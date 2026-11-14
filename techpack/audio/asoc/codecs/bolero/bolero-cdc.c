@@ -287,6 +287,28 @@ static void bolero_cdc_notifier_call(struct bolero_priv *priv,
 				     u32 data)
 {
 	dev_dbg(priv->dev, "%s: notifier call, data:%d\n", __func__, data);
+	/*
+	 * violet: the WCD937x is not a child of the bolero node (no
+	 * qcom,split-codec there), so wcd_dev was never set and the codec's
+	 * notifier dereferenced a NULL device. Find its platform device.
+	 */
+	if (!priv->wcd_dev) {
+		struct device_node *np = of_find_compatible_node(NULL, NULL,
+						"qcom,wcd937x-codec");
+		struct platform_device *wcd_pdev = NULL;
+
+		if (np) {
+			wcd_pdev = of_find_device_by_node(np);
+			of_node_put(np);
+		}
+		if (wcd_pdev)
+			priv->wcd_dev = &wcd_pdev->dev;
+	}
+	if (!priv->wcd_dev) {
+		dev_dbg(priv->dev, "%s: no codec device, dropping event\n",
+			__func__);
+		return;
+	}
 	blocking_notifier_call_chain(&priv->notifier,
 				     data, (void *)priv->wcd_dev);
 }
