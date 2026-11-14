@@ -47,11 +47,7 @@
         "RX_TX DEC0_INP", "TX DEC0 MUX",
         "RX_TX DEC1_INP", "TX DEC1 MUX",
         "RX_TX DEC2_INP", "TX DEC2 MUX",
-        "RX_TX DEC3_INP", "TX DEC3 MUX",
-        "SpkrLeft IN", "WSA_SPK1 OUT",
-        "SpkrRight IN", "WSA_SPK2 OUT",
-        "WSA_SPK1 OUT", "VA_MCLK",
-        "WSA_SPK2 OUT", "VA_MCLK";
+        "RX_TX DEC3_INP", "TX DEC3 MUX";
     qcom,pri-mi2s-gpios = <&cdc_pri_mi2s_gpios>;
     qcom,wsa-max-devs = <0>;
     /delete-property/ qcom,wsa-devs;
