@@ -308,7 +308,8 @@ SND_SOC_DAILINK_DEFS(slimbus_8_tx,
 
 SND_SOC_DAILINK_DEFS(pri_mi2s_rx,
 	DAILINK_COMP_ARRAY(COMP_CPU("msm-dai-q6-mi2s.0")),
-	DAILINK_COMP_ARRAY(COMP_CODEC("msm-stub-codec.1", "msm-stub-rx")),
+	/* violet: the speaker amp (TAS2563) sits on the primary MI2S; "tas2563" is resolved through asoc-codec-names */
+	DAILINK_COMP_ARRAY(COMP_CODEC("tas2563", "tas2562-amplifier")),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("msm-pcm-routing")));
 
 SND_SOC_DAILINK_DEFS(pri_mi2s_tx,
