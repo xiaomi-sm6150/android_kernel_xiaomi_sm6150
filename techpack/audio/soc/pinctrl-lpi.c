@@ -641,6 +641,22 @@ static int lpi_pinctrl_probe(struct platform_device *pdev)
 	struct clk *lpass_core_hw_vote = NULL;
 	struct clk *lpass_audio_hw_vote = NULL;
 
+	/*
+	 * Every pin access votes the LPASS core hw clock; the code below turns a
+	 * missing clock into "no vote" for good, which silently drops all pin
+	 * writes (codec reset, soundwire pin mux). Wait for the clock provider.
+	 */
+	{
+		struct clk *probe_clk = devm_clk_get(dev, "lpass_core_hw_vote");
+
+		if (IS_ERR(probe_clk) && PTR_ERR(probe_clk) == -EPROBE_DEFER) {
+			dev_info(dev, "k61: lpass_core_hw_vote not ready, deferring\n");
+			return -EPROBE_DEFER;
+		}
+		dev_info(dev, "k61: lpass_core_hw_vote clk: %ld\n",
+			 IS_ERR(probe_clk) ? PTR_ERR(probe_clk) : 0L);
+	}
+
 	ret = of_property_read_u32(dev->of_node, "reg", &reg);
 	if (ret < 0) {
 		dev_err(dev, "missing base address\n");
