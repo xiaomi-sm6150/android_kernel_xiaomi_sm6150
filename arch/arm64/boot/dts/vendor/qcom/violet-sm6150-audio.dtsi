@@ -215,3 +215,23 @@
 &audio_apr {
 	qcom,rproc-handle = <&adsp_pas>;
 };
+
+/*
+ * The 6.1 techpack reads one qcom,msm-mi2s-lines per MI2S interface (applied to
+ * the capture direction for these nodes) instead of the 4.14 rx/tx pair.
+ */
+&dai_mi2s0 { qcom,msm-mi2s-lines = <2>; };
+&dai_mi2s1 { qcom,msm-mi2s-lines = <2>; };
+&dai_mi2s2 { qcom,msm-mi2s-lines = <2>; };
+&dai_mi2s3 { qcom,msm-mi2s-lines = <2>; };
+&dai_mi2s4 { qcom,msm-mi2s-lines = <2>; };
+&dai_mi2s5 { qcom,msm-mi2s-lines = <3>; };
+
+/* the audio notifier takes the ADSP rproc from this node */
+&soc {
+	adsp_notify: qcom,msm-adsp-notify {
+		status = "ok";
+		compatible = "qcom,adsp-notify";
+		qcom,rproc-handle = <&adsp_pas>;
+	};
+};
