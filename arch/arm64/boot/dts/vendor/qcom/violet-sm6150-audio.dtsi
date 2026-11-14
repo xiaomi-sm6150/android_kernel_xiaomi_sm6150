@@ -55,15 +55,11 @@
 
 &qupv3_se4_i2c {
     status = "ok";
-    tas2563@4c {
-        #sound-dai-cells = <1>;
+    tas2563_amp: tas2563@4c {
+        #sound-dai-cells = <0>;
         compatible = "ti,tas2563";
         reg = <0x4c>;
-        ti,reset-gpio = <&tlmm 22 0>;
-        ti,irq-gpio = <&tlmm 117 0>;
-        ti,asi-format = <0>;
-        ti,left-slot = <0>;
-        ti,right-slot = <1>;
+        shutdown-gpios = <&tlmm 22 0>;
         ti,imon-slot-no = <0>;
         ti,vmon-slot-no = <2>;
         status = "ok";
@@ -336,6 +332,7 @@
 	/* no BT/voice PCM on violet; the 6.1 auxpcm DAI driver does not bind our DT nodes */
 	qcom,auxpcm-audio-intf = <0>;
 	/* 6.1 matches link component names by device name: map them to the nodes */
-	asoc-codec = <&stub_codec>, <&bolero>, <&wcd937x_codec>;
-	asoc-codec-names = "msm-stub-codec.1", "bolero_codec", "wcd937x_codec";
+	asoc-codec = <&stub_codec>, <&bolero>, <&wcd937x_codec>, <&tas2563_amp>;
+	asoc-codec-names = "msm-stub-codec.1", "bolero_codec", "wcd937x_codec",
+			   "tas2563";
 };
