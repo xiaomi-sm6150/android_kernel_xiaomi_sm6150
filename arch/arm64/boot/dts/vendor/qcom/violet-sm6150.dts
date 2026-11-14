@@ -120,6 +120,8 @@
 	k61,late-boot;
 	k61,no-panic;
 	k61,solo-cpu;
+	/* stop the 4.14-started CDSP the way 4.14 does before the TZ shutdown */
+	k61,graceful-stop;
 	/* tell the AOP the CDSP is loading (qcom,signal-aop -> qmp_get(qcom,qmp)) */
 	qcom,signal-aop;
 };
