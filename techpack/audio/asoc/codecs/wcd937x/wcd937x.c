@@ -333,6 +333,18 @@ static int wcd937x_parse_port_mapping(struct device *dev,
 		(*map)[port_num][ch_iter].num_ch = __sw_hweight8(ch_mask);
 		(*map)[port_num][ch_iter++].ch_rate = ch_rate;
 		old_port_num = port_num;
+
+		/*
+		 * Seed the TX master channel per slave channel from the DT
+		 * mapping; without a userspace ChMap write it stayed 0 and the
+		 * port connect found no master port.
+		 */
+		if (path == CODEC_TX) {
+			int idx = wcd937x_slave_get_slave_ch_val(slave_port_type);
+
+			if (idx != -EINVAL && idx < WCD937X_MAX_SLAVE_CH_TYPES)
+				wcd937x->tx_master_ch_map[idx] = master_port_type;
+		}
 	}
 	*num_ports = port_num;
 	kfree(dt_array);
