@@ -2580,6 +2580,7 @@ static const struct snd_soc_dapm_route wcd937x_audio_map[] = {
 	{"ADC1_MIXER", "Switch", "ADC1 REQ"},
 	{"ADC1 REQ", NULL, "ADC1"},
 	{"ADC1", NULL, "AMIC1"},
+	{"ADC1_OUTPUT", NULL, "ADC1_MIXER"},
 
 	{"WCD_TX_OUTPUT", NULL, "ADC2_MIXER"},
 	{"ADC2_MIXER", "Switch", "ADC2 REQ"},
@@ -2587,6 +2588,7 @@ static const struct snd_soc_dapm_route wcd937x_audio_map[] = {
 	{"ADC2", NULL, "ADC2 MUX"},
 	{"ADC2 MUX", "INP3", "AMIC3"},
 	{"ADC2 MUX", "INP2", "AMIC2"},
+	{"ADC2_OUTPUT", NULL, "ADC2_MIXER"},
 
 	{"IN1_HPHL", NULL, "WCD_RX_DUMMY"},
 	{"IN1_HPHL", NULL, "VDD_BUCK"},
