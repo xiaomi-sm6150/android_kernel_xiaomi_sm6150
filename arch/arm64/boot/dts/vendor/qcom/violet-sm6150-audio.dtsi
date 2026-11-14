@@ -210,3 +210,8 @@
         };
     };
 };
+
+/* the APR driver takes the ADSP remoteproc from here (the 5.4 PIL lookup is gone) */
+&audio_apr {
+	qcom,rproc-handle = <&adsp_pas>;
+};
