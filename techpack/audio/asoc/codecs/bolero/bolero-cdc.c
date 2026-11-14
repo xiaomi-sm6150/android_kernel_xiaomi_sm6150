@@ -16,6 +16,7 @@
 #include <linux/pm_runtime.h>
 #include <soc/swr-common.h>
 #include <dsp/digital-cdc-rsc-mgr.h>
+#include <ipc/apr.h>
 #include <linux/ratelimit.h>
 #include "bolero-cdc.h"
 #include "internal.h"
@@ -1338,6 +1339,14 @@ static int bolero_probe(struct platform_device *pdev)
 	int ret;
 	struct clk *lpass_core_hw_vote = NULL;
 	struct clk *lpass_audio_hw_vote = NULL;
+
+	/*
+	 * The macros and soundwire masters below vote the LPASS audio hw
+	 * through the ADSP's AFE; where the ADSP is booted late (k61 kexec,
+	 * firmware on a late-mounted partition) wait until it is up.
+	 */
+	if (apr_get_q6_state() != APR_SUBSYS_LOADED)
+		return -EPROBE_DEFER;
 
 	priv = devm_kzalloc(&pdev->dev, sizeof(struct bolero_priv),
 			    GFP_KERNEL);
