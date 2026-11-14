@@ -581,6 +581,8 @@ static const struct snd_soc_dapm_route tas2562_audio_map[] = {
 	{ "OUT", NULL, "DAC" },
 	{"ISENSE", "Switch", "IMON"},
 	{"VSENSE", "Switch", "VMON"},
+	{"ASI1 Capture", NULL, "ISENSE"},
+	{"ASI1 Capture", NULL, "VSENSE"},
 };
 
 static const struct snd_soc_component_driver soc_component_dev_tas2562 = {
