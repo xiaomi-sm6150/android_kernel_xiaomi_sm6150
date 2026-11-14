@@ -235,3 +235,17 @@
 		qcom,rproc-handle = <&adsp_pas>;
 	};
 };
+
+/* the 6.1 bolero driver also wants the LPASS audio hw vote clock */
+&soc {
+	lpass_audio_hw_vote: lpass_audio_hw_vote {
+		compatible = "qcom,audio-ref-clk";
+		qcom,codec-ext-clk-src = <AUDIO_LPASS_AUDIO_HW_VOTE>;
+		#clock-cells = <1>;
+	};
+};
+
+&bolero {
+	clock-names = "lpass_core_hw_vote", "lpass_audio_hw_vote";
+	clocks = <&lpass_core_hw_vote 0>, <&lpass_audio_hw_vote 0>;
+};
