@@ -335,4 +335,7 @@
 	qcom,rxtx-bolero-codec = <1>;
 	qcom,va-bolero-codec = <1>;
 	qcom,wcn-btfm = <0>;
+	/* 6.1 matches link component names by device name: map them to the nodes */
+	asoc-codec = <&stub_codec>, <&bolero>, <&wcd937x_codec>;
+	asoc-codec-names = "msm-stub-codec.1", "bolero_codec", "wcd937x_codec";
 };
