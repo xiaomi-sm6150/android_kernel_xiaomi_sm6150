@@ -7,6 +7,8 @@
 
 &bolero {
     qcom,num-macros = <3>;
+    /* the VA link uses va_macro_tx1: the VA macro must export its DAIs */
+    /delete-property/ qcom,va-without-decimation;
 };
 
 &wsa_macro {
