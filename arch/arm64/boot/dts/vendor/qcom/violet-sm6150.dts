@@ -567,11 +567,6 @@
 		qcom,smem-state-names = "ipa-clock-enabled-valid",
 					"ipa-clock-enabled";
 
-		/*
-		 * Off for now: after a kexec the GSI still holds the 4.14
-		 * kernel's ring state and its DMA faults the SMMU (SID 0x1520).
-		 */
-		status = "disabled";
 	};
 };
 
