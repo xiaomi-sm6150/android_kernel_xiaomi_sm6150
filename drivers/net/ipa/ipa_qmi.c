@@ -490,6 +490,13 @@ int ipa_qmi_setup(struct ipa *ipa)
 
 	ipa_qmi->initial_boot = true;
 
+	/* A microcontroller left running by a previous kernel (kexec) was
+	 * not loaded by this modem boot, so the modem will not send the
+	 * DRIVER_INIT_COMPLETE request that normally marks it ready.  Treat
+	 * it as ready, as after a modem restart.
+	 */
+	ipa_qmi->uc_ready = ipa->uc_loaded;
+
 	/* The server handle is used to handle the DRIVER_INIT_COMPLETE
 	 * request on the first modem boot.  It also receives the
 	 * INDICATION_REGISTER request on the first boot and (optionally)
