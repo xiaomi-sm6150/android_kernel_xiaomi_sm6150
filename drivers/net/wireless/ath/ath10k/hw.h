@@ -645,6 +645,11 @@ struct ath10k_hw_params {
 	 * advertise WMI_SERVICE_SPOOF_MAC_SUPPORT.
 	 */
 	bool spoof_mac_without_service;
+
+	/* Firmware advertises thermal throttling but never returns the WMI
+	 * credit for PDEV_SET_QUIET_MODE and then excepts. Do not send it.
+	 */
+	bool no_quiet_mode;
 };
 
 struct htt_resp;
