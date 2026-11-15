@@ -1303,7 +1303,7 @@ static int msm_pcm_playback_close(struct snd_pcm_substream *substream)
 	return ret;
 }
 
-static int msm_pcm_capture_copy(struct snd_pcm_substream *substream,
+static int msm_pcm_capture_copy_one(struct snd_pcm_substream *substream,
 		 int channel, unsigned long hwoff, void __user *buf,
 						 unsigned long fbytes)
 {
@@ -1400,6 +1400,38 @@ static int msm_pcm_capture_copy(struct snd_pcm_substream *substream,
 	pr_debug("Returning from capture_copy... %d\n", ret);
 fail:
 	return ret;
+}
+
+/*
+ * The ALSA core hands the copy callback as many bytes as are available. When
+ * the reader falls behind the DSP, several DSP buffers are queued and the
+ * request spans more than one of them. msm_pcm_capture_copy_one() only
+ * consumes a single DSP buffer, yet reports success, so the core moved its
+ * pointers over data that was never copied and the other buffers were never
+ * handed back to the DSP: the capture stream stalled in one-second waits.
+ * Copy one period at a time, like the playback path does.
+ */
+static int msm_pcm_capture_copy(struct snd_pcm_substream *substream,
+		 int channel, unsigned long hwoff, void __user *buf,
+						 unsigned long fbytes)
+{
+	struct msm_audio *prtd = substream->runtime->private_data;
+	unsigned long done = 0;
+	int ret = 0;
+
+	while (done < fbytes) {
+		unsigned long chunk = fbytes - done;
+
+		if (prtd->pcm_count && chunk > prtd->pcm_count)
+			chunk = prtd->pcm_count;
+		ret = msm_pcm_capture_copy_one(substream, channel, hwoff + done,
+					       buf + done, chunk);
+		if (ret)
+			return ret;
+		done += chunk;
+	}
+
+	return 0;
 }
 
 static int msm_pcm_capture_close(struct snd_pcm_substream *substream)
