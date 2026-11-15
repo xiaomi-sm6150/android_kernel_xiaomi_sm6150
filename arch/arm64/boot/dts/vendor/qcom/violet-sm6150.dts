@@ -662,4 +662,18 @@
 &pm6150_l9 {
 	regulator-min-microvolt = <640000>;
 	regulator-max-microvolt = <728000>;
+	/* icnss powers the WCN3990 rails when the WLAN FW service appears, before ath10k opens the interface */
+	regulator-always-on;
+};
+
+&pm6150l_l1 {
+	regulator-always-on;
+};
+
+&pm6150l_l2 {
+	regulator-always-on;
+};
+
+&pm6150l_l10 {
+	regulator-always-on;
 };
