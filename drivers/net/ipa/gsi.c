@@ -1206,6 +1206,13 @@ static void gsi_isr_gp_int1(struct gsi *gsi)
 		gsi->result = -EAGAIN;
 		break;
 
+	case GENERIC_EE_NO_RESOURCES:
+		/* Reported when the channel is already allocated for the
+		 * modem, e.g. left over by a previous kernel (kexec)
+		 */
+		gsi->result = -ENOSPC;
+		break;
+
 	default:
 		dev_err(gsi->dev, "global INT1 generic result %u\n", result);
 		gsi->result = -EIO;
@@ -1712,8 +1719,17 @@ static int gsi_generic_command(struct gsi *gsi, u32 channel_id,
 
 static int gsi_modem_channel_alloc(struct gsi *gsi, u32 channel_id)
 {
-	return gsi_generic_command(gsi, channel_id,
-				   GSI_GENERIC_ALLOCATE_CHANNEL, 0);
+	int ret;
+
+	ret = gsi_generic_command(gsi, channel_id,
+				  GSI_GENERIC_ALLOCATE_CHANNEL, 0);
+	if (ret == -ENOSPC) {
+		dev_info(gsi->dev, "modem channel %u already allocated\n",
+			 channel_id);
+		ret = 0;
+	}
+
+	return ret;
 }
 
 static void gsi_modem_channel_halt(struct gsi *gsi, u32 channel_id)
