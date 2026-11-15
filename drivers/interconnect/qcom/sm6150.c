@@ -176,7 +176,7 @@ static struct qcom_icc_node qxm_ipa = {
 	.noc_ops = &qcom_qnoc4_ops,
 	.qosbox = &qxm_ipa_qos,
 	.num_links = 1,
-	.links = { SLAVE_LPASS_SNOC },
+	.links = { SLAVE_A1NOC_SNOC },
 };
 
 static struct qcom_icc_qosbox xm_emac_avb_qos = {
