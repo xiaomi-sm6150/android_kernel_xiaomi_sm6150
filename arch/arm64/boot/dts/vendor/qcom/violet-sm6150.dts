@@ -657,3 +657,9 @@
 		};
 	};
 };
+
+/* WCN3990 core rail: the 4.14 icnss node pins vdd-cx-mx to 640 mV (qcom,vdd-cx-mx-config); ath10k never sets it and the rail otherwise stays at its 400 mV init. */
+&pm6150_l9 {
+	regulator-min-microvolt = <640000>;
+	regulator-max-microvolt = <728000>;
+};
