@@ -5548,6 +5548,9 @@ static void ath10k_wmi_event_service_ready_work(struct work_struct *work)
 	ath10k_wmi_map_svc(ar, arg.service_map, ar->wmi.svc_map,
 			   arg.service_map_len);
 
+	if (ar->hw_params.spoof_mac_without_service)
+		set_bit(WMI_SERVICE_SPOOF_MAC_SUPPORT, ar->wmi.svc_map);
+
 	ar->hw_min_tx_power = __le32_to_cpu(arg.min_tx_power);
 	ar->hw_max_tx_power = __le32_to_cpu(arg.max_tx_power);
 	ar->ht_cap_info = __le32_to_cpu(arg.ht_cap);
