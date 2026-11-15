@@ -747,6 +747,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.delay_unmap_buffer = true,
 		.mcast_frame_registration = false,
 		.spoof_mac_without_service = true,
+		.no_quiet_mode = true,
 	},
 };
 
