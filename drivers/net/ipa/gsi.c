@@ -393,8 +393,20 @@ static int gsi_evt_ring_alloc_command(struct gsi *gsi, u32 evt_ring_id)
 {
 	enum gsi_evt_ring_state state;
 
-	/* Get initial event ring state */
+	/* Get initial event ring state.  A previous kernel (kexec) may have
+	 * left the ring allocated: release it first.
+	 */
 	state = gsi_evt_ring_state(gsi, evt_ring_id);
+	if (state == GSI_EVT_RING_STATE_ERROR) {
+		gsi_evt_ring_command(gsi, evt_ring_id, GSI_EVT_RESET);
+		state = gsi_evt_ring_state(gsi, evt_ring_id);
+	}
+	if (state == GSI_EVT_RING_STATE_ALLOCATED) {
+		dev_info(gsi->dev, "event ring %u left allocated, releasing\n",
+			 evt_ring_id);
+		gsi_evt_ring_command(gsi, evt_ring_id, GSI_EVT_DE_ALLOC);
+		state = gsi_evt_ring_state(gsi, evt_ring_id);
+	}
 	if (state != GSI_EVT_RING_STATE_NOT_ALLOCATED) {
 		dev_err(gsi->dev, "event ring %u bad state %u before alloc\n",
 			evt_ring_id, state);
@@ -505,9 +517,24 @@ static int gsi_channel_alloc_command(struct gsi *gsi, u32 channel_id)
 	struct gsi_channel *channel = &gsi->channel[channel_id];
 	struct device *dev = gsi->dev;
 	enum gsi_channel_state state;
+	int i;
 
-	/* Get initial channel state */
+	/* Get initial channel state.  A previous kernel (kexec) may have
+	 * left the channel running: walk it back to NOT_ALLOCATED.
+	 */
 	state = gsi_channel_state(channel);
+	for (i = 0; i < 4 && state != GSI_CHANNEL_STATE_NOT_ALLOCATED; i++) {
+		if (state == GSI_CHANNEL_STATE_STARTED)
+			gsi_channel_command(channel, GSI_CH_STOP);
+		else if (state == GSI_CHANNEL_STATE_STOPPED ||
+			 state == GSI_CHANNEL_STATE_ERROR)
+			gsi_channel_command(channel, GSI_CH_RESET);
+		else if (state == GSI_CHANNEL_STATE_ALLOCATED)
+			gsi_channel_command(channel, GSI_CH_DE_ALLOC);
+		else
+			break;
+		state = gsi_channel_state(channel);
+	}
 	if (state != GSI_CHANNEL_STATE_NOT_ALLOCATED) {
 		dev_err(dev, "channel %u bad state %u before alloc\n",
 			channel_id, state);
