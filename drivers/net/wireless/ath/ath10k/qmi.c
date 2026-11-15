@@ -769,6 +769,43 @@ out:
 	return ret;
 }
 
+static int ath10k_qmi_dynamic_feature_mask_send_sync_msg(struct ath10k_qmi *qmi,
+							 u64 mask)
+{
+	struct wlfw_dynamic_feature_mask_resp_msg_v01 resp = {};
+	struct wlfw_dynamic_feature_mask_req_msg_v01 req = {};
+	struct ath10k *ar = qmi->ar;
+	struct qmi_txn txn;
+	int ret;
+
+	req.mask_valid = 1;
+	req.mask = mask;
+
+	ret = qmi_txn_init(&qmi->qmi_hdl, &txn,
+			   wlfw_dynamic_feature_mask_resp_msg_v01_ei, &resp);
+	if (ret < 0)
+		return ret;
+
+	ret = qmi_send_request(&qmi->qmi_hdl, NULL, &txn,
+			       QMI_WLFW_DYNAMIC_FEATURE_MASK_REQ_V01,
+			       WLFW_DYNAMIC_FEATURE_MASK_REQ_MSG_V01_MAX_MSG_LEN,
+			       wlfw_dynamic_feature_mask_req_msg_v01_ei, &req);
+	if (ret < 0) {
+		qmi_txn_cancel(&txn);
+		ath10k_err(ar, "failed to send dynamic feature mask request: %d\n", ret);
+		return ret;
+	}
+
+	ret = qmi_txn_wait(&txn, ATH10K_QMI_TIMEOUT * HZ);
+	if (ret < 0)
+		return ret;
+
+	/* the downstream icnss driver ignores the result as well */
+	ath10k_info(ar, "qmi dynamic feature mask 0x%llx: result %d error %d\n",
+		    mask, resp.resp.result, resp.resp.error);
+	return 0;
+}
+
 static void ath10k_qmi_event_server_arrive(struct ath10k_qmi *qmi)
 {
 	struct ath10k *ar = qmi->ar;
@@ -809,6 +846,9 @@ static void ath10k_qmi_event_server_arrive(struct ath10k_qmi *qmi)
 	ret = ath10k_qmi_cap_send_sync_msg(qmi);
 	if (ret)
 		goto err_setup_msa;
+
+	/* as the downstream icnss driver does right after the capabilities */
+	ath10k_qmi_dynamic_feature_mask_send_sync_msg(qmi, 0x01);
 
 	return;
 
