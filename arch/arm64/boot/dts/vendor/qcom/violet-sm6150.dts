@@ -520,9 +520,9 @@
 		clocks = <&rpmhcc RPMH_IPA_CLK>;
 		clock-names = "core";
 
-		interconnects = <&aggre1_noc MASTER_IPA 0 &mc_virt SLAVE_EBI1 0>,
-				<&aggre1_noc MASTER_IPA 0 &system_noc SLAVE_IMEM 0>,
-				<&gem_noc MASTER_APPSS_PROC 0 &config_noc SLAVE_IPA_CFG 0>;
+		interconnects = <&aggre1_noc MASTER_IPA &mc_virt SLAVE_EBI1>,
+				<&aggre1_noc MASTER_IPA &system_noc SLAVE_IMEM>,
+				<&gem_noc MASTER_APPSS_PROC &config_noc SLAVE_IPA_CFG>;
 		interconnect-names = "memory", "imem", "config";
 
 		memory-region = <&pil_ipa_fw_mem>;
