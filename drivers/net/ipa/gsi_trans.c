@@ -460,8 +460,6 @@ int gsi_trans_skb_add(struct gsi_trans *trans, struct sk_buff *skb)
 	u32 used_count;
 	int ret;
 
-	if (WARN_ON(trans->rsvd_count != 1))
-		return -EINVAL;
 	if (WARN_ON(trans->used_count))
 		return -EINVAL;
 
@@ -470,6 +468,12 @@ int gsi_trans_skb_add(struct gsi_trans *trans, struct sk_buff *skb)
 	if (ret < 0)
 		return ret;
 	used_count = ret;
+
+	/* The caller reserved one TRE for the linear part and one for each
+	 * fragment (ipa_endpoint_skb_tx()); make sure the mapping fits.
+	 */
+	if (WARN_ON_ONCE(used_count > trans->rsvd_count))
+		return -EINVAL;
 
 	ret = dma_map_sg(trans->gsi->dev, sg, used_count, trans->direction);
 	if (!ret)
