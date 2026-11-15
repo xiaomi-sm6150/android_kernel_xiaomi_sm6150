@@ -2121,6 +2121,25 @@ static int ath10k_wmi_tlv_op_get_vdev_subtype(struct ath10k *ar,
 	return -ENOTSUPP;
 }
 
+/* Layout the WCN3990 HL.3.0.x firmware expects (as sent by qcacld): the fixed
+ * struct is followed by pdev id and stream-count fields and by an array of
+ * per-band txrx stream structs.
+ */
+struct ath10k_wmi_tlv_vdev_create_ext {
+	__le32 num_cfg_txrx_streams;
+	__le32 pdev_id;
+	__le32 flags;
+	__le32 vdevid_trans;
+	__le32 vdev_stats_id_valid;
+	__le32 vdev_stats_id;
+} __packed;
+
+struct ath10k_wmi_tlv_txrx_streams {
+	__le32 band;
+	__le32 supported_tx_streams;
+	__le32 supported_rx_streams;
+} __packed;
+
 static struct sk_buff *
 ath10k_wmi_tlv_op_gen_vdev_create(struct ath10k *ar,
 				  u32 vdev_id,
@@ -2128,22 +2147,49 @@ ath10k_wmi_tlv_op_gen_vdev_create(struct ath10k *ar,
 				  enum wmi_vdev_subtype vdev_subtype,
 				  const u8 mac_addr[ETH_ALEN])
 {
+	struct ath10k_wmi_tlv_vdev_create_ext *ext;
+	struct ath10k_wmi_tlv_txrx_streams *st;
 	struct wmi_vdev_create_cmd *cmd;
 	struct wmi_tlv *tlv;
 	struct sk_buff *skb;
+	size_t fixed = sizeof(*cmd) + sizeof(*ext);
+	size_t elem = sizeof(*tlv) + sizeof(*st);
+	void *ptr;
+	int i;
 
-	skb = ath10k_wmi_alloc_skb(ar, sizeof(*tlv) + sizeof(*cmd));
+	skb = ath10k_wmi_alloc_skb(ar, sizeof(*tlv) + fixed +
+				   sizeof(*tlv) + 2 * elem);
 	if (!skb)
 		return ERR_PTR(-ENOMEM);
 
-	tlv = (void *)skb->data;
+	ptr = (void *)skb->data;
+	tlv = ptr;
 	tlv->tag = __cpu_to_le16(WMI_TLV_TAG_STRUCT_VDEV_CREATE_CMD);
-	tlv->len = __cpu_to_le16(sizeof(*cmd));
+	tlv->len = __cpu_to_le16(fixed);
 	cmd = (void *)tlv->value;
 	cmd->vdev_id = __cpu_to_le32(vdev_id);
 	cmd->vdev_type = __cpu_to_le32(vdev_type);
 	cmd->vdev_subtype = __cpu_to_le32(vdev_subtype);
 	ether_addr_copy(cmd->vdev_macaddr.addr, mac_addr);
+	ext = (void *)(cmd + 1);
+	ext->num_cfg_txrx_streams = __cpu_to_le32(2);
+	ptr += sizeof(*tlv) + fixed;
+
+	tlv = ptr;
+	tlv->tag = __cpu_to_le16(WMI_TLV_TAG_ARRAY_STRUCT);
+	tlv->len = __cpu_to_le16(2 * elem);
+	ptr += sizeof(*tlv);
+
+	for (i = 0; i < 2; i++) {
+		tlv = ptr;
+		tlv->tag = __cpu_to_le16(WMI_TLV_TAG_STRUCT_VDEV_TXRX_STREAMS);
+		tlv->len = __cpu_to_le16(sizeof(*st));
+		st = (void *)tlv->value;
+		st->band = __cpu_to_le32(i);	/* 0: 2 GHz, 1: 5 GHz */
+		st->supported_tx_streams = __cpu_to_le32(1);
+		st->supported_rx_streams = __cpu_to_le32(1);
+		ptr += elem;
+	}
 
 	ath10k_dbg(ar, ATH10K_DBG_WMI, "wmi tlv vdev create\n");
 	return skb;
