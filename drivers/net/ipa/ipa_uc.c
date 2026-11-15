@@ -8,6 +8,7 @@
 #include <linux/io.h>
 #include <linux/delay.h>
 #include <linux/pm_runtime.h>
+#include <linux/moduleparam.h>
 
 #include "ipa.h"
 #include "ipa_uc.h"
@@ -129,6 +130,7 @@ static void ipa_uc_event_handler(struct ipa *ipa, enum ipa_irq_id irq_id)
 	struct ipa_uc_mem_area *shared = ipa_uc_shared(ipa);
 	struct device *dev = &ipa->pdev->dev;
 
+	ipa_uc_k61_dump(ipa, "event");
 	if (shared->event == IPA_UC_EVENT_ERROR)
 		dev_err(dev, "microcontroller error event\n");
 	else if (shared->event != IPA_UC_EVENT_LOG_INFO)
@@ -151,6 +153,7 @@ static void ipa_uc_response_hdlr(struct ipa *ipa, enum ipa_irq_id irq_id)
 	 * We can drop the power reference taken in ipa_uc_power() once we
 	 * know the microcontroller has finished its initialization.
 	 */
+	ipa_uc_k61_dump(ipa, "response");
 	switch (shared->response) {
 	case IPA_UC_RESPONSE_INIT_COMPLETED:
 		if (ipa->uc_powered) {
@@ -170,11 +173,31 @@ static void ipa_uc_response_hdlr(struct ipa *ipa, enum ipa_irq_id irq_id)
 	}
 }
 
+/* DEBUG (k61): tell the modem the microcontroller is already loaded */
+static bool k61_uc_loaded;
+module_param(k61_uc_loaded, bool, 0444);
+
+/* DEBUG (k61): show the microcontroller shared area (kexec leftovers) */
+void ipa_uc_k61_dump(struct ipa *ipa, const char *tag)
+{
+	struct ipa_uc_mem_area *shared = ipa_uc_shared(ipa);
+
+	dev_info(&ipa->pdev->dev,
+		 "k61uc[%s]: cmd %u resp %u resp_param %08x event %u event_param %08x first_err %08x hw_state %u warn %u if_ver %04x uc_loaded %d uc_powered %d\n",
+		 tag, shared->command, shared->response,
+		 le32_to_cpu(shared->response_param), shared->event,
+		 le32_to_cpu(shared->event_param),
+		 le32_to_cpu(shared->first_error_address), shared->hw_state,
+		 shared->warning_counter, le16_to_cpu(shared->interface_version),
+		 ipa->uc_loaded, ipa->uc_powered);
+}
+
 /* Configure the IPA microcontroller subsystem */
 void ipa_uc_config(struct ipa *ipa)
 {
 	ipa->uc_powered = false;
-	ipa->uc_loaded = false;
+	ipa->uc_loaded = k61_uc_loaded;
+	ipa_uc_k61_dump(ipa, "config");
 	ipa_interrupt_add(ipa->interrupt, IPA_IRQ_UC_0, ipa_uc_event_handler);
 	ipa_interrupt_add(ipa->interrupt, IPA_IRQ_UC_1, ipa_uc_response_hdlr);
 }

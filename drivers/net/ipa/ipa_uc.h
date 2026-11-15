@@ -34,6 +34,8 @@ void ipa_uc_deconfig(struct ipa *ipa);
  */
 void ipa_uc_power(struct ipa *ipa);
 
+void ipa_uc_k61_dump(struct ipa *ipa, const char *tag);
+
 /**
  * ipa_uc_panic_notifier()
  * @ipa:	IPA pointer
