@@ -100,6 +100,7 @@ static void ipa_server_init_complete(struct ipa_qmi *ipa_qmi)
 			"error %d sending init complete indication\n", ret);
 	else
 		ipa_qmi->indication_sent = true;
+	dev_info(&ipa->pdev->dev, "k61qmi: INIT_COMPLETE indication: %d\n", ret);
 }
 
 /* If requested (and not already sent) send the INIT_COMPLETE indication */
@@ -224,6 +225,7 @@ static void ipa_server_driver_init_complete(struct qmi_handle *qmi,
 	ret = qmi_send_response(qmi, sq, txn, IPA_QMI_DRIVER_INIT_COMPLETE,
 				IPA_QMI_DRIVER_INIT_COMPLETE_RSP_SZ,
 				ipa_driver_init_complete_rsp_ei, &rsp);
+	dev_info(&ipa->pdev->dev, "k61qmi: modem sent DRIVER_INIT_COMPLETE (resp %d)\n", ret);
 	if (!ret) {
 		ipa_qmi->uc_ready = true;
 		ipa_qmi_ready(ipa_qmi);		/* We might be ready now */
@@ -434,6 +436,8 @@ static void ipa_client_init_driver_work(struct work_struct *work)
 	else if ((ret = qmi_txn_wait(&txn, timeout)))
 		dev_err(dev, "error %d awaiting init driver response\n", ret);
 
+	dev_info(dev, "k61qmi: init driver request (skip_uc_load %u): %d\n",
+		 req->skip_uc_load, ret);
 	if (!ret) {
 		ipa_qmi->modem_ready = true;
 		ipa_qmi_ready(ipa_qmi);		/* We might be ready now */

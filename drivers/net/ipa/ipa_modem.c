@@ -419,20 +419,35 @@ static int ipa_modem_notify(struct notifier_block *nb, unsigned long action,
 	struct qcom_ssr_notify_data *notify_data = data;
 	struct device *dev = &ipa->pdev->dev;
 
+	/* DEBUG (k61): the modem left running by the previous kernel dies
+	 * without an SSR notification, so the crash cleanup never ran.
+	 */
+	static bool k61_seen_shutdown;
+
 	switch (action) {
 	case QCOM_SSR_BEFORE_POWERUP:
 		dev_info(dev, "received modem starting event\n");
+		if (ipa->setup_complete)
+			ipa_uc_k61_dump(ipa, "powerup");
+		if (ipa->setup_complete && !k61_seen_shutdown) {
+			dev_info(dev, "k61: no modem shutdown seen, running crash cleanup\n");
+			ipa_modem_crashed(ipa);
+		}
+		k61_seen_shutdown = false;
 		ipa_uc_power(ipa);
 		ipa_smp2p_notify_reset(ipa);
 		break;
 
 	case QCOM_SSR_AFTER_POWERUP:
 		dev_info(dev, "received modem running event\n");
+		if (ipa->setup_complete)
+			ipa_uc_k61_dump(ipa, "running");
 		break;
 
 	case QCOM_SSR_BEFORE_SHUTDOWN:
 		dev_info(dev, "received modem %s event\n",
 			 notify_data->crashed ? "crashed" : "stopping");
+		k61_seen_shutdown = true;
 		if (ipa->setup_complete)
 			ipa_modem_crashed(ipa);
 		break;
