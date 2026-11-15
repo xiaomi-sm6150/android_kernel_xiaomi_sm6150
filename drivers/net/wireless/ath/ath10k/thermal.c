@@ -138,6 +138,12 @@ void ath10k_thermal_set_throttling(struct ath10k *ar)
 	if (ar->state != ATH10K_STATE_ON)
 		return;
 
+	/* DEBUG: the WCN3990 HL.3 firmware in the modem never returns the
+	 * credit for PDEV_SET_QUIET_MODE and excepts; qcacld never sends it.
+	 */
+	if (ar->hif.bus == ATH10K_BUS_SNOC)
+		return;
+
 	period = ar->thermal.quiet_period;
 	duration = (period * ar->thermal.throttle_state) / 100;
 	enabled = duration ? 1 : 0;
