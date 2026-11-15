@@ -679,6 +679,15 @@ config PKVM_IOMMU_TEMPLATE
 
 		Say N here unless you know what you are doing.
 
+config WLAN_STATE_STUB
+	tristate "/dev/wlan driver-state stub for Android Wi-Fi HALs"
+	help
+	  Provide /dev/wlan, which accepts and ignores the "ON"/"OFF"
+	  driver-state writes of Android Wi-Fi HALs built for the downstream
+	  qcacld driver, so they can run on top of a mainline Wi-Fi driver.
+
+	  If unsure, say N.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
