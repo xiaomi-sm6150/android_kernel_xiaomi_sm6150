@@ -13,6 +13,8 @@
 #include <net/pkt_sched.h>
 #include <linux/pm_runtime.h>
 #include <linux/remoteproc/qcom_rproc.h>
+#include <linux/uaccess.h>
+#include <linux/capability.h>
 
 #include "ipa.h"
 #include "ipa_data.h"
@@ -195,10 +197,169 @@ void ipa_modem_skb_rx(struct net_device *netdev, struct sk_buff *skb)
 	}
 }
 
+/* Compatibility with Qualcomm's netmgrd, which drives the downstream
+ * rmnet_ipa driver through private ioctls on the modem netdev before it
+ * configures rmnet over netlink.  Answer them the way rmnet_ipa does;
+ * muxing, aggregation and checksum offload are already set up by this
+ * driver (and rmnet), so the configuration requests are accepted as is.
+ */
+#define IPA_RMNET_IOCTL_SET_LLP_ETHERNET	0x89f1
+#define IPA_RMNET_IOCTL_SET_LLP_IP		0x89f2
+#define IPA_RMNET_IOCTL_GET_LLP			0x89f3
+#define IPA_RMNET_IOCTL_SET_QOS_ENABLE		0x89f4
+#define IPA_RMNET_IOCTL_SET_QOS_DISABLE		0x89f5
+#define IPA_RMNET_IOCTL_GET_QOS			0x89f6
+#define IPA_RMNET_IOCTL_GET_OPMODE		0x89f7
+#define IPA_RMNET_IOCTL_OPEN			0x89f8
+#define IPA_RMNET_IOCTL_CLOSE			0x89f9
+#define IPA_RMNET_IOCTL_FLOW_ENABLE		0x89fa
+#define IPA_RMNET_IOCTL_FLOW_DISABLE		0x89fb
+#define IPA_RMNET_IOCTL_FLOW_SET_HNDL		0x89fc
+#define IPA_RMNET_IOCTL_EXTENDED		0x89fd
+
+enum ipa_rmnet_ext_ioctl {
+	IPA_RMNET_EXT_GET_SUPPORTED_FEATURES	= 0x00,
+	IPA_RMNET_EXT_SET_MRU			= 0x01,
+	IPA_RMNET_EXT_GET_MRU			= 0x02,
+	IPA_RMNET_EXT_GET_EPID			= 0x03,
+	IPA_RMNET_EXT_GET_DRIVER_NAME		= 0x04,
+	IPA_RMNET_EXT_ADD_MUX_CHANNEL		= 0x05,
+	IPA_RMNET_EXT_SET_EGRESS_DATA_FORMAT	= 0x06,
+	IPA_RMNET_EXT_SET_INGRESS_DATA_FORMAT	= 0x07,
+	IPA_RMNET_EXT_SET_AGGREGATION_COUNT	= 0x08,
+	IPA_RMNET_EXT_GET_AGGREGATION_COUNT	= 0x09,
+	IPA_RMNET_EXT_SET_AGGREGATION_SIZE	= 0x0a,
+	IPA_RMNET_EXT_GET_AGGREGATION_SIZE	= 0x0b,
+	IPA_RMNET_EXT_FLOW_CONTROL		= 0x0c,
+	IPA_RMNET_EXT_GET_DFLT_CONTROL_CHANNEL	= 0x0d,
+	IPA_RMNET_EXT_GET_HWSW_MAP		= 0x0e,
+	IPA_RMNET_EXT_SET_RX_HEADROOM		= 0x0f,
+	IPA_RMNET_EXT_GET_EP_PAIR		= 0x10,
+	IPA_RMNET_EXT_SET_XLAT_DEV_INFO		= 0x15,
+	IPA_RMNET_EXT_GET_SG_SUPPORT		= 0x17,
+	IPA_RMNET_EXT_SET_OFFLOAD		= 0x18,
+};
+
+#define IPA_RMNET_FEAT_NOTIFY_MUX_CHANNEL	BIT(0)
+#define IPA_RMNET_FEAT_SET_EGRESS_DATA_FORMAT	BIT(1)
+#define IPA_RMNET_FEAT_SET_INGRESS_DATA_FORMAT	BIT(2)
+#define IPA_RMNET_MODE_NONE			0x00
+#define IPA_RMNET_MODE_LLP_IP			0x02
+
+struct ipa_rmnet_ioctl_ext {
+	u32 extended_ioctl;
+	union {
+		u32 data;
+		char if_name[IFNAMSIZ];
+		struct {
+			u32 mux_id;
+			char vchannel_name[IFNAMSIZ];
+		} mux;
+		struct {
+			u32 consumer_pipe_num;
+			u32 producer_pipe_num;
+		} ep_pair;
+	} u;
+};
+
+static int ipa_siocdevprivate(struct net_device *netdev, struct ifreq *ifr,
+			      void __user *data, int cmd)
+{
+	struct ipa_priv *priv = netdev_priv(netdev);
+	struct ipa *ipa = priv->ipa;
+	struct ipa_rmnet_ioctl_ext ext;
+	u32 mode;
+
+	if (!ns_capable(dev_net(netdev)->user_ns, CAP_NET_ADMIN))
+		return -EPERM;
+
+	switch (cmd) {
+	case IPA_RMNET_IOCTL_SET_LLP_ETHERNET:
+	case IPA_RMNET_IOCTL_SET_LLP_IP:
+	case IPA_RMNET_IOCTL_SET_QOS_DISABLE:
+	case IPA_RMNET_IOCTL_OPEN:
+	case IPA_RMNET_IOCTL_CLOSE:
+	case IPA_RMNET_IOCTL_FLOW_SET_HNDL:
+		return 0;
+	case IPA_RMNET_IOCTL_SET_QOS_ENABLE:
+		return -EINVAL;
+	case IPA_RMNET_IOCTL_GET_LLP:
+	case IPA_RMNET_IOCTL_GET_OPMODE:
+		mode = IPA_RMNET_MODE_LLP_IP;
+		return copy_to_user(data, &mode, sizeof(mode)) ? -EFAULT : 0;
+	case IPA_RMNET_IOCTL_GET_QOS:
+		mode = IPA_RMNET_MODE_NONE;
+		return copy_to_user(data, &mode, sizeof(mode)) ? -EFAULT : 0;
+	case IPA_RMNET_IOCTL_FLOW_ENABLE:
+	case IPA_RMNET_IOCTL_FLOW_DISABLE:
+		return -EFAULT;
+	case IPA_RMNET_IOCTL_EXTENDED:
+		break;
+	default:
+		return -EOPNOTSUPP;
+	}
+
+	if (copy_from_user(&ext, data, sizeof(ext)))
+		return -EFAULT;
+
+	dev_dbg(&ipa->pdev->dev, "rmnet extended ioctl %u\n", ext.extended_ioctl);
+
+	switch (ext.extended_ioctl) {
+	case IPA_RMNET_EXT_GET_SUPPORTED_FEATURES:
+		ext.u.data = IPA_RMNET_FEAT_NOTIFY_MUX_CHANNEL |
+			     IPA_RMNET_FEAT_SET_EGRESS_DATA_FORMAT |
+			     IPA_RMNET_FEAT_SET_INGRESS_DATA_FORMAT;
+		break;
+	case IPA_RMNET_EXT_GET_MRU:
+		ext.u.data = 1000;
+		break;
+	case IPA_RMNET_EXT_GET_EPID:
+		ext.u.data = 1;
+		break;
+	case IPA_RMNET_EXT_GET_SG_SUPPORT:
+		ext.u.data = 0;
+		break;
+	case IPA_RMNET_EXT_GET_DRIVER_NAME:
+		strscpy(ext.u.if_name, netdev->name, IFNAMSIZ);
+		break;
+	case IPA_RMNET_EXT_GET_EP_PAIR:
+		/* Named from the modem's side, as rmnet_ipa does */
+		ext.u.ep_pair.producer_pipe_num =
+			ipa->name_map[IPA_ENDPOINT_AP_MODEM_RX]->endpoint_id;
+		ext.u.ep_pair.consumer_pipe_num =
+			ipa->name_map[IPA_ENDPOINT_AP_MODEM_TX]->endpoint_id;
+		break;
+	case IPA_RMNET_EXT_ADD_MUX_CHANNEL:
+		ext.u.mux.vchannel_name[IFNAMSIZ - 1] = '\0';
+		dev_info(&ipa->pdev->dev, "rmnet mux channel %u (%s)\n",
+			 ext.u.mux.mux_id, ext.u.mux.vchannel_name);
+		return 0;
+	case IPA_RMNET_EXT_SET_MRU:
+	case IPA_RMNET_EXT_SET_EGRESS_DATA_FORMAT:
+	case IPA_RMNET_EXT_SET_INGRESS_DATA_FORMAT:
+	case IPA_RMNET_EXT_SET_AGGREGATION_COUNT:
+	case IPA_RMNET_EXT_GET_AGGREGATION_COUNT:
+	case IPA_RMNET_EXT_SET_AGGREGATION_SIZE:
+	case IPA_RMNET_EXT_GET_AGGREGATION_SIZE:
+	case IPA_RMNET_EXT_FLOW_CONTROL:
+	case IPA_RMNET_EXT_GET_DFLT_CONTROL_CHANNEL:
+	case IPA_RMNET_EXT_GET_HWSW_MAP:
+	case IPA_RMNET_EXT_SET_RX_HEADROOM:
+	case IPA_RMNET_EXT_SET_XLAT_DEV_INFO:
+	case IPA_RMNET_EXT_SET_OFFLOAD:
+		return 0;
+	default:
+		return -EINVAL;
+	}
+
+	return copy_to_user(data, &ext, sizeof(ext)) ? -EFAULT : 0;
+}
+
 static const struct net_device_ops ipa_modem_ops = {
 	.ndo_open	= ipa_open,
 	.ndo_stop	= ipa_stop,
 	.ndo_start_xmit	= ipa_start_xmit,
+	.ndo_siocdevprivate = ipa_siocdevprivate,
 };
 
 /** ipa_modem_netdev_setup() - netdev setup function for the modem */
