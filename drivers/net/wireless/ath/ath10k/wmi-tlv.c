@@ -1745,13 +1745,22 @@ ath10k_wmi_tlv_op_gen_pdev_resume(struct ath10k *ar)
 	return skb;
 }
 
+/* This firmware offloads regulatory handling (it sends WMI_REG_CHAN_LIST_CC and
+ * qcacld never uses the legacy pdev set regdomain): configure it with
+ * WMI_SET_CURRENT_COUNTRY instead (world domain "00").
+ */
+struct ath10k_wmi_tlv_set_country_cmd {
+	__le32 pdev_id;
+	__le32 new_alpha2;
+} __packed;
+
 static struct sk_buff *
 ath10k_wmi_tlv_op_gen_pdev_set_rd(struct ath10k *ar,
 				  u16 rd, u16 rd2g, u16 rd5g,
 				  u16 ctl2g, u16 ctl5g,
 				  enum wmi_dfs_region dfs_reg)
 {
-	struct wmi_tlv_pdev_set_rd_cmd *cmd;
+	struct ath10k_wmi_tlv_set_country_cmd *cmd;
 	struct wmi_tlv *tlv;
 	struct sk_buff *skb;
 
@@ -1760,16 +1769,13 @@ ath10k_wmi_tlv_op_gen_pdev_set_rd(struct ath10k *ar,
 		return ERR_PTR(-ENOMEM);
 
 	tlv = (void *)skb->data;
-	tlv->tag = __cpu_to_le16(WMI_TLV_TAG_STRUCT_PDEV_SET_REGDOMAIN_CMD);
+	tlv->tag = __cpu_to_le16(WMI_TLV_TAG_STRUCT_SET_CURRENT_COUNTRY_CMD);
 	tlv->len = __cpu_to_le16(sizeof(*cmd));
 	cmd = (void *)tlv->value;
-	cmd->regd = __cpu_to_le32(rd);
-	cmd->regd_2ghz = __cpu_to_le32(rd2g);
-	cmd->regd_5ghz = __cpu_to_le32(rd5g);
-	cmd->conform_limit_2ghz = __cpu_to_le32(ctl2g);
-	cmd->conform_limit_5ghz = __cpu_to_le32(ctl5g);
+	cmd->pdev_id = __cpu_to_le32(0);
+	cmd->new_alpha2 = __cpu_to_le32('0' | ('0' << 8));
 
-	ath10k_dbg(ar, ATH10K_DBG_WMI, "wmi tlv pdev set rd\n");
+	ath10k_dbg(ar, ATH10K_DBG_WMI, "wmi tlv set current country 00\n");
 	return skb;
 }
 
@@ -4220,7 +4226,7 @@ static struct wmi_cmd_map wmi_tlv_cmd_map = {
 	.scan_chan_list_cmdid = WMI_TLV_SCAN_CHAN_LIST_CMDID,
 	.scan_sch_prio_tbl_cmdid = WMI_TLV_SCAN_SCH_PRIO_TBL_CMDID,
 	.scan_prob_req_oui_cmdid = WMI_TLV_SCAN_PROB_REQ_OUI_CMDID,
-	.pdev_set_regdomain_cmdid = WMI_TLV_PDEV_SET_REGDOMAIN_CMDID,
+	.pdev_set_regdomain_cmdid = 0x3a001, /* WMI_SET_CURRENT_COUNTRY_CMDID */
 	.pdev_set_channel_cmdid = WMI_TLV_PDEV_SET_CHANNEL_CMDID,
 	.pdev_set_param_cmdid = WMI_TLV_PDEV_SET_PARAM_CMDID,
 	.pdev_pktlog_enable_cmdid = WMI_TLV_PDEV_PKTLOG_ENABLE_CMDID,
