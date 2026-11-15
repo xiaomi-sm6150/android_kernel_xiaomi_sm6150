@@ -602,7 +602,12 @@ static int ipa_firmware_load(struct device *dev)
 
 	ret = request_firmware(&fw, path, dev);
 	if (ret) {
-		dev_err(dev, "error %d requesting \"%s\"\n", ret, path);
+		/* The firmware lives on /vendor, which is mounted after the
+		 * initcalls: retry the probe later instead of failing for good.
+		 */
+		if (ret == -ENOENT)
+			ret = -EPROBE_DEFER;
+		dev_err_probe(dev, ret, "error requesting \"%s\"\n", path);
 		return ret;
 	}
 
