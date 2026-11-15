@@ -638,6 +638,11 @@ struct ath10k_hw_params {
 
 	/* The hardware support multicast frame registrations */
 	bool mcast_frame_registration;
+
+	/* Firmware accepts a spoofed (random) MAC in scans but does not
+	 * advertise WMI_SERVICE_SPOOF_MAC_SUPPORT.
+	 */
+	bool spoof_mac_without_service;
 };
 
 struct htt_resp;
