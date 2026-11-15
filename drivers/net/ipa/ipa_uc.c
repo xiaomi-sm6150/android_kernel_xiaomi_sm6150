@@ -198,6 +198,19 @@ void ipa_uc_config(struct ipa *ipa)
 	ipa->uc_powered = false;
 	ipa->uc_loaded = k61_uc_loaded;
 	ipa_uc_k61_dump(ipa, "config");
+
+	/* A microcontroller started by a previous kernel (kexec) is still
+	 * running and will not report INIT_COMPLETED again.  Its shared area
+	 * still holds that response, so treat it as loaded; otherwise the
+	 * modem is told to load it again and waits for it forever.
+	 */
+	if (!ipa->uc_loaded &&
+	    ipa_uc_shared(ipa)->response == IPA_UC_RESPONSE_INIT_COMPLETED &&
+	    ipa_uc_shared(ipa)->interface_version) {
+		dev_info(&ipa->pdev->dev, "microcontroller already running\n");
+		ipa->uc_loaded = true;
+		ipa_power_retention(ipa, true);
+	}
 	ipa_interrupt_add(ipa->interrupt, IPA_IRQ_UC_0, ipa_uc_event_handler);
 	ipa_interrupt_add(ipa->interrupt, IPA_IRQ_UC_1, ipa_uc_response_hdlr);
 }
@@ -229,6 +242,10 @@ void ipa_uc_power(struct ipa *ipa)
 	if (already)
 		return;
 	already = true;		/* Only do this on first boot */
+
+	/* No INIT_COMPLETED response will drop the reference if it's running */
+	if (ipa->uc_loaded)
+		return;
 
 	/* This power reference dropped in ipa_uc_response_hdlr() above */
 	dev = &ipa->pdev->dev;
