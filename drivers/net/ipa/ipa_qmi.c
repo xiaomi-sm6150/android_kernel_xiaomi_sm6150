@@ -130,6 +130,10 @@ static void ipa_qmi_ready(struct ipa_qmi *ipa_qmi)
 	int ret;
 
 	/* We aren't ready until the modem and microcontroller are */
+	pr_info("ipa: k61qmi: ready? modem %d uc %d ind_req %d ind_sent %d initial %d\n",
+		ipa_qmi->modem_ready, ipa_qmi->uc_ready,
+		ipa_qmi->indication_requested, ipa_qmi->indication_sent,
+		ipa_qmi->initial_boot);
 	if (!ipa_qmi->modem_ready || !ipa_qmi->uc_ready)
 		return;
 
@@ -148,6 +152,7 @@ static void ipa_qmi_ready(struct ipa_qmi *ipa_qmi)
 	/* We're ready.  Start up normal operation */
 	ipa = container_of(ipa_qmi, struct ipa, qmi);
 	ret = ipa_modem_start(ipa);
+	dev_info(&ipa->pdev->dev, "k61qmi: ipa_modem_start: %d\n", ret);
 	if (ret)
 		dev_err(&ipa->pdev->dev, "error %d starting modem\n", ret);
 }
@@ -159,6 +164,7 @@ static void ipa_server_bye(struct qmi_handle *qmi, unsigned int node)
 
 	ipa_qmi = container_of(qmi, struct ipa_qmi, server_handle);
 
+	pr_info("ipa: k61qmi: bye from node %u\n", node);
 	/* The modem client and server go away at the same time */
 	memset(&ipa_qmi->modem_sq, 0, sizeof(ipa_qmi->modem_sq));
 
@@ -196,6 +202,7 @@ static void ipa_server_indication_register(struct qmi_handle *qmi,
 	ret = qmi_send_response(qmi, sq, txn, IPA_QMI_INDICATION_REGISTER,
 				IPA_QMI_INDICATION_REGISTER_RSP_SZ,
 				ipa_indication_register_rsp_ei, &rsp);
+	dev_info(&ipa->pdev->dev, "k61qmi: modem INDICATION_REGISTER (resp %d)\n", ret);
 	if (!ret) {
 		ipa_qmi->indication_requested = true;
 		ipa_qmi_ready(ipa_qmi);		/* We might be ready now */
@@ -428,6 +435,8 @@ static void ipa_client_init_driver_work(struct work_struct *work)
 
 	/* Send the request, and if successful wait for its response */
 	req = init_modem_driver_req(ipa_qmi);
+	dev_info(dev, "k61qmi: sending init driver request (skip_uc_load %u)\n",
+		 req->skip_uc_load);
 	ret = qmi_send_request(qmi, &ipa_qmi->modem_sq, &txn,
 			       IPA_QMI_INIT_DRIVER, IPA_QMI_INIT_DRIVER_REQ_SZ,
 			       ipa_init_modem_driver_req_ei, req);
@@ -458,6 +467,8 @@ ipa_client_new_server(struct qmi_handle *qmi, struct qmi_service *svc)
 
 	ipa_qmi = container_of(qmi, struct ipa_qmi, client_handle);
 
+	pr_info("ipa: k61qmi: modem IPA service up node %u port %u\n",
+		svc->node, svc->port);
 	ipa_qmi->modem_sq.sq_family = AF_QIPCRTR;
 	ipa_qmi->modem_sq.sq_node = svc->node;
 	ipa_qmi->modem_sq.sq_port = svc->port;
