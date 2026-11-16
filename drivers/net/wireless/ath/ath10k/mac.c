@@ -1488,6 +1488,12 @@ static int ath10k_vdev_stop(struct ath10k_vif *arvif)
 	return ret;
 }
 
+/* DEBUG (k61): fall back to a default beacon interval/DTIM for a station
+ * vdev started before mac80211 knows the BSS values (switchable at runtime)
+ */
+static bool k61_sta_bcn_fix = true;
+module_param(k61_sta_bcn_fix, bool, 0644);
+
 static int ath10k_vdev_start_restart(struct ath10k_vif *arvif,
 				     const struct cfg80211_chan_def *chandef,
 				     bool restart)
@@ -1528,10 +1534,20 @@ static int ath10k_vdev_start_restart(struct ath10k_vif *arvif,
 		arg.ssid_len = arvif->vif->cfg.ssid_len;
 	}
 
-	ath10k_dbg(ar, ATH10K_DBG_MAC,
-		   "mac vdev %d start center_freq %d phymode %s\n",
-		   arg.vdev_id, arg.channel.freq,
-		   ath10k_wmi_phymode_str(arg.channel.mode));
+	if (k61_sta_bcn_fix && arvif->vdev_type == WMI_VDEV_TYPE_STA) {
+		if (!arg.bcn_intval)
+			arg.bcn_intval = 100;
+		if (!arg.dtim_period)
+			arg.dtim_period = 1;
+	}
+
+	ath10k_info(ar, "k61: vdev %d type %d start%s freq %d cf1 %d mode %s bcn %u dtim %u pwr %d/%d gain %d radar %d\n",
+		    arg.vdev_id, arvif->vdev_type, restart ? " (restart)" : "",
+		    arg.channel.freq, arg.channel.band_center_freq1,
+		    ath10k_wmi_phymode_str(arg.channel.mode), arg.bcn_intval,
+		    arg.dtim_period, arg.channel.max_power,
+		    arg.channel.max_reg_power, arg.channel.max_antenna_gain,
+		    arg.channel.chan_radar);
 
 	if (restart)
 		ret = ath10k_wmi_vdev_restart(ar, &arg);
