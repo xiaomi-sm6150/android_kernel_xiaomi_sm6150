@@ -1494,6 +1494,12 @@ static int ath10k_vdev_stop(struct ath10k_vif *arvif)
 static bool k61_sta_bcn_fix = true;
 module_param(k61_sta_bcn_fix, bool, 0644);
 
+/* DEBUG (k61): bit 0 = append preferred tx/rx streams to vdev start,
+ * bit 1 = start a station vdev in HT20 instead of a no-HT phymode
+ */
+unsigned int k61_vs;
+module_param(k61_vs, uint, 0644);
+
 static int ath10k_vdev_start_restart(struct ath10k_vif *arvif,
 				     const struct cfg80211_chan_def *chandef,
 				     bool restart)
@@ -1532,6 +1538,13 @@ static int ath10k_vdev_start_restart(struct ath10k_vif *arvif,
 	} else if (arvif->vdev_type == WMI_VDEV_TYPE_IBSS) {
 		arg.ssid = arvif->vif->cfg.ssid;
 		arg.ssid_len = arvif->vif->cfg.ssid_len;
+	}
+
+	if ((k61_vs & 2) && arvif->vdev_type == WMI_VDEV_TYPE_STA) {
+		if (arg.channel.mode == MODE_11G)
+			arg.channel.mode = MODE_11NG_HT20;
+		else if (arg.channel.mode == MODE_11A)
+			arg.channel.mode = MODE_11NA_HT20;
 	}
 
 	if (k61_sta_bcn_fix && arvif->vdev_type == WMI_VDEV_TYPE_STA) {
