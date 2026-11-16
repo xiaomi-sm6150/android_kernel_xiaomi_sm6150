@@ -5903,11 +5903,11 @@ static int msm_geni_serial_probe(struct platform_device *pdev)
 
 	ret = msm_geni_serial_read_dtsi(pdev, dev_port);
 	if (ret)
-		goto exit_geni_serial_probe;
+		goto exit_clear_private;
 
 	ret = msm_geni_serial_port_init(pdev, dev_port);
 	if (ret)
-		goto exit_geni_serial_probe;
+		goto exit_clear_private;
 
 	dev_info(&pdev->dev, "Serial port: %d added.FifoSize: %d is_console: %d\n",
 		 line, uport->fifosize, is_console);
@@ -5957,6 +5957,15 @@ exit_geni_serial_probe:
 	UART_LOG_DBG(dev_port->ipc_log_misc, &pdev->dev, "%s: ret:%d\n",
 		__func__, ret);
 	return ret;
+
+exit_clear_private:
+	/*
+	 * Let a deferred probe try again: private_data is the "port is taken"
+	 * marker checked above, left set it turns every retry into -ENODEV.
+	 */
+	uport->dev = NULL;
+	uport->private_data = NULL;
+	goto exit_geni_serial_probe;
 }
 
 static int msm_geni_serial_remove(struct platform_device *pdev)
