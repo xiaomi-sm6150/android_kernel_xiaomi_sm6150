@@ -67,14 +67,34 @@ int wrapfd_put_mappable(struct file *file, struct device *dev,
  * Register a listener for the mappable object currently wrapped by the @file
  * object. Caller should own the buffer.
  * The caller can keep the mappable object mapped in its device's address space
- * but it has to unmap it once on_content_release callback is called. If
- * on_content_release callback is invoked, the listener handle becomes invalid
- * and calling wrapfd_del_listener() with that handle would result in an error.
+ * but it has to unmap it once on_content_release callback is called.
+ *
+ * on_content_release is invoked at most once, right before the content is
+ * released (the wrap is emptied or rewrapped, or the last reference to the wrap
+ * file is dropped). It is invoked in a sleepable context, in the context of the
+ * task releasing the content, with no wrapfd locks held.
+ *
+ * @file is used only for the duration of this call. The caller does not have to
+ * keep a reference to it for as long as the listener is registered, which lets
+ * the content be released once userspace drops its last reference to the file.
+ *
+ * The returned handle stays valid until it is passed to wrapfd_del_listener(),
+ * even after on_content_release was invoked or the file was released. Every
+ * successful wrapfd_add_listener() call should be paired with exactly one
+ * wrapfd_del_listener() call, which releases the resources of the listener.
+ *
+ * Note that on_content_release can be invoked as soon as the listener is added,
+ * possibly before this function returns, unless the caller prevents the content
+ * from being released, for example by holding a reference to @file.
  *
  * file: wrap file associated with the mappable object.
  * dev: device requesting the operation.
- * ops: wrapfd listener structure with event handlers.
- * param: parameter passed to the event handler.
+ * ops: wrapfd listener structure with event handlers. Should stay valid until
+ *	wrapfd_del_listener() returns 0 or, if it is called from
+ *	on_content_release of this listener, until that callback is done
+ *	using them.
+ * param: parameter passed to the event handler. Should stay valid for as long
+ *	  as @ops.
  * handlep: pointer to variable receiving listener handle. Can't be NULL.
  *
  * On success returns 0. On error returns:
@@ -91,20 +111,39 @@ int wrapfd_add_listener(struct file *file, struct device *dev,
 			void *param, void **handlep);
 
 /*
- * Unregister previously registered listener. Caller does not have to own the
- * buffer.
- * The caller can unregister its listener if it no longer needs to monitor
- * the content of the wrapfd object.
+ * Unregister previously registered listener and free its handle. Caller does
+ * not have to own the buffer or hold a reference to the wrap file, the file
+ * might have been released already.
+ * Should be called exactly once for each handle returned by
+ * wrapfd_add_listener(), whether or not on_content_release was invoked. The
+ * handle is invalid once the function returns 0.
  *
- * file: wrap file associated with the mappable object.
+ * Once the function returns 0, on_content_release of the listener will never
+ * be invoked anymore and, unless the function was called from that callback
+ * itself, it is not running. The @ops and @param passed to
+ * wrapfd_add_listener() can then be released; a callback which deleted its
+ * own listener can release them once it is done using them. The function
+ * does not tell whether the callback was invoked or not.
+ *
+ * If on_content_release of the listener is running or is about to be invoked
+ * by another task, the function sleeps until the callback has returned.
+ * Therefore it should be called from a sleepable context and the caller should
+ * not hold any lock which on_content_release takes, otherwise it can deadlock.
+ *
+ * The function can be called from on_content_release, but only to delete the
+ * listener this callback was invoked for. In this case it does not wait.
+ * Deleting another listener of the same content which is still waiting for
+ * its on_content_release fails with -EINVAL and leaves that listener and its
+ * handle intact; it should be deleted later, outside of the callback.
+ *
  * handle: listener handle returned by wrapfd_add_listener().
  *
  * On success returns 0. On error returns:
- * -EBADF: file is invalid.
- * -EINVAL: handle is invalid or not found.
+ * -EINVAL: handle is NULL or the function is called from on_content_release
+ *	    of another listener, see above.
  * -EOPNOTSUPP: wrapfd driver is not enabled
  */
-int wrapfd_del_listener(struct file *file, void *handle);
+int wrapfd_del_listener(void *handle);
 
 /*
  * Take file ownersip.
@@ -163,7 +202,7 @@ static inline int wrapfd_add_listener(struct file *file, struct device *dev,
 	return -EOPNOTSUPP;
 }
 
-static inline int wrapfd_del_listener(struct file *file, void *handle)
+static inline int wrapfd_del_listener(void *handle)
 {
 	return -EOPNOTSUPP;
 }

@@ -4,7 +4,11 @@
 
 use core::{mem::MaybeUninit, ptr::NonNull};
 
-use crate::{content::DmaBufContent, poll::FileMonitor, THIS_MODULE};
+use crate::{
+    content::{ContentListeners, DmaBufContent},
+    poll::FileMonitor,
+    THIS_MODULE,
+};
 
 use kernel::{
     alloc::{AllocError, Flags},
@@ -1122,6 +1126,11 @@ unsafe extern "C" fn wrapfd_put_mappable(
     }
 }
 
+struct ListenerHandle {
+    info: Arc<ContentListeners>,
+    id: u64,
+}
+
 #[export]
 /// # Safety
 ///
@@ -1129,7 +1138,8 @@ unsafe extern "C" fn wrapfd_put_mappable(
 /// - `dev` must be a valid pointer to a live C `struct device` or null (handled gracefully).
 /// - `ops` must be a valid pointer to a live C `struct wrapfd_listener_operations`.
 /// - The caller must ensure `file` and `dev` remain allocated for the duration of this call.
-/// - `ops` must remain allocated and `param` valid until a matching call to `wrapfd_del_listener`.
+/// - `ops` must remain allocated and `param` valid until a matching, successful (i.e. return
+///   value 0) call to `wrapfd_del_listener`.
 unsafe extern "C" fn wrapfd_add_listener(
     file: *mut bindings::file,
     dev: *mut bindings::device,
@@ -1155,28 +1165,40 @@ unsafe extern "C" fn wrapfd_add_listener(
             return Err(EINVAL);
         }
 
-        let mut guard = wrap.inner.lock();
+        // We allocate the box first because adding the listener first would be irreversible
+        // if the box allocation later failed.
+        let handle = KBox::<ListenerHandle>::new_uninit(GFP_KERNEL)?;
+
+        let guard = wrap.inner.lock();
 
         let WrapOwner::Device(ref owning_dev) = guard.owner else {
             return Err(EBUSY);
         };
 
-        // SAFETY: `dev` has been verified to be a non-null pointer and points to a live C `struct
-        // device` per function contract.
+        // SAFETY: `dev` has been verified to be a non-null pointer and points to a live C
+        // `struct device` per function contract.
         if owning_dev != &unsafe { kernel::device::Device::get_device(dev) } {
             return Err(EBUSY);
         }
 
-        let Some(ref mut content) = guard.content else {
+        let Some(content) = &guard.content else {
             return Err(ENOENT);
         };
 
-        let handle = content.add_listener(ops, param)?;
+        let id = content.listeners.add_listener(ops, param)?;
 
-        // SAFETY: We've verified that `handlep` is a non-null pointer, per function contract it
-        // points to writable memory and can store a `*mut c_void`.
+        let handle = Box::into_pin(Box::write(
+            handle,
+            ListenerHandle {
+                info: Arc::clone(&content.listeners),
+                id,
+            },
+        ));
+
+        // SAFETY: We've verified that `handlep` is a non-null pointer, per function
+        // contract it points to writable memory and can store a `*mut c_void`.
         unsafe {
-            *handlep = handle as _;
+            *handlep = handle.into_foreign();
         }
 
         Ok(())
@@ -1191,27 +1213,27 @@ unsafe extern "C" fn wrapfd_add_listener(
 #[export]
 /// # Safety
 ///
-/// - `file` must be a valid, non-null pointer to a live C `struct file` created by this driver.
-unsafe extern "C" fn wrapfd_del_listener(
-    file: *mut bindings::file,
-    handle: *mut ffi::c_void,
-) -> ffi::c_int {
-    let result = with_wrap_helper(file, "wrapfd_del_listener", |wrap| {
-        let mut guard = wrap.inner.lock();
+/// - `handle` must be null or be a raw pointer previously returned by `wrapfd_add_listener` and
+/// must not have been an argument to a successful call to `wrapfd_del_listener` before. Similarly
+/// concurrent calls to `wrapfd_del_listener` with the same `handle` are disallowed.
+unsafe extern "C" fn wrapfd_del_listener(handle: *mut ffi::c_void) -> ffi::c_int {
+    if handle.is_null() {
+        return EINVAL.to_errno();
+    }
 
-        if handle.is_null() {
-            return Err(EINVAL);
+    // SAFETY: By function contract `handle` was returned from `wrapfd_add_listener` which
+    // obtained it from `Pin::<KBox<ListenerHandle>>::into_foreign()`. Also by function contract
+    // it is still "foreign-owned".
+    let listener_handle = unsafe { Pin::<KBox<ListenerHandle>>::borrow(handle) };
+
+    match listener_handle.info.remove_listener(listener_handle.id) {
+        Ok(()) => {
+            // SAFETY: By function contract `handle` was returned from `wrapfd_add_listener` which
+            // obtained it from `Pin::<KBox<ListenerHandle>>::into_foreign()`. Also by function
+            // contract it is still "foreign-owned".
+            _ = unsafe { Pin::<KBox<ListenerHandle>>::from_foreign(handle) };
+            0
         }
-
-        let Some(ref mut content) = guard.content else {
-            return Err(EINVAL);
-        };
-
-        content.remove_listener(handle)
-    });
-
-    match result {
-        Ok(()) => 0,
         Err(err) => err.to_errno(),
     }
 }
