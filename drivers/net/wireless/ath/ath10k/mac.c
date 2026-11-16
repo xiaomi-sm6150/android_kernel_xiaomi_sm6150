@@ -1496,6 +1496,7 @@ module_param(k61_sta_bcn_fix, bool, 0644);
 
 /* DEBUG (k61): bit 0 = append preferred tx/rx streams to vdev start,
  * bit 1 = start a station vdev in HT20 instead of a no-HT phymode
+ * bit 2 = create the BSS peer before starting a station vdev (like qcacld)
  */
 unsigned int k61_vs;
 module_param(k61_vs, uint, 0644);
@@ -1506,9 +1507,29 @@ static int ath10k_vdev_start_restart(struct ath10k_vif *arvif,
 {
 	struct ath10k *ar = arvif->ar;
 	struct wmi_vdev_start_request_arg arg = {};
+	const u8 *bssid = arvif->vif->bss_conf.bssid;
+	bool k61_pre_peer = false;
 	int ret = 0;
 
 	lockdep_assert_held(&ar->conf_mutex);
+
+	if ((k61_vs & 4) && !restart && arvif->vdev_type == WMI_VDEV_TYPE_STA &&
+	    bssid && !is_zero_ether_addr(bssid)) {
+		struct ath10k_peer *peer;
+
+		spin_lock_bh(&ar->data_lock);
+		peer = ath10k_peer_find(ar, arvif->vdev_id, bssid);
+		spin_unlock_bh(&ar->data_lock);
+		if (!peer) {
+			ret = ath10k_peer_create(ar, arvif->vif, NULL,
+						 arvif->vdev_id, bssid,
+						 WMI_PEER_TYPE_DEFAULT);
+			ath10k_info(ar, "k61: pre-start bss peer %pM on vdev %d: %d\n",
+				    bssid, arvif->vdev_id, ret);
+			k61_pre_peer = !ret;
+			ret = 0;
+		}
+	}
 
 	reinit_completion(&ar->vdev_setup_done);
 	reinit_completion(&ar->vdev_delete_done);
@@ -1549,7 +1570,7 @@ static int ath10k_vdev_start_restart(struct ath10k_vif *arvif,
 
 	if (k61_sta_bcn_fix && arvif->vdev_type == WMI_VDEV_TYPE_STA) {
 		if (!arg.bcn_intval)
-			arg.bcn_intval = 100;
+			arg.bcn_intval = arvif->vif->bss_conf.beacon_int ?: 100;
 		if (!arg.dtim_period)
 			arg.dtim_period = 1;
 	}
@@ -1570,6 +1591,8 @@ static int ath10k_vdev_start_restart(struct ath10k_vif *arvif,
 	if (ret) {
 		ath10k_warn(ar, "failed to start WMI vdev %i: %d\n",
 			    arg.vdev_id, ret);
+		if (k61_pre_peer)
+			ath10k_peer_delete(ar, arvif->vdev_id, bssid);
 		return ret;
 	}
 
@@ -1578,6 +1601,8 @@ static int ath10k_vdev_start_restart(struct ath10k_vif *arvif,
 		ath10k_warn(ar,
 			    "failed to synchronize setup for vdev %i restart %d: %d\n",
 			    arg.vdev_id, restart, ret);
+		if (k61_pre_peer)
+			ath10k_peer_delete(ar, arvif->vdev_id, bssid);
 		return ret;
 	}
 
@@ -7568,8 +7593,17 @@ static int ath10k_sta_state(struct ieee80211_hw *hw,
 			}
 		}
 
-		ret = ath10k_peer_create(ar, vif, sta, arvif->vdev_id,
-					 sta->addr, peer_type);
+		/* DEBUG (k61): the BSS peer may exist already (k61_vs bit 2) */
+		spin_lock_bh(&ar->data_lock);
+		peer = ath10k_peer_find(ar, arvif->vdev_id, sta->addr);
+		if (peer) {
+			peer->vif = vif;
+			peer->sta = sta;
+		}
+		spin_unlock_bh(&ar->data_lock);
+
+		ret = peer ? 0 : ath10k_peer_create(ar, vif, sta, arvif->vdev_id,
+						    sta->addr, peer_type);
 		if (ret) {
 			ath10k_warn(ar, "failed to add peer %pM for vdev %d when adding a new sta: %i\n",
 				    sta->addr, arvif->vdev_id, ret);
