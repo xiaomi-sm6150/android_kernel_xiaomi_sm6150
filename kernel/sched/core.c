@@ -2696,6 +2696,33 @@ static inline bool is_cpu_allowed(struct task_struct *p, int cpu)
  *    is done.
  */
 
+#ifdef CONFIG_SCHED_PROXY_EXEC
+/*
+ * @p stops donating on @rq: it is woken, or it leaves the runqueue. The
+ * task that runs can still point at @p with blocked_donor until it
+ * schedules, and __mutex_unlock_slowpath() dereferences that pointer.
+ * Meanwhile @p can run on another CPU and exit. So clear the pointer.
+ * The unlock path reads it under the blocked_lock of the running task.
+ */
+static inline void proxy_clear_curr_donor(struct rq *rq, struct task_struct *p)
+{
+	struct task_struct *curr = rq->curr;
+
+	lockdep_assert_rq_held(rq);
+
+	if (READ_ONCE(curr->blocked_donor) != p)
+		return;
+
+	guard(raw_spinlock)(&curr->blocked_lock);
+	if (curr->blocked_donor == p)
+		WRITE_ONCE(curr->blocked_donor, NULL);
+}
+#else /* !CONFIG_SCHED_PROXY_EXEC */
+static inline void proxy_clear_curr_donor(struct rq *rq, struct task_struct *p)
+{
+}
+#endif /* !CONFIG_SCHED_PROXY_EXEC */
+
 /*
  * move_queued_task - move a queued task to new rq.
  *
@@ -2707,6 +2734,7 @@ static struct rq *move_queued_task(struct rq *rq, struct rq_flags *rf,
 	int detached = 0;
 
 	lockdep_assert_rq_held(rq);
+	proxy_clear_curr_donor(rq, p);
 
 	/*
 	 * The vendor hook may drop the lock temporarily, so
@@ -4243,6 +4271,7 @@ void move_queued_task_locked(struct rq *src_rq, struct rq *dst_rq, struct task_s
 		if (task_on_cpu(src_rq, task))
 			break;
 
+		proxy_clear_curr_donor(src_rq, task);
 		scoped_guard (raw_spinlock, &task->blocked_lock) {
 			if (task_is_blocked(task))
 				owner = task_blocked_on_owner(task);
@@ -4305,6 +4334,8 @@ static inline struct task_struct *proxy_resched_idle(struct rq *rq);
  */
 static inline bool proxy_needs_return(struct rq *rq, struct task_struct *p)
 {
+	proxy_clear_curr_donor(rq, p);
+
 	if (!task_is_blocked(p))
 		return false;
 
