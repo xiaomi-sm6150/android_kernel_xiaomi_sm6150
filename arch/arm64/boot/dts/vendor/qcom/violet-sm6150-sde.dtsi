@@ -120,7 +120,8 @@
 		qcom,sde-sspp-linewidth = <2160>;
 		qcom,sde-wb-linewidth = <2160>;
 		qcom,sde-mixer-blendstages = <0x9>;
-		qcom,sde-highest-bank-bit = <0x1>;
+		/* <ddr_type bank_bit> pairs; ddr_type 0 matches any DDR */
+		qcom,sde-highest-bank-bit = <0x0 0x1>;
 		qcom,sde-ubwc-version = <0x200>;	/* 5.4 encoding */
 		qcom,sde-panic-per-pipe;
 		qcom,sde-has-cdp;
