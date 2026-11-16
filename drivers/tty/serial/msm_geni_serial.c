@@ -5266,6 +5266,17 @@ static void msm_geni_serial_init_gsi(struct uart_port *uport)
 
 	msm_port->gsi_mode = geni_read_reg(uport->membase,
 					   GENI_IF_DISABLE_RO) & FIFO_IF_DISABLE;
+	/*
+	 * GSI mode needs GPI DMA channels. A serial engine whose FIFO
+	 * interface reads as disabled but that has no dmas in DT (sm6150's
+	 * HS UART, run in SE DMA mode by the 4.14 driver) would otherwise
+	 * fail every transfer, so use SE DMA there.
+	 */
+	if (msm_port->gsi_mode &&
+	    !of_property_read_bool(uport->dev->of_node, "dmas")) {
+		dev_info(uport->dev, "FIFO interface reads disabled but no dmas, using SE DMA\n");
+		msm_port->gsi_mode = false;
+	}
 	dev_info(uport->dev, "gsi_mode:%d\n", msm_port->gsi_mode);
 	if (msm_port->gsi_mode) {
 		msm_port->gsi = devm_kzalloc(uport->dev, sizeof(*msm_port->gsi),
