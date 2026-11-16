@@ -692,3 +692,8 @@
 &pm6150l_l10 {
 	regulator-always-on;
 };
+
+/* se4 (hsuart1) is not wired to anything on violet; only se7 (hsuart0 = /dev/ttyHS0) is the BT UART. */
+&qupv3_se4_2uart {
+	status = "disabled";
+};
