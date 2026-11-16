@@ -131,7 +131,10 @@ enum {
 #define TOPOLOGY_SPECIFIC_CHANNEL_INFO
 #define MSM_SPKR_PROT_SPV3
 #define MSM_SPKR_PROT_SPV4
-#define MSM_CMA_MEM_ALLOC
+/*
+ * MSM_CMA_MEM_ALLOC adds cma_mem to struct audio_cal_data; the violet vendor libacdbloader
+ * predates it and sends the shorter struct, which the size check then rejects.
+ */
 
 enum {
 	VERSION_0_0,
