@@ -113,6 +113,9 @@
 	 * at reset) was never voted to TURBO for boot as 4.14 does.
 	 */
 	cx-supply = <&L8A_LEVEL>;
+	/* 4.14 tells the AOP the LPASS is loading before auth_and_reset (qcom,signal-aop) */
+	qcom,qmp = <&aoss_qmp>;
+	qcom,signal-aop;
 };
 
 /*
