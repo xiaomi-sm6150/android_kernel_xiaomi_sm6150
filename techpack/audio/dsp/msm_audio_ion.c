@@ -34,6 +34,7 @@ MODULE_IMPORT_NS(DMA_BUF);
 	alloc_data->table->sgl->dma_address
 
 #define MSM_AUDIO_SMMU_SID_OFFSET 32
+#define MSM_AUDIO_ION_IOVA_MAX 0x2fffffffULL
 
 enum msm_audio_mem_type {
 	MSM_AUDIO_MEM_TYPE_ION,
@@ -991,6 +992,18 @@ static int msm_audio_ion_probe(struct platform_device *pdev)
 
 	msm_audio_ion_data.smmu_sid_bits =
 		smmu_sid << MSM_AUDIO_SMMU_SID_OFFSET;
+
+	/*
+	 * Keep audio IOVAs below MSM_AUDIO_ION_IOVA_MAX, like 4.14 did with
+	 * qcom,iova-start-addr (0x20000000, 256 MiB). Left to the full 32-bit
+	 * range, iommu-dma hands out IOVAs from the top down and the voice
+	 * calibration memory table lands on 0xfffff000; CVD then fails
+	 * VSS_IMEMORY_CMD_MAP_PHYSICAL for every cal buffer.
+	 */
+	rc = dma_set_mask_and_coherent(dev, MSM_AUDIO_ION_IOVA_MAX);
+	if (rc)
+		dev_err(dev, "%s: failed to limit the IOVA range, rc = %d\n",
+			__func__, rc);
 
 	if (msm_audio_ion_data.smmu_version == 0x2) {
 		rc = msm_audio_smmu_init(dev);
