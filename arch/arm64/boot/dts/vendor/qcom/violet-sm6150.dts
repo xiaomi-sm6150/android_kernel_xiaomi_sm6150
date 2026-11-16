@@ -107,6 +107,8 @@
 	k61,late-boot;
 	k61,no-panic;
 	k61,solo-cpu;
+	/* ask the 4.14-started ADSP to stop (smp2p stop bit) before the TZ shutdown, as 4.14 does */
+	k61,graceful-stop;
 	/*
 	 * The driver asks for a regulator named \"cx\" (reg-names), but the node only
 	 * had vdd_cx-supply, so it got a dummy and the ADSP rail (lcx.lvl, retention
