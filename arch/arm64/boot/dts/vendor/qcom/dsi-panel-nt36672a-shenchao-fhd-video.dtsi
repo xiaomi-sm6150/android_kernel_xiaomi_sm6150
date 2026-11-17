@@ -12,7 +12,7 @@
  */
 
 &mdss_mdp {
-	dsi_nt36672a_shenchao_video: qcom,mdss_dsi_nt36672a_shenchao_fhd_video {
+	dsi_nt36672a_shenchao_video: dsi_nt36672a_shenchao_vid_display {
 		qcom,mdss-dsi-panel-name =
 			"nt36672a video mode dsi shenchao panel";
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
