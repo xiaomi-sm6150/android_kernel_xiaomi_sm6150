@@ -16,8 +16,10 @@
 
 #include <linux/poll.h>
 #include <linux/videodev2.h>
+#include <media/msm_vidc_v4l2.h>
 #include <linux/types.h>
-#include <linux/msm_ion.h>
+#include <linux/ion.h>
+#include <uapi/linux/msm_ion.h>
 #include <uapi/media/msm_vidc.h>
 
 #define HAL_BUFFER_MAX 0xd
