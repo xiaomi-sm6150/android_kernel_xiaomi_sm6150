@@ -597,6 +597,10 @@
 	pon@800 {
 		compatible = "qcom,pm8998-pon";
 		reg = <0x800>;
+		qcom,ps-hold-warm-reset;
+		qcom,clear-restart-reason;
+		mode-recovery = <0x01>;
+		mode-bootloader = <0x02>;
 
 		pwrkey {
 			compatible = "qcom,pm8941-pwrkey";
