@@ -14,7 +14,7 @@
 #include <linux/string.h>
 #include <linux/uaccess.h>
 #include <linux/debugfs.h>
-#include <soc/qcom/scm.h>
+#include <linux/qcom_scm.h>
 #include <uapi/media/cam_isp.h>
 #include "cam_smmu_api.h"
 #include "cam_req_mgr_workq.h"
@@ -33,8 +33,6 @@
 
 #define CAM_IFE_HW_ENTRIES_MAX  20
 
-#define TZ_SVC_SMMU_PROGRAM 0x15
-#define TZ_SAFE_SYSCALL_ID  0x3
 #define CAM_IFE_SAFE_DISABLE 0
 #define CAM_IFE_SAFE_ENABLE 1
 #define SMMU_SE_IFE 0
@@ -64,7 +62,6 @@ static struct cam_ife_hw_mgr g_ife_hw_mgr;
 static int cam_ife_notify_safe_lut_scm(bool safe_trigger)
 {
 	uint32_t camera_hw_version, rc = 0;
-	struct scm_desc desc = {0};
 
 	rc = cam_cpas_get_cpas_hw_version(&camera_hw_version);
 	if (!rc) {
@@ -73,13 +70,9 @@ static int cam_ife_notify_safe_lut_scm(bool safe_trigger)
 		case CAM_CPAS_TITAN_170_V110:
 		case CAM_CPAS_TITAN_175_V100:
 		case CAM_CPAS_TITAN_150_V110:
-			desc.arginfo = SCM_ARGS(2, SCM_VAL, SCM_VAL);
-			desc.args[0] = SMMU_SE_IFE;
-			desc.args[1] = safe_trigger;
-
 			CAM_DBG(CAM_ISP, "Safe scm call %d", safe_trigger);
-			if (scm_call2(SCM_SIP_FNID(TZ_SVC_SMMU_PROGRAM,
-					TZ_SAFE_SYSCALL_ID), &desc)) {
+			if (qcom_scm_smmu_notify_secure_lut(SMMU_SE_IFE,
+					safe_trigger)) {
 				CAM_ERR(CAM_ISP,
 					"scm call to Enable Safe failed");
 				rc = -EINVAL;
