@@ -4866,6 +4866,12 @@ static int _sde_kms_get_demura_plane_data(struct sde_splash_data *data)
 	return ret;
 }
 
+/* DEBUG: msm_drm.k61_nosplash=1 ignores the bootloader splash, so the first
+ * commit powers the panel up from scratch instead of taking it over.
+ */
+static bool k61_nosplash;
+module_param(k61_nosplash, bool, 0444);
+
 static int _sde_kms_get_splash_data(struct sde_splash_data *data)
 {
 	int i = 0;
@@ -4885,6 +4891,11 @@ static int _sde_kms_get_splash_data(struct sde_splash_data *data)
 		return -EINVAL;
 
 	memset(data, 0, sizeof(*data));
+
+	if (k61_nosplash) {
+		pr_info("k61: ignoring the bootloader splash\n");
+		return 0;
+	}
 
 	parent = of_find_node_by_path("/reserved-memory");
 	if (!parent) {
