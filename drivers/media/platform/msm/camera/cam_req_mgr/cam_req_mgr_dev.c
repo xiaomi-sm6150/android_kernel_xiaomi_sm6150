@@ -750,8 +750,7 @@ static int cam_req_mgr_probe(struct platform_device *pdev)
 			CAM_ERR(CAM_CRM,
 				"Failed to create kmem_cache for crm_timer");
 		else
-			CAM_DBG(CAM_CRM, "Name : %s",
-				g_cam_req_mgr_timer_cachep->name);
+			CAM_DBG(CAM_CRM, "Name : crm_timer");
 	}
 
 	return rc;

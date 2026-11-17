@@ -85,10 +85,6 @@ static int cam_hw_cdm_create_debugfs_entry(void)
 		&debugfs_entry.dump_register);
 
 	return rc;
-err:
-	debugfs_remove_recursive(debugfs_entry.dentry);
-	debugfs_entry.dentry = NULL;
-	return rc;
 }
 
 static int cam_hw_cdm_enable_bl_done_irq(struct cam_hw_info *cdm_hw,
