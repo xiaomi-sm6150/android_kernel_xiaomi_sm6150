@@ -1520,6 +1520,19 @@ static struct clk_branch gcc_boot_rom_ahb_clk = {
 	},
 };
 
+static struct clk_branch gcc_camera_ahb_clk = {
+	.halt_reg = 0xb008,
+	.halt_check = BRANCH_HALT_DELAY,
+	.clkr = {
+		.enable_reg = 0xb008,
+		.enable_mask = BIT(0),
+		.hw.init = &(struct clk_init_data){
+			.name = "gcc_camera_ahb_clk",
+			.ops = &clk_branch2_aon_ops,
+		},
+	},
+};
+
 static struct clk_branch gcc_camera_hf_axi_clk = {
 	.halt_reg = 0xb030,
 	.halt_check = BRANCH_HALT_VOTED,
@@ -3196,6 +3209,7 @@ static struct clk_regmap *gcc_sm6150_clocks[] = {
 	[GCC_AHB2PHY_EAST_CLK] = &gcc_ahb2phy_east_clk.clkr,
 	[GCC_AHB2PHY_WEST_CLK] = &gcc_ahb2phy_west_clk.clkr,
 	[GCC_BOOT_ROM_AHB_CLK] = &gcc_boot_rom_ahb_clk.clkr,
+	[GCC_CAMERA_AHB_CLK] = &gcc_camera_ahb_clk.clkr,
 	[GCC_CAMERA_HF_AXI_CLK] = &gcc_camera_hf_axi_clk.clkr,
 	[GCC_CE1_AHB_CLK] = &gcc_ce1_ahb_clk.clkr,
 	[GCC_CE1_AXI_CLK] = &gcc_ce1_axi_clk.clkr,
