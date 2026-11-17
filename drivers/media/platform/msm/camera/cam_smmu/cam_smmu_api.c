@@ -1583,14 +1583,26 @@ int cam_smmu_reserve_sec_heap(int32_t smmu_hdl,
 
 	sec_heap_iova = iommu_cb_set.cb_info[idx].secheap_info.iova_start;
 	sec_heap_iova_len = iommu_cb_set.cb_info[idx].secheap_info.iova_len;
-	size = iommu_map_sg(iommu_cb_set.cb_info[idx].domain,
-		sec_heap_iova,
-		secheap_buf->table->sgl,
-		secheap_buf->table->nents,
-		IOMMU_READ | IOMMU_WRITE);
-	if (size != sec_heap_iova_len) {
-		CAM_ERR(CAM_SMMU, "IOMMU mapping failed");
-		goto err_unmap_sg;
+	{
+		ssize_t mapped;
+
+		mapped = iommu_map_sg(iommu_cb_set.cb_info[idx].domain,
+			sec_heap_iova,
+			secheap_buf->table->sgl,
+			secheap_buf->table->nents,
+			IOMMU_READ | IOMMU_WRITE);
+		size = mapped < 0 ? 0 : mapped;
+		if (size != sec_heap_iova_len) {
+			CAM_ERR(CAM_SMMU,
+				"IOMMU mapping failed: ret=%zd iova=0x%x len=%zu nents=%u buf=%zu",
+				mapped, sec_heap_iova, sec_heap_iova_len,
+				secheap_buf->table->nents, secheap_buf->buf->size);
+			if (size)
+				iommu_unmap(iommu_cb_set.cb_info[idx].domain,
+					sec_heap_iova, size);
+			rc = mapped < 0 ? (int)mapped : -ENOMEM;
+			goto err_unmap_sg;
+		}
 	}
 
 	iommu_cb_set.cb_info[idx].is_secheap_allocated = true;
@@ -1608,7 +1620,7 @@ err_detach:
 	dma_buf_detach(secheap_buf->buf,
 		secheap_buf->attach);
 err_put:
-	dma_buf_put(secheap_buf->buf);
+	/* the caller owns the buffer reference */
 err_out:
 	mutex_unlock(&iommu_cb_set.cb_info[idx].lock);
 	return rc;
