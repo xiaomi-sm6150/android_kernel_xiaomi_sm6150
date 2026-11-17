@@ -1210,14 +1210,29 @@ int cam_soc_util_get_dt_properties(struct cam_hw_soc_info *soc_info)
 			soc_info->dev_name);
 		rc = 0;
 	} else {
-		soc_info->irq_line =
-			platform_get_resource_byname(soc_info->pdev,
-			IORESOURCE_IRQ, soc_info->irq_name);
-		if (!soc_info->irq_line) {
-			CAM_ERR(CAM_UTIL, "no irq resource");
-			rc = -ENODEV;
-			return rc;
+		/*
+		 * 6.1 does not create IRQ resources for OF platform devices,
+		 * the interrupt has to be looked up. Keep the resource the
+		 * rest of the driver uses.
+		 */
+		int irq = platform_get_irq_byname(soc_info->pdev,
+			soc_info->irq_name);
+
+		if (irq < 0) {
+			CAM_ERR(CAM_UTIL, "no irq resource for %s: %d",
+				soc_info->irq_name, irq);
+			return irq;
 		}
+
+		soc_info->irq_line = devm_kzalloc(&soc_info->pdev->dev,
+			sizeof(*soc_info->irq_line), GFP_KERNEL);
+		if (!soc_info->irq_line)
+			return -ENOMEM;
+
+		soc_info->irq_line->start = irq;
+		soc_info->irq_line->end = irq;
+		soc_info->irq_line->flags = IORESOURCE_IRQ;
+		soc_info->irq_line->name = soc_info->irq_name;
 	}
 
 	rc = cam_soc_util_get_dt_regulator_info(soc_info);
