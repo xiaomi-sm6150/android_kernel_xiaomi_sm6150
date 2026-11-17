@@ -1,4 +1,4 @@
-ccflags-y += -I$(srctree)/drivers/media/platform/msm/vidc/
+ccflags-y += -I$(srctree)/techpack/video/msm/vidc/
 
 msm-vidc-objs := msm_v4l2_vidc.o \
                                 msm_v4l2_private.o \

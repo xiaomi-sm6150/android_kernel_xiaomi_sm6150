@@ -1,6 +1,6 @@
 ccflags-y := -I$(srctree)/drivers/devfreq/ \
-	-I$(srctree)/drivers/media/platform/msm/vidc/ \
-        -I$(srctree)/drivers/media/platform/msm/vidc/governors/
+	-I$(srctree)/techpack/video/msm/vidc/ \
+        -I$(srctree)/techpack/video/msm/vidc/governors/
 
 msm-vidc-dyn-gov-objs := msm_vidc_dyn_gov.o
 
