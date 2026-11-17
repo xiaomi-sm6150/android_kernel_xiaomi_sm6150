@@ -16,6 +16,8 @@
 #include <linux/printk.h>
 #include <linux/reboot.h>
 #include <linux/delay.h>
+#include <linux/string.h>
+#include <asm/early_ioremap.h>
 
 #define K61_PSHOLD_BASE	0x0c264000
 
@@ -45,3 +47,40 @@ static int __init k61_pshold_init(void)
 	return 0;
 }
 early_initcall(k61_pshold_init);
+
+/*
+ * DEBUG: k61.reset=early drops PS_HOLD from early_param (setup_arch), i.e.
+ * as soon as the kernel parses its command line; k61.reset=initcall does it
+ * at early_initcall. A phone that comes back by itself proves the
+ * bootloader started this kernel and it got that far.
+ */
+static bool k61_reset_initcall;
+
+static int __init k61_reset_param(char *s)
+{
+	void __iomem *p;
+
+	if (s && !strcmp(s, "initcall")) {
+		k61_reset_initcall = true;
+		return 0;
+	}
+	if (!s || strcmp(s, "early"))
+		return 0;
+
+	p = early_ioremap(K61_PSHOLD_BASE, 4);
+	if (p)
+		writel(0, p);
+	mdelay(10000);
+	return 0;
+}
+early_param("k61.reset", k61_reset_param);
+
+static int __init k61_reset_initcall_fn(void)
+{
+	if (k61_reset_initcall && k61_pshold) {
+		writel(0, k61_pshold);
+		mdelay(10000);
+	}
+	return 0;
+}
+core_initcall(k61_reset_initcall_fn);
