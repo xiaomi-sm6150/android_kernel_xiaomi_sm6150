@@ -87,3 +87,5 @@ source "drivers/media/platform/via/Kconfig"
 source "drivers/media/platform/xilinx/Kconfig"
 
 endif # MEDIA_PLATFORM_DRIVERS
+
+source "techpack/video/Kconfig"

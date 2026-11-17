@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config QTI_VIDEO_SM6150
+	bool "Qualcomm msm_vidc video driver (techpack/video) for sm6150"
+	depends on ARCH_QCOM && VIDEO_DEV
+	select VIDEOBUF2_CORE
+	select VIDEOBUF2_V4L2
+	select MSM_VIDC_V4L2
+	select MSM_VIDC_GOVERNORS
+	help
+	  Build the msm_vidc V4L2 driver of the 4.14 sm6150 kernel (Venus
+	  AR50, VPU 4) into the kernel. The stock OMX/Codec2 components need
+	  it, with its 4.14 UAPI, for hardware video decoding and encoding.
+
+config MSM_VIDC_V4L2
+	bool
+
+config MSM_VIDC_GOVERNORS
+	bool
+	select PM_DEVFREQ
