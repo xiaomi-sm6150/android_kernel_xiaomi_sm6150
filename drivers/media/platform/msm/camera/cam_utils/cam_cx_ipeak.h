@@ -13,14 +13,28 @@
 #ifndef _CAM_CX_IPEAK_H_
 #define _CAM_CX_IPEAK_H_
 
-#include <linux/clk/qcom.h>
-#include <soc/qcom/cx_ipeak.h>
-#include "cam_io_util.h"
+struct cam_hw_soc_info;
 
-int cam_cx_ipeak_register_cx_ipeak(struct cam_hw_soc_info *soc_info);
+/*
+ * 6.1 has no CX peak-current limits driver (soc/qcom/cx_ipeak.h), so the
+ * camera does not vote on it.
+ */
+static inline int cam_cx_ipeak_register_cx_ipeak(
+	struct cam_hw_soc_info *soc_info)
+{
+	return 0;
+}
 
-int cam_cx_ipeak_update_vote_cx_ipeak(struct cam_hw_soc_info *soc_info,
-	int32_t apply_level);
-int cam_cx_ipeak_unvote_cx_ipeak(struct cam_hw_soc_info *soc_info);
+static inline int cam_cx_ipeak_update_vote_cx_ipeak(
+	struct cam_hw_soc_info *soc_info, int32_t apply_level)
+{
+	return 0;
+}
+
+static inline int cam_cx_ipeak_unvote_cx_ipeak(
+	struct cam_hw_soc_info *soc_info)
+{
+	return 0;
+}
 
 #endif /* _CAM_CX_IPEAK_H_ */
