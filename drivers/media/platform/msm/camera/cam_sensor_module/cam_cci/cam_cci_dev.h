@@ -51,6 +51,8 @@
 #define NUM_MASTERS 2
 #define NUM_QUEUES 2
 
+#undef TRUE
+#undef FALSE
 #define TRUE  1
 #define FALSE 0
 
