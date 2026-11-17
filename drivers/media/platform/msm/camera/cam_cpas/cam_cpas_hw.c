@@ -13,7 +13,7 @@
 #include <linux/device.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
-#include <linux/msm-bus.h>
+#include <linux/interconnect.h>
 #include <linux/pm_opp.h>
 #include <linux/slab.h>
 #include <linux/module.h>
@@ -62,6 +62,8 @@ int cam_cpas_util_reg_update(struct cam_hw_info *cpas_hw,
 static int cam_cpas_util_vote_bus_client_level(
 	struct cam_cpas_bus_client *bus_client, unsigned int level)
 {
+	int rc;
+
 	if (!bus_client->valid || (bus_client->dyn_vote == true)) {
 		CAM_ERR(CAM_CPAS, "Invalid params %d %d", bus_client->valid,
 			bus_client->dyn_vote);
@@ -79,7 +81,13 @@ static int cam_cpas_util_vote_bus_client_level(
 
 	CAM_DBG(CAM_CPAS, "Bus client=[%d][%s] index[%d]",
 		bus_client->client_id, bus_client->name, level);
-	msm_bus_scale_client_update_request(bus_client->client_id, level);
+	rc = icc_set_bw(bus_client->icc, bus_client->level_ab[level],
+		bus_client->level_ib[level]);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "Bus client=[%s] level %d vote failed rc=%d",
+			bus_client->name, level, rc);
+		return rc;
+	}
 	bus_client->curr_vote_level = level;
 
 	return 0;
@@ -89,9 +97,8 @@ static int cam_cpas_util_vote_bus_client_bw(
 	struct cam_cpas_bus_client *bus_client, uint64_t ab, uint64_t ib,
 	bool camnoc_bw)
 {
-	struct msm_bus_paths *path;
-	struct msm_bus_scale_pdata *pdata;
 	int idx = 0;
+	int rc;
 	uint64_t min_camnoc_ib_bw = CAM_CPAS_AXI_MIN_CAMNOC_IB_BW;
 
 	if (cam_min_camnoc_ib_bw > 0)
@@ -142,68 +149,102 @@ static int cam_cpas_util_vote_bus_client_bw(
 			ib = CAM_CPAS_AXI_MIN_MNOC_IB_BW;
 	}
 
-	pdata = bus_client->pdata;
-	path = &(pdata->usecase[idx]);
-	path->vectors[0].ab = ab;
-	path->vectors[0].ib = ib;
-
 	CAM_DBG(CAM_CPAS, "Bus client=[%d][%s] :ab[%llu] ib[%llu], index[%d]",
 		bus_client->client_id, bus_client->name, ab, ib, idx);
-	msm_bus_scale_client_update_request(bus_client->client_id, idx);
 
-	return 0;
+	/* ab and ib are in bytes per second, interconnect takes kBps */
+	rc = icc_set_bw(bus_client->icc, div_u64(ab, 1000), div_u64(ib, 1000));
+	if (rc)
+		CAM_ERR(CAM_CPAS, "Bus client=[%s] bw vote failed rc=%d",
+			bus_client->name, rc);
+
+	return rc;
 }
 
+/*
+ * 6.1 has no msm-bus. The bus clients keep the 4.14 device tree layout
+ * (qcom,msm-bus,name / num-cases / num-paths / vectors-KBps with one
+ * <src dst ab ib> entry per case), the src and dst ids are interconnect
+ * node ids and the votes go through an interconnect path.
+ */
 static int cam_cpas_util_register_bus_client(
 	struct cam_hw_soc_info *soc_info, struct device_node *dev_node,
 	struct cam_cpas_bus_client *bus_client)
 {
-	struct msm_bus_scale_pdata *pdata = NULL;
-	uint32_t client_id;
-	int rc;
+	struct device *dev = &soc_info->pdev->dev;
+	uint32_t num_cases = 0, num_paths = 0, val;
+	int rc, i;
 
-	pdata = msm_bus_pdata_from_node(soc_info->pdev,
-		dev_node);
-	if (!pdata) {
-		CAM_ERR(CAM_CPAS, "failed get_pdata");
+	rc = of_property_read_string(dev_node, "qcom,msm-bus,name",
+		&bus_client->name);
+	if (rc) {
+		CAM_ERR(CAM_CPAS, "failed to read bus name");
+		return rc;
+	}
+
+	of_property_read_u32(dev_node, "qcom,msm-bus,num-cases", &num_cases);
+	of_property_read_u32(dev_node, "qcom,msm-bus,num-paths", &num_paths);
+	if (num_cases == 0 || num_paths != 1) {
+		CAM_ERR(CAM_CPAS, "%s: usecase=%d paths=%d", bus_client->name,
+			num_cases, num_paths);
 		return -EINVAL;
-	}
-
-	if ((pdata->num_usecases == 0) ||
-		(pdata->usecase[0].num_paths == 0)) {
-		CAM_ERR(CAM_CPAS, "usecase=%d", pdata->num_usecases);
-		rc = -EINVAL;
-		goto error;
-	}
-
-	client_id = msm_bus_scale_register_client(pdata);
-	if (!client_id) {
-		CAM_ERR(CAM_CPAS, "failed in register ahb bus client");
-		rc = -EINVAL;
-		goto error;
 	}
 
 	bus_client->dyn_vote = of_property_read_bool(dev_node,
 		"qcom,msm-bus-vector-dyn-vote");
 
-	if (bus_client->dyn_vote && (pdata->num_usecases != 2)) {
-		CAM_ERR(CAM_CPAS, "Excess or less vectors %d",
-			pdata->num_usecases);
-		rc = -EINVAL;
-		goto fail_unregister_client;
+	if (bus_client->dyn_vote && (num_cases != 2)) {
+		CAM_ERR(CAM_CPAS, "Excess or less vectors %d", num_cases);
+		return -EINVAL;
 	}
 
-	msm_bus_scale_client_update_request(client_id, 0);
+	bus_client->level_ab = devm_kcalloc(dev, num_cases,
+		sizeof(*bus_client->level_ab), GFP_KERNEL);
+	bus_client->level_ib = devm_kcalloc(dev, num_cases,
+		sizeof(*bus_client->level_ib), GFP_KERNEL);
+	if (!bus_client->level_ab || !bus_client->level_ib)
+		return -ENOMEM;
 
-	bus_client->src = pdata->usecase[0].vectors[0].src;
-	bus_client->dst = pdata->usecase[0].vectors[0].dst;
-	bus_client->pdata = pdata;
-	bus_client->client_id = client_id;
-	bus_client->num_usecases = pdata->num_usecases;
-	bus_client->num_paths = pdata->usecase[0].num_paths;
+	for (i = 0; i < num_cases; i++) {
+		rc = of_property_read_u32_index(dev_node,
+			"qcom,msm-bus,vectors-KBps", i * 4, &val);
+		if (!rc && i == 0)
+			bus_client->src = val;
+		rc = rc ? rc : of_property_read_u32_index(dev_node,
+			"qcom,msm-bus,vectors-KBps", i * 4 + 1, &val);
+		if (!rc && i == 0)
+			bus_client->dst = val;
+		rc = rc ? rc : of_property_read_u32_index(dev_node,
+			"qcom,msm-bus,vectors-KBps", i * 4 + 2,
+			&bus_client->level_ab[i]);
+		rc = rc ? rc : of_property_read_u32_index(dev_node,
+			"qcom,msm-bus,vectors-KBps", i * 4 + 3,
+			&bus_client->level_ib[i]);
+		if (rc) {
+			CAM_ERR(CAM_CPAS, "%s: bad vectors-KBps, case %d",
+				bus_client->name, i);
+			return rc;
+		}
+	}
+
+	bus_client->icc = icc_get(dev, bus_client->src, bus_client->dst);
+	if (IS_ERR_OR_NULL(bus_client->icc)) {
+		rc = bus_client->icc ? PTR_ERR(bus_client->icc) : -EINVAL;
+		CAM_ERR(CAM_CPAS, "%s: no interconnect path %d -> %d, rc=%d",
+			bus_client->name, bus_client->src, bus_client->dst,
+			rc);
+		bus_client->icc = NULL;
+		return rc;
+	}
+
+	icc_set_bw(bus_client->icc, bus_client->level_ab[0],
+		bus_client->level_ib[0]);
+
+	bus_client->client_id = 1;
+	bus_client->num_usecases = num_cases;
+	bus_client->num_paths = num_paths;
 	bus_client->curr_vote_level = 0;
 	bus_client->valid = true;
-	bus_client->name = pdata->name;
 	mutex_init(&bus_client->lock);
 
 	CAM_DBG(CAM_CPAS, "Bus Client=[%d][%s] : src=%d, dst=%d",
@@ -211,11 +252,6 @@ static int cam_cpas_util_register_bus_client(
 		bus_client->src, bus_client->dst);
 
 	return 0;
-fail_unregister_client:
-	msm_bus_scale_unregister_client(bus_client->client_id);
-error:
-	return rc;
-
 }
 
 static int cam_cpas_util_unregister_bus_client(
@@ -229,7 +265,8 @@ static int cam_cpas_util_unregister_bus_client(
 	else
 		cam_cpas_util_vote_bus_client_level(bus_client, 0);
 
-	msm_bus_scale_unregister_client(bus_client->client_id);
+	icc_put(bus_client->icc);
+	bus_client->icc = NULL;
 	bus_client->valid = false;
 
 	mutex_destroy(&bus_client->lock);
