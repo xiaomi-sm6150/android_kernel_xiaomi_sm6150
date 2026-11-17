@@ -26,6 +26,7 @@
 #endif
 
 /* ---- videodev2.h ---- */
+#define BASE_VIDIOC_PRIVATE_VIDEO	(BASE_VIDIOC_PRIVATE + 0)
 #define V4L2_PIX_FMT_RGBA8888_UBWC   v4l2_fourcc('Q', 'R', 'G', 'B')
 #define V4L2_PIX_FMT_NV12_512         v4l2_fourcc('Q', '5', '1', '2')
 #define V4L2_PIX_FMT_NV12_UBWC        v4l2_fourcc('Q', '1', '2', '8')
@@ -170,6 +171,8 @@
 #define V4L2_MPEG_VIDEO_BITRATE_MODE_MBR_VFR		5
 #define V4L2_MPEG_VIDEO_BITRATE_MODE_MSM_CQ		6
 #define V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_I_FRAME	2
+#define V4L2_MPEG_VIDEO_MULTI_SICE_MODE_MAX_MB		1
+#define V4L2_MPEG_VIDEO_MULTI_SICE_MODE_MAX_BYTES	2
 #define V4L2_MPEG_VIDEO_MULTI_SLICE_GOB			3
 #define V4L2_MPEG_VIDEO_H264_LEVEL_UNKNOWN		18
 #define V4L2_MPEG_VIDEO_H264_LEVEL_MSM_6_1		19
@@ -450,7 +453,7 @@ enum vl42_mpeg_vidc_video_vpx_error_resilience {
 
 #define V4L2_CID_MPEG_VIDC_VIDEO_HEVC_PROFILE \
 	(V4L2_CID_MPEG_MSM_VIDC_BASE + 40)
-enum v4l2_mpeg_video_hevc_profile {
+enum v4l2_mpeg_vidc_video_hevc_profile {
 	V4L2_MPEG_VIDC_VIDEO_HEVC_PROFILE_MAIN			= 0,
 	V4L2_MPEG_VIDC_VIDEO_HEVC_PROFILE_MAIN10		= 1,
 	V4L2_MPEG_VIDC_VIDEO_HEVC_PROFILE_MAIN_STILL_PIC	= 2,
@@ -458,7 +461,7 @@ enum v4l2_mpeg_video_hevc_profile {
 
 #define V4L2_CID_MPEG_VIDC_VIDEO_HEVC_TIER_LEVEL \
 	(V4L2_CID_MPEG_MSM_VIDC_BASE + 41)
-enum v4l2_mpeg_video_hevc_level {
+enum v4l2_mpeg_vidc_video_hevc_level {
 	V4L2_MPEG_VIDC_VIDEO_HEVC_LEVEL_MAIN_TIER_LEVEL_1	= 0,
 	V4L2_MPEG_VIDC_VIDEO_HEVC_LEVEL_HIGH_TIER_LEVEL_1	= 1,
 	V4L2_MPEG_VIDC_VIDEO_HEVC_LEVEL_MAIN_TIER_LEVEL_2	= 2,
