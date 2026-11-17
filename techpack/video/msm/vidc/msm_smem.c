@@ -195,15 +195,6 @@ void msm_smem_put_dma_buf(void *dma_buf)
 	return;
 }
 
-static bool msm_smem_dma_buf_is_secure(struct dma_buf *dbuf)
-{
-	/* not from a qcom heap: no VM permissions, so not a secure buffer */
-	if (IS_ERR(to_mem_buf_vmperm(dbuf)))
-		return false;
-
-	return !mem_buf_dma_buf_exclusive_owner(dbuf);
-}
-
 int msm_smem_map_dma_buf(struct msm_vidc_inst *inst, struct msm_smem *smem)
 {
 	int rc = 0;
@@ -213,6 +204,7 @@ int msm_smem_map_dma_buf(struct msm_vidc_inst *inst, struct msm_smem *smem)
 	unsigned long buffer_size = 0;
 	unsigned long align = SZ_4K;
 	struct dma_buf *dbuf;
+	unsigned long ion_flags = 0;
 
 	if (!inst || !smem) {
 		dprintk(VIDC_ERR, "%s: Invalid params: %pK %pK\n",
@@ -234,14 +226,16 @@ int msm_smem_map_dma_buf(struct msm_vidc_inst *inst, struct msm_smem *smem)
 
 	smem->dma_buf = dbuf;
 
-	/*
-	 * 4.14 read the ION flags of the buffer. A 6.1 dma-buf has none: the
-	 * qcom heaps skip the CPU sync of an uncached buffer themselves, and
-	 * a secure buffer is one that HLOS does not own exclusively.
-	 */
-	smem->flags |= SMEM_CACHED;
+	/* the qcom heaps report ION-style flags through get_flags */
+	rc = dma_buf_get_flags(dbuf, &ion_flags);
+	if (rc) {
+		dprintk(VIDC_ERR, "Failed to get dma buf flags: %d\n", rc);
+		goto exit;
+	}
+	if (ion_flags & ION_FLAG_CACHED)
+		smem->flags |= SMEM_CACHED;
 
-	if (msm_smem_dma_buf_is_secure(dbuf))
+	if (ion_flags & ION_FLAG_SECURE)
 		smem->flags |= SMEM_SECURE;
 
 	buffer_size = smem->size;
