@@ -134,28 +134,20 @@ static inline char *get_debug_level_str(int level)
 static inline void tic(struct msm_vidc_inst *i, enum profiling_points p,
 				 char *b)
 {
-	struct timeval __ddl_tv;
-
 	if (!i->debug.pdata[p].name[0])
 		memcpy(i->debug.pdata[p].name, b, 64);
 	if ((msm_vidc_debug & VIDC_PROF) &&
 		i->debug.pdata[p].sampling) {
-		do_gettimeofday(&__ddl_tv);
-		i->debug.pdata[p].start =
-			(__ddl_tv.tv_sec * 1000) + (__ddl_tv.tv_usec / 1000);
+		i->debug.pdata[p].start = ktime_to_ms(ktime_get_real());
 			i->debug.pdata[p].sampling = false;
 	}
 }
 
 static inline void toc(struct msm_vidc_inst *i, enum profiling_points p)
 {
-	struct timeval __ddl_tv;
-
 	if ((msm_vidc_debug & VIDC_PROF) &&
 		!i->debug.pdata[p].sampling) {
-		do_gettimeofday(&__ddl_tv);
-		i->debug.pdata[p].stop = (__ddl_tv.tv_sec * 1000)
-			+ (__ddl_tv.tv_usec / 1000);
+		i->debug.pdata[p].stop = ktime_to_ms(ktime_get_real());
 		i->debug.pdata[p].cumulative += i->debug.pdata[p].stop -
 			i->debug.pdata[p].start;
 		i->debug.pdata[p].sampling = true;

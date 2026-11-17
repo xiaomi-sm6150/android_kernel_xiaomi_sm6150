@@ -23,6 +23,7 @@
 #include <linux/iopoll.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
+#include <linux/pm_opp.h>
 #include <linux/pm_qos.h>
 #include <linux/qcom_scm.h>
 #include <linux/regulator/consumer.h>
@@ -182,7 +183,7 @@ static inline bool is_sys_cache_present(struct venus_hfi_device *device)
 static void __dump_packet(u8 *packet, enum vidc_msg_prio log_level)
 {
 	u32 c = 0, packet_size = *(u32 *)packet;
-	const int row_size = 32;
+	enum { row_size = 32 };
 	/*
 	 * row must contain enough for 0xdeadbaad * 8 to be converted into
 	 * "de ad ba ab " * 8 + '\0'
@@ -3763,7 +3764,7 @@ static int __init_regs_and_interrupts(struct venus_hfi_device *device,
 
 	hal->irq = res->irq;
 	hal->firmware_base = res->firmware_base;
-	hal->register_base = devm_ioremap_nocache(&res->pdev->dev,
+	hal->register_base = devm_ioremap(&res->pdev->dev,
 			res->register_base, res->register_size);
 	hal->register_size = res->register_size;
 	if (!hal->register_base) {
@@ -4063,6 +4064,8 @@ static void __deinit_bus(struct venus_hfi_device *device)
 		bus->devfreq = NULL;
 		dev_set_drvdata(bus->dev, NULL);
 
+		dev_pm_opp_remove_all_dynamic(bus->dev);
+
 		icc_put(bus->path);
 		bus->path = NULL;
 	}
@@ -4112,6 +4115,15 @@ static int __init_bus(struct venus_hfi_device *device)
 			bus->path = NULL;
 			goto err_add_dev;
 		}
+
+		/*
+		 * 6.1 devfreq takes the frequency limits of a device from its
+		 * OPP table and refuses a device without one; 4.14 did not.
+		 * Register the vote range of the bus (kBps) as two OPPs.
+		 */
+		dev_pm_opp_add(bus->dev, bus->range[0], 0);
+		if (bus->range[1] != bus->range[0])
+			dev_pm_opp_add(bus->dev, bus->range[1], 0);
 
 		bus->devfreq_prof = profile;
 		bus->devfreq = devfreq_add_device(bus->dev,
@@ -4201,6 +4213,19 @@ exit:
 	return;
 }
 
+/* 4.14 looked the slices up by the cache-slice-names of the node; 6.1 by id */
+static u32 __subcache_uid(const char *name)
+{
+	if (!strcmp(name, "vidsc0"))
+		return LLCC_VIDSC0;
+	if (!strcmp(name, "vidsc1"))
+		return LLCC_VIDSC1;
+	if (!strcmp(name, "vidfw"))
+		return LLCC_VIDFW;
+
+	return U32_MAX;
+}
+
 static int __init_subcaches(struct venus_hfi_device *device)
 {
 	int rc = 0;
@@ -4216,8 +4241,7 @@ static int __init_subcaches(struct venus_hfi_device *device)
 		return 0;
 
 	venus_hfi_for_each_subcache(device, sinfo) {
-		sinfo->subcache = llcc_slice_getd(&device->res->pdev->dev,
-			sinfo->name);
+		sinfo->subcache = llcc_slice_getd(__subcache_uid(sinfo->name));
 		if (IS_ERR_OR_NULL(sinfo->subcache)) {
 			rc = PTR_ERR(sinfo->subcache) ? : -EBADHANDLE;
 			dprintk(VIDC_ERR,
@@ -4501,8 +4525,8 @@ static int __set_subcaches(struct venus_hfi_device *device)
 
 	venus_hfi_for_each_subcache(device, sinfo) {
 		if (sinfo->isactive == true) {
-			sc_res[c].size = sinfo->subcache->llcc_slice_size;
-			sc_res[c].sc_id = sinfo->subcache->llcc_slice_id;
+			sc_res[c].size = llcc_get_slice_size(sinfo->subcache);
+			sc_res[c].sc_id = llcc_get_slice_id(sinfo->subcache);
 			c++;
 		}
 	}
@@ -4561,8 +4585,8 @@ static int __release_subcaches(struct venus_hfi_device *device)
 	venus_hfi_for_each_subcache_reverse(device, sinfo) {
 		if (sinfo->isset == true) {
 			/* Update the entry */
-			sc_res[c].size = sinfo->subcache->llcc_slice_size;
-			sc_res[c].sc_id = sinfo->subcache->llcc_slice_id;
+			sc_res[c].size = llcc_get_slice_size(sinfo->subcache);
+			sc_res[c].sc_id = llcc_get_slice_id(sinfo->subcache);
 			c++;
 			sinfo->isset = false;
 		}
