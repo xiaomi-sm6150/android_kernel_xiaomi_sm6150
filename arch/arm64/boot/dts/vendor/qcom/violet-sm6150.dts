@@ -518,6 +518,12 @@
 &apps_smmu {
 	/delete-property/ interconnects;
 	/delete-property/ qcom,active-only;
+	/*
+	 * The bootloader splash scans out through stream 0x800. Keep its
+	 * stream match entry and context bank in place when the display
+	 * attaches, instead of moving the stream to a new entry.
+	 */
+	qcom,handoff-smrs = <0x800 0x0>;
 };
 
 /*
