@@ -14,6 +14,7 @@
 #include <linux/dma-direction.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
+#include <linux/version.h>
 #include "msm_vidc.h"
 #include "msm_vidc_internal.h"
 #include "msm_vidc_debug.h"
@@ -724,8 +725,8 @@ int msm_vidc_enum_framesizes(void *instance, struct v4l2_frmsizeenum *fsize)
 }
 EXPORT_SYMBOL(msm_vidc_enum_framesizes);
 
-static void *vidc_get_userptr(struct device *dev, unsigned long vaddr,
-			unsigned long size, enum dma_data_direction dma_dir)
+static void *vidc_get_userptr(struct vb2_buffer *vb, struct device *dev,
+			unsigned long vaddr, unsigned long size)
 {
 	return (void *)0xdeadbeef;
 }
@@ -1886,9 +1887,9 @@ static const struct v4l2_ctrl_ops msm_vidc_ctrl_ops = {
 	.g_volatile_ctrl = msm_vidc_op_g_volatile_ctrl,
 };
 
-static void batch_timer_callback(unsigned long data)
+static void batch_timer_callback(struct timer_list *t)
 {
-	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)data;
+	struct msm_vidc_inst *inst = from_timer(inst, t, batch_timer);
 
 	if (!inst->batch.enable)
 		return;
@@ -2033,8 +2034,7 @@ void *msm_vidc_open(int core_id, int session_type)
 	}
 
 	INIT_WORK(&inst->batch_work, msm_vidc_batch_handler);
-	setup_timer(&inst->batch_timer,
-				batch_timer_callback, (unsigned long)inst);
+	timer_setup(&inst->batch_timer, batch_timer_callback, 0);
 
 	return inst;
 fail_init:

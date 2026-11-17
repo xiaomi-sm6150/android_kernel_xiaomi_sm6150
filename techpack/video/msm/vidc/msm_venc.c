@@ -2419,7 +2419,8 @@ int msm_venc_s_ext_ctrl(struct msm_vidc_inst *inst,
 	}
 
 	/* This will check the range for contols and clip if necessary */
-	v4l2_try_ext_ctrls(&inst->ctrl_handler, ctrl);
+	v4l2_try_ext_ctrls(&inst->ctrl_handler,
+			&inst->core->vdev[inst->session_type].vdev, NULL, ctrl);
 
 	hdev = inst->core->device;
 	cap = &inst->capability;
