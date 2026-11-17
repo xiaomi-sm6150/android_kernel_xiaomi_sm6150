@@ -266,7 +266,7 @@ static int32_t cam_actuator_platform_remove(struct platform_device *pdev)
 	return rc;
 }
 
-static int32_t cam_actuator_driver_i2c_remove(struct i2c_client *client)
+static void cam_actuator_driver_i2c_remove(struct i2c_client *client)
 {
 	struct cam_actuator_ctrl_t      *a_ctrl =
 		i2c_get_clientdata(client);
@@ -276,7 +276,7 @@ static int32_t cam_actuator_driver_i2c_remove(struct i2c_client *client)
 	/* Handle I2C Devices */
 	if (!a_ctrl) {
 		CAM_ERR(CAM_ACTUATOR, "Actuator device is NULL");
-		return -EINVAL;
+		return;
 	}
 
 	CAM_INFO(CAM_ACTUATOR, "i2c remove invoked");
@@ -295,7 +295,6 @@ static int32_t cam_actuator_driver_i2c_remove(struct i2c_client *client)
 	v4l2_set_subdevdata(&a_ctrl->v4l2_dev_str.sd, NULL);
 	kfree(a_ctrl);
 
-	return 0;
 }
 
 static const struct of_device_id cam_actuator_driver_dt_match[] = {
