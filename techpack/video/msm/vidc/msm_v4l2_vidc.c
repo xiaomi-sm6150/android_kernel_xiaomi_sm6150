@@ -511,7 +511,7 @@ static int msm_vidc_register_video_device(enum session_type sess_type,
 	core->vdev[sess_type].type = sess_type;
 	core->vdev[sess_type].vdev.v4l2_dev = &core->v4l2_dev;
 	rc = video_register_device(&core->vdev[sess_type].vdev,
-					VFL_TYPE_GRABBER, nr);
+					VFL_TYPE_VIDEO, nr);
 	if (rc) {
 		dprintk(VIDC_ERR, "Failed to register the video device\n");
 		return rc;
