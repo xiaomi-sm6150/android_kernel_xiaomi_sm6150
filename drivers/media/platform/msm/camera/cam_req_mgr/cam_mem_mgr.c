@@ -939,6 +939,9 @@ static int cam_mem_mgr_cleanup_table(void)
 		}
 
 		mutex_lock(&tbl.bufq[i].q_lock);
+		if (tbl.bufq[i].dma_buf && tbl.bufq[i].kmdvaddr)
+			cam_mem_util_unmap_cpu_va(tbl.bufq[i].dma_buf,
+				tbl.bufq[i].kmdvaddr);
 		if (tbl.bufq[i].dma_buf) {
 			dma_buf_put(tbl.bufq[i].dma_buf);
 			tbl.bufq[i].dma_buf = NULL;
