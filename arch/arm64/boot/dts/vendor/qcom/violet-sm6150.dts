@@ -701,3 +701,21 @@
 &qupv3_se4_2uart {
 	status = "disabled";
 };
+
+/*
+ * RAM that hangs the machine when 6.1 uses it as normal memory (kexec runs
+ * 155-160): the 4.14 secure_display pool at 0xf5400000 and the top 221 MiB
+ * of DRAM. The kexec DTB cut them out of /memory; the bootloader rewrites
+ * /memory on a native boot, so reserve them here as well.
+ */
+&reserved_memory {
+	k61_hole_lo: k61-hole@f0000000 {
+		reg = <0x0 0xf0000000 0x0 0xe000000>;
+		no-map;
+	};
+
+	k61_hole_hi: k61-hole@170000000 {
+		reg = <0x1 0x70000000 0x0 0xdd00000>;
+		no-map;
+	};
+};
