@@ -90,8 +90,8 @@
 		/delete-property/ cam_vdig-supply;
 		cam_vaf-supply = <&pm6150_l19>;
 		regulator-names = "cam_vio", "cam_vana", "cam_vaf","cam_clk";
-		rgltr-min-voltage = <1800000 2900000 2800000 0>;
-		rgltr-max-voltage = <1800000 2900000 2800000 0>;
+		rgltr-min-voltage = <1800000 2900000 2960000 0>;
+		rgltr-max-voltage = <1800000 2900000 2960000 0>;
 		rgltr-load-current = <0 80000 100000 0>;
 		pinctrl-0 = <&cam_sensor_mclk0_active
 					&cam_sensor_rear_active>;
@@ -124,8 +124,8 @@
 	cam_clk-supply = <&titan_top_gdsc>;
 	regulator-names = "cam_vio", "cam_vana", "cam_vaf",
 		"cam_clk";
-	rgltr-min-voltage = <1800000 2900000 2800000 0>;
-	rgltr-max-voltage = <1800000 2900000 2800000 0>;
+	rgltr-min-voltage = <1800000 2900000 2960000 0>;
+	rgltr-max-voltage = <1800000 2900000 2960000 0>;
 	rgltr-load-current = <0 80000 100000 0>;
 	gpios = <&tlmm 28 0>,
 			<&tlmm 47 0>,
