@@ -204,7 +204,7 @@ static void __exit cam_isp_dev_exit_module(void)
 	platform_driver_unregister(&isp_driver);
 }
 
-module_init(cam_isp_dev_init_module);
+late_initcall(cam_isp_dev_init_module);
 module_exit(cam_isp_dev_exit_module);
 MODULE_DESCRIPTION("MSM ISP driver");
 MODULE_LICENSE("GPL v2");
