@@ -733,3 +733,8 @@
 		no-map;
 	};
 };
+
+/* Camera: after the PMIC nodes above, the sensor file extends pm6150l_gpios */
+#include "sm6150-camera.dtsi"
+#include "sm6150-camera-sensor-idp.dtsi"
+#include "violet-camera.dtsi"
