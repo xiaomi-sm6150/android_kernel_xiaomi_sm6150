@@ -340,7 +340,6 @@ static int cam_flash_platform_remove(struct platform_device *pdev)
 
 static void cam_flash_i2c_driver_remove(struct i2c_client *client)
 {
-	int32_t rc = 0;
 	struct cam_flash_ctrl *fctrl = i2c_get_clientdata(client);
 	/* Handle I2C Devices */
 	if (!fctrl) {
