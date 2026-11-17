@@ -150,6 +150,7 @@
 		 * no linear-qseed entry, so it repeats linear.
 		 */
 		qcom,sde-qos-refresh-rates = <60>;
+		qcom,sde-qos-cpu-irq-latency = <300>;
 		qcom,sde-danger-lut = <0x0000000f 0x0000ffff 0x00000000
 			0x00000000 0x0000ffff 0x0000000f>;
 		qcom,sde-safe-lut = <0xfff8 0xf000 0xffff 0xffff 0xf000 0xfff8>;
