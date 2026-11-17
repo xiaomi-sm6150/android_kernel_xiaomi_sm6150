@@ -12,6 +12,11 @@
 #include <linux/reboot-mode.h>
 #include <linux/regmap.h>
 
+#define PON_PS_HOLD_RST_CTL		0x5a
+#define PON_PS_HOLD_RST_CTL2		0x5b
+#define PON_PS_HOLD_RESET_EN		BIT(7)
+#define PON_PS_HOLD_TYPE_MASK		GENMASK(3, 0)
+#define PON_PS_HOLD_TYPE_WARM_RESET	0x01
 #define PON_SOFT_RB_SPARE		0x8f
 
 #define GEN1_REASON_SHIFT		2
@@ -42,6 +47,60 @@ static int pm8916_reboot_mode_write(struct reboot_mode_driver *reboot,
 	return ret;
 }
 
+/*
+ * Make a PS_HOLD drop a warm reset, so that DDR (and the ramoops log in it)
+ * survives a kernel panic. The vendor bootloader leaves the PMIC set to a
+ * hard reset; the downstream qpnp-power-on driver did this on 4.14.
+ */
+static int pm8916_pon_ps_hold_warm_reset(struct pm8916_pon *pon)
+{
+	unsigned int en_reg = pon->baseaddr + PON_PS_HOLD_RST_CTL;
+	int ret;
+
+	if (pon->reason_shift == GEN2_REASON_SHIFT)
+		en_reg = pon->baseaddr + PON_PS_HOLD_RST_CTL2;
+
+	ret = regmap_update_bits(pon->regmap, en_reg, PON_PS_HOLD_RESET_EN, 0);
+	if (ret)
+		return ret;
+
+	/* 10 sleep clock cycles, with margin */
+	udelay(500);
+
+	ret = regmap_update_bits(pon->regmap,
+				 pon->baseaddr + PON_PS_HOLD_RST_CTL,
+				 PON_PS_HOLD_TYPE_MASK,
+				 PON_PS_HOLD_TYPE_WARM_RESET);
+	if (ret)
+		return ret;
+
+	return regmap_update_bits(pon->regmap, en_reg, PON_PS_HOLD_RESET_EN,
+				  PON_PS_HOLD_RESET_EN);
+}
+
+/*
+ * The bootloader picks recovery from the reason in SOFT_RB_SPARE and leaves
+ * it set. Clear it once the kernel runs, so a later reset that does not go
+ * through reboot-mode (panic, watchdog) boots the normal boot partition
+ * instead of looping into recovery.
+ */
+static int pm8916_pon_clear_reason(struct pm8916_pon *pon)
+{
+	unsigned int val = 0;
+	int ret;
+
+	ret = regmap_read(pon->regmap, pon->baseaddr + PON_SOFT_RB_SPARE, &val);
+	if (ret)
+		return ret;
+
+	dev_info(pon->dev, "restart reason 0x%x, clearing\n",
+		 (val & GENMASK(7, pon->reason_shift)) >> pon->reason_shift);
+
+	return regmap_update_bits(pon->regmap,
+				  pon->baseaddr + PON_SOFT_RB_SPARE,
+				  GENMASK(7, pon->reason_shift), 0);
+}
+
 static int pm8916_pon_probe(struct platform_device *pdev)
 {
 	struct pm8916_pon *pon;
@@ -66,6 +125,21 @@ static int pm8916_pon_probe(struct platform_device *pdev)
 
 	pon->reboot_mode.dev = &pdev->dev;
 	pon->reason_shift = (long)of_device_get_match_data(&pdev->dev);
+
+	if (of_property_read_bool(pdev->dev.of_node, "qcom,ps-hold-warm-reset")) {
+		error = pm8916_pon_ps_hold_warm_reset(pon);
+		if (error)
+			dev_err(&pdev->dev, "PS_HOLD warm reset setup failed: %d\n",
+				error);
+	}
+
+	if (of_property_read_bool(pdev->dev.of_node, "qcom,clear-restart-reason")) {
+		error = pm8916_pon_clear_reason(pon);
+		if (error)
+			dev_err(&pdev->dev, "clearing the restart reason failed: %d\n",
+				error);
+	}
+
 	pon->reboot_mode.write = pm8916_reboot_mode_write;
 	error = devm_reboot_mode_register(&pdev->dev, &pon->reboot_mode);
 	if (error) {
