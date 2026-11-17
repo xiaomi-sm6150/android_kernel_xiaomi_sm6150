@@ -59,6 +59,31 @@ int cam_cpas_util_reg_update(struct cam_hw_info *cpas_hw,
 	return 0;
 }
 
+/*
+ * The interconnect providers register after the camera drivers probe, so
+ * the path is taken on the first vote (the camera is opened long after
+ * boot) and not while probing.
+ */
+static int cam_cpas_util_bus_client_get_path(
+	struct cam_cpas_bus_client *bus_client)
+{
+	struct icc_path *path;
+
+	if (bus_client->icc)
+		return 0;
+
+	path = icc_get(bus_client->dev, bus_client->src, bus_client->dst);
+	if (IS_ERR_OR_NULL(path)) {
+		CAM_ERR(CAM_CPAS, "%s: no interconnect path %d -> %d, rc=%ld",
+			bus_client->name, bus_client->src, bus_client->dst,
+			path ? PTR_ERR(path) : -EINVAL);
+		return path ? PTR_ERR(path) : -EINVAL;
+	}
+
+	bus_client->icc = path;
+	return 0;
+}
+
 static int cam_cpas_util_vote_bus_client_level(
 	struct cam_cpas_bus_client *bus_client, unsigned int level)
 {
@@ -81,6 +106,10 @@ static int cam_cpas_util_vote_bus_client_level(
 
 	CAM_DBG(CAM_CPAS, "Bus client=[%d][%s] index[%d]",
 		bus_client->client_id, bus_client->name, level);
+	rc = cam_cpas_util_bus_client_get_path(bus_client);
+	if (rc)
+		return rc;
+
 	rc = icc_set_bw(bus_client->icc, bus_client->level_ab[level],
 		bus_client->level_ib[level]);
 	if (rc) {
@@ -151,6 +180,10 @@ static int cam_cpas_util_vote_bus_client_bw(
 
 	CAM_DBG(CAM_CPAS, "Bus client=[%d][%s] :ab[%llu] ib[%llu], index[%d]",
 		bus_client->client_id, bus_client->name, ab, ib, idx);
+
+	rc = cam_cpas_util_bus_client_get_path(bus_client);
+	if (rc)
+		return rc;
 
 	/* ab and ib are in bytes per second, interconnect takes kBps */
 	rc = icc_set_bw(bus_client->icc, div_u64(ab, 1000), div_u64(ib, 1000));
@@ -227,19 +260,7 @@ static int cam_cpas_util_register_bus_client(
 		}
 	}
 
-	bus_client->icc = icc_get(dev, bus_client->src, bus_client->dst);
-	if (IS_ERR_OR_NULL(bus_client->icc)) {
-		rc = bus_client->icc ? PTR_ERR(bus_client->icc) : -EINVAL;
-		CAM_ERR(CAM_CPAS, "%s: no interconnect path %d -> %d, rc=%d",
-			bus_client->name, bus_client->src, bus_client->dst,
-			rc);
-		bus_client->icc = NULL;
-		return rc;
-	}
-
-	icc_set_bw(bus_client->icc, bus_client->level_ab[0],
-		bus_client->level_ib[0]);
-
+	bus_client->dev = dev;
 	bus_client->client_id = 1;
 	bus_client->num_usecases = num_cases;
 	bus_client->num_paths = num_paths;
@@ -260,10 +281,13 @@ static int cam_cpas_util_unregister_bus_client(
 	if (!bus_client->valid)
 		return -EINVAL;
 
-	if (bus_client->dyn_vote)
-		cam_cpas_util_vote_bus_client_bw(bus_client, 0, 0, false);
-	else
-		cam_cpas_util_vote_bus_client_level(bus_client, 0);
+	if (bus_client->icc) {
+		if (bus_client->dyn_vote)
+			cam_cpas_util_vote_bus_client_bw(bus_client, 0, 0,
+				false);
+		else
+			cam_cpas_util_vote_bus_client_level(bus_client, 0);
+	}
 
 	icc_put(bus_client->icc);
 	bus_client->icc = NULL;
