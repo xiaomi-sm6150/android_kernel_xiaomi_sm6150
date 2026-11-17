@@ -2,6 +2,7 @@
 #define __MSM_VIDC_PRIVATE_H__
 
 #include <linux/videodev2.h>
+#include <media/msm_vidc_v4l2.h>
 
 /* VIDIOC private video command */
 #define VIDIOC_VIDEO_CMD \

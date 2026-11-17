@@ -554,7 +554,14 @@ int msm_vidc_qbuf(void *instance, struct v4l2_buffer *b)
 	tag_data.output_tag = b->m.planes[0].reserved[6];
 	msm_comm_store_tags(inst, &tag_data);
 
-	rc = vb2_qbuf(&q->vb2_bufq, b);
+	/*
+	 * 0x00800000 is V4L2_QCOM_BUF_DROP_FRAME in the vendor ABI and
+	 * V4L2_BUF_FLAG_REQUEST_FD in 6.1, where vb2 would reject the buffer.
+	 * The driver never reads that flag from userspace, so drop it.
+	 */
+	b->flags &= ~V4L2_BUF_FLAG_REQUEST_FD;
+
+	rc = vb2_qbuf(&q->vb2_bufq, NULL, b);
 	if (rc)
 		dprintk(VIDC_ERR, "Failed to qbuf, %d\n", rc);
 
@@ -585,6 +592,15 @@ int msm_vidc_dqbuf(void *instance, struct v4l2_buffer *b)
 
 	mutex_lock(&q->lock);
 	rc = vb2_dqbuf(&q->vb2_bufq, b, true);
+	/*
+	 * 0x00000080 is V4L2_QCOM_BUF_END_OF_SUBFRAME in the vendor ABI and
+	 * V4L2_BUF_FLAG_IN_REQUEST in 6.1, so vb2 strips it from the dequeued
+	 * buffer. Put it back from the vb2 buffer the driver set it on.
+	 */
+	if (!rc && b->index < VB2_MAX_FRAME && q->vb2_bufq.bufs[b->index] &&
+	    (to_vb2_v4l2_buffer(q->vb2_bufq.bufs[b->index])->flags &
+			V4L2_QCOM_BUF_END_OF_SUBFRAME))
+		b->flags |= V4L2_QCOM_BUF_END_OF_SUBFRAME;
 	mutex_unlock(&q->lock);
 	if (rc == -EAGAIN) {
 		return rc;
@@ -1107,7 +1123,7 @@ static inline int start_streaming(struct msm_vidc_inst *inst)
 	rc_mode =  msm_comm_g_ctrl_for_id(inst,
 		V4L2_CID_MPEG_VIDEO_BITRATE_MODE);
 	/* HEIC HW/FWK tiling encode is supported only for CQ RC mode */
-	if (rc_mode == V4L2_MPEG_VIDEO_BITRATE_MODE_CQ) {
+	if (rc_mode == V4L2_MPEG_VIDEO_BITRATE_MODE_MSM_CQ) {
 		if (!heic_encode_session_supported(inst)) {
 			dprintk(VIDC_ERR,
 				"HEIC Encode session not supported\n");
