@@ -13,6 +13,7 @@
 #define _CAM_OIS_CORE_H_
 
 #include <linux/cma.h>
+#include <linux/dma-map-ops.h>
 #include "cam_ois_dev.h"
 
 #define OIS_NAME_LEN 32

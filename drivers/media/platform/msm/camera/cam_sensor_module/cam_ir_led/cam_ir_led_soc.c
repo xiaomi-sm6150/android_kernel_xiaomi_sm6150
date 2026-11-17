@@ -41,7 +41,7 @@ int cam_ir_led_get_dt_data(struct cam_ir_led_ctrl *ictrl,
 	}
 
 	if (of_property_read_bool(soc_info->dev->of_node, "pwms")) {
-		ictrl->pwm_dev = of_pwm_get(ictrl->pdev->dev.of_node, NULL);
+		ictrl->pwm_dev = pwm_get(&ictrl->pdev->dev, NULL);
 		if (ictrl->pwm_dev == NULL)
 			CAM_ERR(CAM_IR_LED, "Cannot get PWM device");
 		ictrl->ir_led_driver_type = IR_LED_DRIVER_PMIC;
