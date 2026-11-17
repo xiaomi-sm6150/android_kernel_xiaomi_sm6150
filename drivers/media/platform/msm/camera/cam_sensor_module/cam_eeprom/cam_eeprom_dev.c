@@ -16,9 +16,7 @@
 #include "cam_eeprom_core.h"
 #include "cam_debug_util.h"
 
-#include <soc/qcom/socinfo.h>
 
-uint32_t hw_version_platform;
 
 static long cam_eeprom_subdev_ioctl(struct v4l2_subdev *sd,
 	unsigned int cmd, void *arg)
@@ -582,8 +580,6 @@ static int __init cam_eeprom_driver_init(void)
 		return rc;
 	}
 
-	hw_version_platform = get_hw_version_platform();
-	CAM_ERR(CAM_EEPROM, "hw_version_platform = %d", hw_version_platform);
 
 	return rc;
 }
