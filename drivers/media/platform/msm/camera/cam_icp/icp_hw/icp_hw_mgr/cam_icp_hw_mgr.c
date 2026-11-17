@@ -4571,7 +4571,7 @@ static int cam_icp_mgr_hw_dump(void *hw_priv, void *hw_dump_args)
 	int rc = 0;
 	struct cam_icp_hw_ctx_data *ctx_data;
 	struct hfi_frame_process_info *frm_process;
-	struct timeval cur_time;
+	struct __kernel_old_timeval cur_time;
 	uint64_t diff;
 	int i;
 	struct cam_icp_dump_header *hdr;
