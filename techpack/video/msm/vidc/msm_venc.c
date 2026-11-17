@@ -357,7 +357,7 @@ static struct msm_vidc_ctrl msm_venc_ctrls[] = {
 		.name = "Video Framerate and Bitrate Control",
 		.type = V4L2_CTRL_TYPE_MENU,
 		.minimum = V4L2_MPEG_VIDEO_BITRATE_MODE_VBR,
-		.maximum = V4L2_MPEG_VIDEO_BITRATE_MODE_CQ,
+		.maximum = V4L2_MPEG_VIDEO_BITRATE_MODE_MSM_CQ,
 		.default_value = V4L2_MPEG_VIDEO_BITRATE_MODE_RC_OFF,
 		.step = 0,
 		.menu_skip_mask = ~(
@@ -367,7 +367,7 @@ static struct msm_vidc_ctrl msm_venc_ctrls[] = {
 		(1 << V4L2_MPEG_VIDEO_BITRATE_MODE_RC_OFF) |
 		(1 << V4L2_MPEG_VIDEO_BITRATE_MODE_CBR_VFR) |
 		(1 << V4L2_MPEG_VIDEO_BITRATE_MODE_MBR_VFR) |
-		(1 << V4L2_MPEG_VIDEO_BITRATE_MODE_CQ)
+		(1 << V4L2_MPEG_VIDEO_BITRATE_MODE_MSM_CQ)
 		),
 		.qmenu = mpeg_video_rate_control,
 	},
@@ -1470,7 +1470,7 @@ int msm_venc_s_ctrl(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
 			rc = -ENOTSUPP;
 			break;
 		}
-		if ((ctrl->val == V4L2_MPEG_VIDEO_BITRATE_MODE_CQ) &&
+		if ((ctrl->val == V4L2_MPEG_VIDEO_BITRATE_MODE_MSM_CQ) &&
 			inst->fmts[CAPTURE_PORT].fourcc != V4L2_PIX_FMT_HEVC) {
 			dprintk(VIDC_ERR, "CQ supported only for HEVC\n");
 			rc = -ENOTSUPP;
@@ -1480,7 +1480,7 @@ int msm_venc_s_ctrl(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
 		property_val = ctrl->val;
 		pdata = &property_val;
 
-		if (ctrl->val == V4L2_MPEG_VIDEO_BITRATE_MODE_CQ ||
+		if (ctrl->val == V4L2_MPEG_VIDEO_BITRATE_MODE_MSM_CQ ||
 			ctrl->val == V4L2_MPEG_VIDEO_BITRATE_MODE_RC_OFF) {
 			rc = call_hfi_op(hdev, session_set_property,
 				(void *)inst->session, property_id, pdata);

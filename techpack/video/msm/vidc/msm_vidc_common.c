@@ -167,9 +167,9 @@ int msm_comm_hal_to_v4l2(int id, int value)
 		case HAL_H264_LEVEL_6:
 			return V4L2_MPEG_VIDEO_H264_LEVEL_6_0;
 		case HAL_H264_LEVEL_61:
-			return V4L2_MPEG_VIDEO_H264_LEVEL_6_1;
+			return V4L2_MPEG_VIDEO_H264_LEVEL_MSM_6_1;
 		case HAL_H264_LEVEL_62:
-			return V4L2_MPEG_VIDEO_H264_LEVEL_6_2;
+			return V4L2_MPEG_VIDEO_H264_LEVEL_MSM_6_2;
 		default:
 			goto unknown_value;
 		}
@@ -399,9 +399,9 @@ int msm_comm_v4l2_to_hal(int id, int value)
 			return HAL_H264_LEVEL_52;
 		case V4L2_MPEG_VIDEO_H264_LEVEL_6_0:
 			return HAL_H264_LEVEL_6;
-		case V4L2_MPEG_VIDEO_H264_LEVEL_6_1:
+		case V4L2_MPEG_VIDEO_H264_LEVEL_MSM_6_1:
 			return HAL_H264_LEVEL_61;
-		case V4L2_MPEG_VIDEO_H264_LEVEL_6_2:
+		case V4L2_MPEG_VIDEO_H264_LEVEL_MSM_6_2:
 			return HAL_H264_LEVEL_62;
 		case V4L2_MPEG_VIDEO_H264_LEVEL_UNKNOWN:
 			return HAL_H264_LEVEL_UNKNOWN;
@@ -611,6 +611,40 @@ int msm_comm_get_v4l2_level(int fourcc, int level)
 	}
 }
 
+/*
+ * Standard menu controls whose vendor ABI has more items, or other numbers,
+ * than the menu the 6.1 control framework knows for the ID. The framework
+ * indexes its own menu with the value, so these get the vendor menu.
+ */
+static const char *const vidc_bitrate_mode_menu[] = {
+	"Variable Bitrate",
+	"Constant Bitrate",
+	"MBR",
+	"RC OFF",
+	"CBR VFR",
+	"MBR VFR",
+	"Constant Quality",
+	NULL
+};
+
+static const char *const vidc_h264_level_menu[] = {
+	"1", "1b", "1.1", "1.2", "1.3", "2", "2.1", "2.2", "3", "3.1", "3.2",
+	"4", "4.1", "4.2", "5", "5.1", "5.2", "6", "Unknown", "6.1", "6.2",
+	NULL
+};
+
+static const char *const *msm_comm_vendor_std_menu(u32 id)
+{
+	switch (id) {
+	case V4L2_CID_MPEG_VIDEO_BITRATE_MODE:
+		return vidc_bitrate_mode_menu;
+	case V4L2_CID_MPEG_VIDEO_H264_LEVEL:
+		return vidc_h264_level_menu;
+	default:
+		return NULL;
+	}
+}
+
 int msm_comm_ctrl_init(struct msm_vidc_inst *inst,
 		struct msm_vidc_ctrl *drv_ctrls, u32 num_ctrls,
 		const struct v4l2_ctrl_ops *ctrl_ops)
@@ -660,7 +694,27 @@ int msm_comm_ctrl_init(struct msm_vidc_inst *inst,
 			ctrl = v4l2_ctrl_new_custom(&inst->ctrl_handler,
 					&ctrl_cfg, NULL);
 		} else {
-			if (drv_ctrls[idx].type == V4L2_CTRL_TYPE_MENU) {
+			const char *const *qmenu =
+				msm_comm_vendor_std_menu(drv_ctrls[idx].id);
+
+			if (drv_ctrls[idx].type == V4L2_CTRL_TYPE_MENU &&
+					qmenu) {
+				struct v4l2_ctrl_config menu_cfg = {
+					.ops = ctrl_ops,
+					.id = drv_ctrls[idx].id,
+					.name = drv_ctrls[idx].name,
+					.type = V4L2_CTRL_TYPE_MENU,
+					.min = drv_ctrls[idx].minimum,
+					.max = drv_ctrls[idx].maximum,
+					.def = drv_ctrls[idx].default_value,
+					.menu_skip_mask =
+						drv_ctrls[idx].menu_skip_mask,
+					.qmenu = qmenu,
+				};
+
+				ctrl = v4l2_ctrl_new_custom(&inst->ctrl_handler,
+						&menu_cfg, NULL);
+			} else if (drv_ctrls[idx].type == V4L2_CTRL_TYPE_MENU) {
 				ctrl = v4l2_ctrl_new_std_menu(
 					&inst->ctrl_handler,
 					ctrl_ops,

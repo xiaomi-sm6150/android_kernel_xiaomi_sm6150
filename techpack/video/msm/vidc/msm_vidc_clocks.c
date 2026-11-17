@@ -1256,7 +1256,7 @@ int msm_vidc_decide_work_route(struct msm_vidc_inst *inst)
 		rc_mode = msm_comm_g_ctrl_for_id(inst,
 			V4L2_CID_MPEG_VIDEO_BITRATE_MODE);
 		if (rc_mode ==
-			V4L2_MPEG_VIDEO_BITRATE_MODE_CQ) {
+			V4L2_MPEG_VIDEO_BITRATE_MODE_MSM_CQ) {
 			pdata.video_work_route = 2;
 			goto decision_done;
 		}
@@ -1490,7 +1490,7 @@ static inline int msm_vidc_power_save_mode_enable(struct msm_vidc_inst *inst,
 	/* Power saving always disabled for CQ RC mode. */
 	rc_mode = msm_comm_g_ctrl_for_id(inst,
 		V4L2_CID_MPEG_VIDEO_BITRATE_MODE);
-	if (rc_mode == V4L2_MPEG_VIDEO_BITRATE_MODE_CQ)
+	if (rc_mode == V4L2_MPEG_VIDEO_BITRATE_MODE_MSM_CQ)
 		enable = false;
 
 	complexity = msm_comm_g_ctrl_for_id(inst,
