@@ -423,18 +423,10 @@ static int msm_vidc_populate_bus(struct device *dev,
 		goto err_bus;
 	}
 
-	rc = of_property_read_u32(dev->of_node, "qcom,bus-master",
-			&bus->master);
-	if (rc) {
-		dprintk(VIDC_ERR, "'qcom,bus-master' not found in node\n");
-		goto err_bus;
-	}
-
-	rc = of_property_read_u32(dev->of_node, "qcom,bus-slave", &bus->slave);
-	if (rc) {
-		dprintk(VIDC_ERR, "'qcom,bus-slave' not found in node\n");
-		goto err_bus;
-	}
+	/*
+	 * The msm_bus master/slave pair of 4.14 (qcom,bus-master/-slave) is
+	 * the "interconnects" path of this node on 6.1; __init_bus() gets it.
+	 */
 
 	rc = of_property_read_string(dev->of_node, "qcom,bus-governor",
 			&bus->governor);
@@ -463,8 +455,8 @@ static int msm_vidc_populate_bus(struct device *dev,
 
 	buses->count++;
 	bus->dev = dev;
-	dprintk(VIDC_DBG, "Found bus %s [%d->%d] with governor %s\n",
-			bus->name, bus->master, bus->slave, bus->governor);
+	dprintk(VIDC_DBG, "Found bus %s with governor %s\n",
+			bus->name, bus->governor);
 err_bus:
 	return rc;
 }

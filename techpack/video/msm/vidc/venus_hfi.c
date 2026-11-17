@@ -1030,9 +1030,9 @@ static int __devfreq_target(struct device *devfreq_dev,
 		*freq = clamp_t(typeof(*freq), *freq, bus->range[0],
 				bus->range[1]);
 
-	/* we expect governors to provide values in kBps form, convert to Bps */
-	ab = *freq * 1000;
-	rc = msm_bus_scale_update_bw(bus->client, ab, 0);
+	/* the governors provide kBps, as msm_bus took; interconnect wants kbps */
+	ab = kBps_to_icc(*freq);
+	rc = icc_set_bw(bus->path, ab, 0);
 	if (rc) {
 		dprintk(VIDC_ERR, "Failed voting bus %s to ab %llu\n: %d",
 				bus->name, ab, rc);
@@ -4091,8 +4091,8 @@ static void __deinit_bus(struct venus_hfi_device *device)
 		bus->devfreq = NULL;
 		dev_set_drvdata(bus->dev, NULL);
 
-		msm_bus_scale_unregister(bus->client);
-		bus->client = NULL;
+		icc_put(bus->path);
+		bus->path = NULL;
 	}
 }
 
@@ -4132,13 +4132,12 @@ static int __init_bus(struct venus_hfi_device *device)
 				dev_name(bus->dev));
 		dev_set_drvdata(bus->dev, device);
 
-		bus->client = msm_bus_scale_register(bus->master, bus->slave,
-				bus->name, false);
-		if (IS_ERR_OR_NULL(bus->client)) {
-			rc = PTR_ERR(bus->client) ?: -EBADHANDLE;
+		bus->path = of_icc_get(bus->dev, NULL);
+		if (IS_ERR_OR_NULL(bus->path)) {
+			rc = PTR_ERR(bus->path) ?: -EBADHANDLE;
 			dprintk(VIDC_ERR, "Failed to register bus %s: %d\n",
 					bus->name, rc);
-			bus->client = NULL;
+			bus->path = NULL;
 			goto err_add_dev;
 		}
 
