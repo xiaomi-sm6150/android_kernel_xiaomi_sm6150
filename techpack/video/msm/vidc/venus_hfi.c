@@ -16,23 +16,25 @@
 #include <linux/coresight-stm.h>
 #include <linux/delay.h>
 #include <linux/devfreq.h>
+#include <linux/firmware.h>
 #include <linux/hash.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/iommu.h>
 #include <linux/iopoll.h>
 #include <linux/of.h>
+#include <linux/of_address.h>
 #include <linux/pm_qos.h>
+#include <linux/qcom_scm.h>
 #include <linux/regulator/consumer.h>
 #include <linux/slab.h>
 #include <linux/workqueue.h>
 #include <linux/platform_device.h>
 #include <linux/soc/qcom/llcc-qcom.h>
+#include <linux/soc/qcom/mdt_loader.h>
 #include <soc/qcom/cx_ipeak.h>
-#include <soc/qcom/scm.h>
 #include <soc/qcom/socinfo.h>
 #include <linux/soc/qcom/smem.h>
-#include <soc/qcom/subsystem_restart.h>
 #include <linux/dma-mapping.h>
 #include <linux/fastcvpd.h>
 #include <linux/reset.h>
@@ -1232,23 +1234,7 @@ err_create_pkt:
 
 static int __tzbsp_set_video_state(enum tzbsp_video_state state)
 {
-	struct tzbsp_video_set_state_req cmd = {0};
-	int tzbsp_rsp = 0;
-	int rc = 0;
-	struct scm_desc desc = {0};
-
-	desc.args[0] = cmd.state = state;
-	desc.args[1] = cmd.spare = 0;
-	desc.arginfo = SCM_ARGS(2);
-
-	rc = scm_call2(SCM_SIP_FNID(SCM_SVC_BOOT,
-			TZBSP_VIDEO_SET_STATE), &desc);
-	tzbsp_rsp = desc.ret[0];
-
-	if (rc) {
-		dprintk(VIDC_ERR, "Failed scm_call %d\n", rc);
-		return rc;
-	}
+	int tzbsp_rsp = qcom_scm_set_remote_state(state, 0);
 
 	dprintk(VIDC_DBG, "Set state %d, resp %d\n", state, tzbsp_rsp);
 	if (tzbsp_rsp) {
@@ -4327,10 +4313,8 @@ static void __deinit_resources(struct venus_hfi_device *device)
 static int __protect_cp_mem(struct venus_hfi_device *device)
 {
 	struct tzbsp_memprot memprot;
-	unsigned int resp = 0;
 	int rc = 0;
 	struct context_bank_info *cb;
-	struct scm_desc desc = {0};
 
 	if (!device)
 		return -EINVAL;
@@ -4342,16 +4326,16 @@ static int __protect_cp_mem(struct venus_hfi_device *device)
 
 	list_for_each_entry(cb, &device->res->context_banks, list) {
 		if (!strcmp(cb->name, "venus_ns")) {
-			desc.args[1] = memprot.cp_size =
+			memprot.cp_size =
 				cb->addr_range.start;
 			dprintk(VIDC_DBG, "%s memprot.cp_size: %#x\n",
 				__func__, memprot.cp_size);
 		}
 
 		if (!strcmp(cb->name, "venus_sec_non_pixel")) {
-			desc.args[2] = memprot.cp_nonpixel_start =
+			memprot.cp_nonpixel_start =
 				cb->addr_range.start;
-			desc.args[3] = memprot.cp_nonpixel_size =
+			memprot.cp_nonpixel_size =
 				cb->addr_range.size;
 			dprintk(VIDC_DBG,
 				"%s memprot.cp_nonpixel_start: %#x size: %#x\n",
@@ -4360,14 +4344,11 @@ static int __protect_cp_mem(struct venus_hfi_device *device)
 		}
 	}
 
-	desc.arginfo = SCM_ARGS(4);
-	rc = scm_call2(SCM_SIP_FNID(SCM_SVC_MP,
-			   TZBSP_MEM_PROTECT_VIDEO_VAR), &desc);
-	resp = desc.ret[0];
+	rc = qcom_scm_mem_protect_video_var(memprot.cp_start, memprot.cp_size,
+			memprot.cp_nonpixel_start, memprot.cp_nonpixel_size);
 
 	if (rc) {
-		dprintk(VIDC_ERR, "Failed to protect memory(%d) response: %d\n",
-				rc, resp);
+		dprintk(VIDC_ERR, "Failed to protect memory(%d)\n", rc);
 	}
 
 	trace_venus_hfi_var_done(
@@ -4892,6 +4873,99 @@ err_venus_power_on:
 	return rc;
 }
 
+/*
+ * 4.14 booted the firmware through the PIL node qcom,venus@aae0000
+ * (qcom,pil-tz-generic, PAS 9, memory-region pil_video_mem) with
+ * subsystem_get_with_fwname(). 6.1 has no PIL framework: load the mdt into
+ * the carveout named by the memory-region of the vidc node and authenticate
+ * it with the PAS calls. Venus is powered by __venus_power_on() before this,
+ * which is what the PIL node's proxy votes were for.
+ */
+#define VENUS_PAS_ID	9
+
+static int __venus_mdt_load(struct venus_hfi_device *device)
+{
+	struct device *dev = &device->res->pdev->dev;
+	const struct firmware *fw = NULL;
+	struct device_node *mem_np;
+	char fw_name[64];
+	struct resource res;
+	ssize_t fw_size;
+	u32 pas_id = VENUS_PAS_ID;
+	void *virt;
+	int rc;
+
+	of_property_read_u32(dev->of_node, "qcom,pas-id", &pas_id);
+
+	mem_np = of_parse_phandle(dev->of_node, "memory-region", 0);
+	if (!mem_np) {
+		dprintk(VIDC_ERR, "%s: no venus memory-region\n", __func__);
+		return -EINVAL;
+	}
+	rc = of_address_to_resource(mem_np, 0, &res);
+	of_node_put(mem_np);
+	if (rc) {
+		dprintk(VIDC_ERR, "%s: venus memory-region: %d\n", __func__,
+			rc);
+		return rc;
+	}
+
+	scnprintf(fw_name, sizeof(fw_name), "%s.mdt",
+		  device->res->fw_name ? device->res->fw_name : "venus");
+	rc = request_firmware(&fw, fw_name, dev);
+	if (rc) {
+		dprintk(VIDC_ERR, "%s: request %s: %d\n", __func__, fw_name,
+			rc);
+		return rc;
+	}
+
+	fw_size = qcom_mdt_get_size(fw);
+	if (fw_size < 0 || fw_size > resource_size(&res)) {
+		dprintk(VIDC_ERR, "%s: %s size %zd, carveout %llu\n", __func__,
+			fw_name, fw_size, (u64)resource_size(&res));
+		rc = -EINVAL;
+		goto release_fw;
+	}
+
+	virt = memremap(res.start, resource_size(&res), MEMREMAP_WC);
+	if (!virt) {
+		rc = -ENOMEM;
+		goto release_fw;
+	}
+
+	rc = qcom_mdt_load(dev, fw, fw_name, pas_id, virt, res.start,
+			   resource_size(&res), NULL);
+	memunmap(virt);
+	if (rc) {
+		dprintk(VIDC_ERR, "%s: load %s: %d\n", __func__, fw_name, rc);
+		goto release_fw;
+	}
+
+	rc = qcom_scm_pas_auth_and_reset(pas_id);
+	if (rc) {
+		dprintk(VIDC_ERR, "%s: auth %s: %d\n", __func__, fw_name, rc);
+		goto release_fw;
+	}
+
+	device->resources.fw.pas_id = pas_id;
+	device->resources.fw.cookie = device;
+	dprintk(VIDC_DBG, "%s: %s loaded at %pa\n", __func__, fw_name,
+		&res.start);
+
+release_fw:
+	release_firmware(fw);
+	return rc;
+}
+
+static void __venus_mdt_unload(struct venus_hfi_device *device)
+{
+	int rc;
+
+	rc = qcom_scm_pas_shutdown(device->resources.fw.pas_id);
+	if (rc)
+		dprintk(VIDC_ERR, "%s: shutdown: %d\n", __func__, rc);
+}
+
 static int __load_fw(struct venus_hfi_device *device)
 {
 	int rc = 0;
@@ -4916,14 +4990,11 @@ static int __load_fw(struct venus_hfi_device *device)
 		goto fail_venus_power_on;
 	}
 
-	if ((!device->res->use_non_secure_pil && !device->res->firmware_base)
-			|| device->res->use_non_secure_pil) {
+	if (!device->res->firmware_base) {
 		if (!device->resources.fw.cookie)
-			device->resources.fw.cookie =
-				subsystem_get_with_fwname("venus",
-				device->res->fw_name);
+			__venus_mdt_load(device);
 
-		if (IS_ERR_OR_NULL(device->resources.fw.cookie)) {
+		if (!device->resources.fw.cookie) {
 			dprintk(VIDC_ERR, "Failed to download firmware\n");
 			device->resources.fw.cookie = NULL;
 			rc = -ENOMEM;
@@ -4931,7 +5002,7 @@ static int __load_fw(struct venus_hfi_device *device)
 		}
 	}
 
-	if (!device->res->use_non_secure_pil && !device->res->firmware_base) {
+	if (!device->res->firmware_base) {
 		rc = __protect_cp_mem(device);
 		if (rc) {
 			dprintk(VIDC_ERR, "Failed to protect memory\n");
@@ -4942,7 +5013,7 @@ static int __load_fw(struct venus_hfi_device *device)
 	return rc;
 fail_protect_mem:
 	if (device->resources.fw.cookie)
-		subsystem_put(device->resources.fw.cookie);
+		__venus_mdt_unload(device);
 	device->resources.fw.cookie = NULL;
 fail_load_fw:
 	__venus_power_off(device, true);
@@ -4964,7 +5035,7 @@ static void __unload_fw(struct venus_hfi_device *device)
 		flush_workqueue(device->venus_pm_workq);
 
 	__vote_buses(device, NULL, 0);
-	subsystem_put(device->resources.fw.cookie);
+	__venus_mdt_unload(device);
 	__interface_queues_release(device);
 	__venus_power_off(device, true);
 	device->resources.fw.cookie = NULL;

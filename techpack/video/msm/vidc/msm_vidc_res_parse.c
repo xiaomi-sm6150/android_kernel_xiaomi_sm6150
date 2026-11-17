@@ -18,7 +18,6 @@
 #include "msm_vidc_debug.h"
 #include "msm_vidc_resources.h"
 #include "msm_vidc_res_parse.h"
-#include "venus_boot.h"
 #include "soc/qcom/secure_buffer.h"
 
 enum clock_properties {
@@ -1282,22 +1281,9 @@ int read_context_bank_resources_from_dt(struct platform_device *pdev)
 	}
 
 	if (of_property_read_bool(pdev->dev.of_node, "qcom,fw-context-bank")) {
-		if (core->resources.use_non_secure_pil) {
-			struct context_bank_info *cb;
-
-			cb = devm_kzalloc(&pdev->dev, sizeof(*cb), GFP_KERNEL);
-			if (!cb) {
-				dprintk(VIDC_ERR, "alloc venus cb failed\n");
-				return -ENOMEM;
-			}
-
-			cb->dev = &pdev->dev;
-			rc = venus_boot_init(&core->resources, cb);
-			if (rc) {
-				dprintk(VIDC_ERR,
-				"Failed to init non-secure PIL %d\n", rc);
-			}
-		}
+		/* the non-secure PIL (venus_boot.c) was not ported to 6.1 */
+		dprintk(VIDC_ERR, "qcom,fw-context-bank is not supported\n");
+		rc = -EINVAL;
 	} else {
 		rc = msm_vidc_populate_context_bank(&pdev->dev, core);
 		if (rc)
