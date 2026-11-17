@@ -703,6 +703,14 @@
 	regulator-always-on;
 };
 
+/*
+ * 3.0 V rail the 4.14 violet DT keeps always-on. A kexec boot inherited it
+ * from 4.14; on a native boot it stayed off.
+ */
+&pm6150l_l7 {
+	regulator-always-on;
+};
+
 /* se4 (hsuart1) is not wired to anything on violet; only se7 (hsuart0 = /dev/ttyHS0) is the BT UART. */
 &qupv3_se4_2uart {
 	status = "disabled";
