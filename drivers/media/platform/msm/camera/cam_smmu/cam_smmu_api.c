@@ -3583,7 +3583,7 @@ static void __exit cam_smmu_exit_module(void)
 	platform_driver_unregister(&cam_smmu_driver);
 }
 
-module_init(cam_smmu_init_module);
+late_initcall(cam_smmu_init_module);
 module_exit(cam_smmu_exit_module);
 MODULE_DESCRIPTION("MSM Camera SMMU driver");
 MODULE_LICENSE("GPL v2");

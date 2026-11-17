@@ -520,7 +520,7 @@ static void __exit cam_hyp_intf_exit_module(void)
 	platform_driver_unregister(&cam_hyp_intf_driver);
 }
 
-module_init(cam_hyp_intf_init_module);
+late_initcall(cam_hyp_intf_init_module);
 module_exit(cam_hyp_intf_exit_module);
 MODULE_DESCRIPTION("MSM Camera Hypervisor Interface");
 MODULE_LICENSE("GPL v2");

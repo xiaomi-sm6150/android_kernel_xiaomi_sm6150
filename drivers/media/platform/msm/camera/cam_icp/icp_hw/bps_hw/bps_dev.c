@@ -207,7 +207,7 @@ static void __exit cam_bps_exit_module(void)
 	platform_driver_unregister(&cam_bps_driver);
 }
 
-module_init(cam_bps_init_module);
+late_initcall(cam_bps_init_module);
 module_exit(cam_bps_exit_module);
 MODULE_DESCRIPTION("CAM BPS driver");
 MODULE_LICENSE("GPL v2");
