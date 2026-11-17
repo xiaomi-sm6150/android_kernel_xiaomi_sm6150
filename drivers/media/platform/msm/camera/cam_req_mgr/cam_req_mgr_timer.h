@@ -28,7 +28,7 @@ struct cam_req_mgr_timer {
 	int32_t             expires;
 	struct timer_list   sys_timer;
 	void               *parent;
-	void              (*timer_cb)(unsigned long data);
+	void              (*timer_cb)(struct timer_list *timer_data);
 };
 
 /**
@@ -58,7 +58,7 @@ void crm_timer_reset(struct cam_req_mgr_timer *timer);
  *             will use default.
  */
 int crm_timer_init(struct cam_req_mgr_timer **timer,
-	int32_t expires, void *parent, void (*timer_cb)(unsigned long));
+	int32_t expires, void *parent, void (*timer_cb)(struct timer_list *));
 
 /**
  * crm_timer_exit()
