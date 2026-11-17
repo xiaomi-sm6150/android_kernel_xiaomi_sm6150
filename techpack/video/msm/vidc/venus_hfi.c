@@ -13,7 +13,6 @@
 
 #include <asm/memory.h>
 #include <linux/clk/qcom.h>
-#include <linux/coresight-stm.h>
 #include <linux/delay.h>
 #include <linux/devfreq.h>
 #include <linux/firmware.h>
@@ -32,16 +31,39 @@
 #include <linux/platform_device.h>
 #include <linux/soc/qcom/llcc-qcom.h>
 #include <linux/soc/qcom/mdt_loader.h>
-#include <soc/qcom/cx_ipeak.h>
 #include <soc/qcom/socinfo.h>
 #include <linux/soc/qcom/smem.h>
 #include <linux/dma-mapping.h>
-#include <linux/fastcvpd.h>
 #include <linux/reset.h>
 #include "hfi_packetization.h"
 #include "msm_vidc_debug.h"
 #include "venus_hfi.h"
 #include "vidc_hfi_io.h"
+
+/*
+ * The CVP DSP driver (fastcvpd) is not in the 6.1 tree. Only cores with
+ * domain_cvp set reach these, and sm6150 is not one of them.
+ */
+static inline int fastcvpd_video_send_cmd_hfi_queue(phys_addr_t *phys_addr,
+		uint32_t size_in_bytes)
+{
+	return -ENODEV;
+}
+
+static inline int fastcvpd_video_suspend(uint32_t session_flag)
+{
+	return -ENODEV;
+}
+
+static inline int fastcvpd_video_resume(uint32_t session_flag)
+{
+	return -ENODEV;
+}
+
+static inline int fastcvpd_video_shutdown(uint32_t session_flag)
+{
+	return -ENODEV;
+}
 
 #define FIRMWARE_SIZE			0X00A00000
 #define REG_ADDR_OFFSET_BITMASK	0x000FFFFF
@@ -1348,20 +1370,7 @@ static int __set_clk_rate(struct venus_hfi_device *device,
 		struct clock_info *cl, u64 rate)
 {
 	int rc = 0;
-	u64 threshold_freq = device->res->clk_freq_threshold;
-	struct cx_ipeak_client *ipeak = device->res->cx_ipeak_context;
 	struct clk *clk = cl->clk;
-
-	if (device->clk_freq < threshold_freq && rate >= threshold_freq) {
-		rc = cx_ipeak_update(ipeak, true);
-		if (rc) {
-			dprintk(VIDC_ERR,
-				"cx_ipeak_update failed! ipeak %pK\n", ipeak);
-			return rc;
-		}
-		dprintk(VIDC_PROF, "cx_ipeak_update: up, clk freq = %u\n",
-			device->clk_freq);
-	}
 
 	rc = clk_set_rate(clk, rate);
 	if (rc) {
@@ -1369,18 +1378,6 @@ static int __set_clk_rate(struct venus_hfi_device *device,
 			"%s: Failed to set clock rate %llu %s: %d\n",
 			__func__, rate, cl->name, rc);
 		return rc;
-	}
-
-	if (device->clk_freq >= threshold_freq && rate < threshold_freq) {
-		rc = cx_ipeak_update(ipeak, false);
-		if (rc) {
-			dprintk(VIDC_ERR,
-				"cx_ipeak_update failed! ipeak %pK\n", ipeak);
-			device->clk_freq = rate;
-			return rc;
-		}
-		dprintk(VIDC_PROF, "cx_ipeak_update: down, clk freq = %u\n",
-			device->clk_freq);
 	}
 
 	device->clk_freq = rate;
@@ -2210,11 +2207,7 @@ static int venus_hfi_core_init(void *device)
 	__dsp_send_hfi_queue(device);
 
 	if (dev->res->pm_qos_latency_us) {
-#ifdef CONFIG_SMP
-		dev->qos.type = PM_QOS_REQ_AFFINE_IRQ;
-		dev->qos.irq = dev->hal_data->irq;
-#endif
-		pm_qos_add_request(&dev->qos, PM_QOS_CPU_DMA_LATENCY,
+		cpu_latency_qos_add_request(&dev->qos,
 				dev->res->pm_qos_latency_us);
 	}
 	dprintk(VIDC_DBG, "Core inited successfully\n");
@@ -2244,8 +2237,8 @@ static int venus_hfi_core_release(void *dev)
 	mutex_lock(&device->lock);
 	dprintk(VIDC_DBG, "Core releasing\n");
 	if (device->res->pm_qos_latency_us &&
-		pm_qos_request_active(&device->qos))
-		pm_qos_remove_request(&device->qos);
+		cpu_latency_qos_request_active(&device->qos))
+		cpu_latency_qos_remove_request(&device->qos);
 
 	__resume(device);
 	__set_state(device, VENUS_STATE_DEINIT);
@@ -3435,17 +3428,10 @@ static void __flush_debug_queue(struct venus_hfi_device *device, u8 *packet)
 		if (pkt->packet_type == HFI_MSG_SYS_COV) {
 			struct hfi_msg_sys_coverage_packet *pkt =
 				(struct hfi_msg_sys_coverage_packet *) packet;
-			int stm_size = 0;
 
+			/* coverage data went to the STM trace on 4.14; drop it */
 			SKIP_INVALID_PKT(pkt->size,
 				pkt->msg_size, sizeof(*pkt));
-
-			stm_size = stm_log_inv_ts(0, 0,
-				pkt->rg_msg_data, pkt->msg_size);
-			if (stm_size == 0)
-				dprintk(VIDC_ERR,
-					"In %s, stm_log returned size of 0\n",
-					__func__);
 
 		} else if (pkt->packet_type == HFI_MSG_SYS_DEBUG) {
 			struct hfi_msg_sys_debug_packet *pkt =
@@ -3924,13 +3910,13 @@ static inline void __disable_unprepare_clks(struct venus_hfi_device *device)
 	venus_hfi_for_each_clock_reverse(device, cl) {
 		dprintk(VIDC_DBG, "Clock: %s disable and unprepare\n",
 				cl->name);
-		rc = clk_set_flags(cl->clk, CLKFLAG_NORETAIN_PERIPH);
+		rc = qcom_clk_set_flags(cl->clk, CLKFLAG_NORETAIN_PERIPH);
 		if (rc) {
 			dprintk(VIDC_WARN,
 				"Failed set flag NORETAIN_PERIPH %s\n",
 					cl->name);
 		}
-		rc = clk_set_flags(cl->clk, CLKFLAG_NORETAIN_MEM);
+		rc = qcom_clk_set_flags(cl->clk, CLKFLAG_NORETAIN_MEM);
 		if (rc) {
 			dprintk(VIDC_WARN,
 				"Failed set flag NORETAIN_MEM %s\n",
@@ -4026,13 +4012,13 @@ static inline int __prepare_enable_clks(struct venus_hfi_device *device)
 			__set_clk_rate(device, cl,
 					clk_round_rate(cl->clk, 0));
 
-		rc = clk_set_flags(cl->clk, CLKFLAG_RETAIN_PERIPH);
+		rc = qcom_clk_set_flags(cl->clk, CLKFLAG_RETAIN_PERIPH);
 		if (rc) {
 			dprintk(VIDC_WARN,
 				"Failed set flag RETAIN_PERIPH %s\n",
 					cl->name);
 		}
-		rc = clk_set_flags(cl->clk, CLKFLAG_RETAIN_MEM);
+		rc = qcom_clk_set_flags(cl->clk, CLKFLAG_RETAIN_MEM);
 		if (rc) {
 			dprintk(VIDC_WARN,
 				"Failed set flag RETAIN_MEM %s\n",
@@ -4781,8 +4767,8 @@ static inline int __suspend(struct venus_hfi_device *device)
 	dprintk(VIDC_PROF, "Entering suspend\n");
 
 	if (device->res->pm_qos_latency_us &&
-		pm_qos_request_active(&device->qos))
-		pm_qos_remove_request(&device->qos);
+		cpu_latency_qos_request_active(&device->qos))
+		cpu_latency_qos_remove_request(&device->qos);
 
 	rc = __tzbsp_set_video_state(TZBSP_VIDEO_STATE_SUSPEND);
 	if (rc) {
@@ -4844,11 +4830,7 @@ static inline int __resume(struct venus_hfi_device *device)
 	__set_threshold_registers(device);
 
 	if (device->res->pm_qos_latency_us) {
-#ifdef CONFIG_SMP
-		device->qos.type = PM_QOS_REQ_AFFINE_IRQ;
-		device->qos.irq = device->hal_data->irq;
-#endif
-		pm_qos_add_request(&device->qos, PM_QOS_CPU_DMA_LATENCY,
+		cpu_latency_qos_add_request(&device->qos,
 				device->res->pm_qos_latency_us);
 	}
 
