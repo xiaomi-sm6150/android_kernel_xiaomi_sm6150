@@ -28,7 +28,6 @@
 #include "cam_mem_mgr.h"
 #include "cam_debug_util.h"
 #include "cam_common_util.h"
-#include <linux/slub_def.h>
 
 #define CAM_REQ_MGR_EVENT_MAX 60
 
