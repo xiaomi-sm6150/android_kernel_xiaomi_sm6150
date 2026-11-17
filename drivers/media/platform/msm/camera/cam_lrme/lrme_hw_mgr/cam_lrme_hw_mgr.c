@@ -1075,11 +1075,6 @@ static int cam_lrme_mgr_create_debugfs_entry(void)
 		&g_lrme_hw_mgr.debugfs_entry.dump_register);
 
 	return rc;
-
-err:
-	debugfs_remove_recursive(g_lrme_hw_mgr.debugfs_entry.dentry);
-	g_lrme_hw_mgr.debugfs_entry.dentry = NULL;
-	return rc;
 }
 
 
