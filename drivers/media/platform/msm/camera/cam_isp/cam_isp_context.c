@@ -65,7 +65,7 @@ static void __cam_isp_ctx_update_event_record(
 {
 	int iterator = 0;
 	struct cam_isp_ctx_req  *req_isp;
-	struct timeval cur_time;
+	struct __kernel_old_timeval cur_time;
 
 	switch (event) {
 	case CAM_ISP_CTX_EVENT_EPOCH:
@@ -2297,7 +2297,7 @@ static int __cam_isp_ctx_dump_in_top_state(struct cam_context *ctx,
 	struct cam_hw_dump_args dump_args;
 	struct cam_isp_context *ctx_isp;
 	uint64_t diff = 0;
-	struct timeval cur_time;
+	struct __kernel_old_timeval cur_time;
 	int rc = 0;
 	uintptr_t cpu_addr;
 	size_t buf_len = 0;

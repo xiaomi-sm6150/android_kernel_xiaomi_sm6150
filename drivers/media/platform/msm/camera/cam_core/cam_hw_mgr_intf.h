@@ -78,7 +78,7 @@ struct cam_hw_fence_map_entry {
 struct cam_hw_done_event_data {
 	uint32_t           num_handles;
 	uint32_t           resource_handle[CAM_NUM_OUT_PER_COMP_IRQ_MAX];
-	struct timeval     timestamp;
+	struct __kernel_old_timeval     timestamp;
 	uint64_t           request_id;
 };
 

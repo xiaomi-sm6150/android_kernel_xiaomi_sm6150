@@ -121,7 +121,7 @@ struct cam_fd_mgr_frame_request {
 	struct cam_fd_hw_req_private   hw_req_private;
 	struct cam_hw_update_entry     hw_update_entries[CAM_FD_MAX_HW_ENTRIES];
 	uint32_t                       num_hw_update_entries;
-	struct timeval                 submit_timestamp;
+	struct __kernel_old_timeval                 submit_timestamp;
 };
 
 /**
