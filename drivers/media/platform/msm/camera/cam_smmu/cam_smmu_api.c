@@ -20,7 +20,6 @@
 #include <linux/msm_dma_iommu_mapping.h>
 #include <linux/workqueue.h>
 #include <linux/genalloc.h>
-#include <soc/qcom/scm.h>
 #include <soc/qcom/secure_buffer.h>
 #include <uapi/media/cam_req_mgr.h>
 #include <linux/debugfs.h>
