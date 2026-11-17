@@ -1069,14 +1069,10 @@ static int cam_lrme_mgr_create_debugfs_entry(void)
 		return -ENOMEM;
 	}
 
-	if (!debugfs_create_bool("dump_register",
+	debugfs_create_bool("dump_register",
 		0644,
 		g_lrme_hw_mgr.debugfs_entry.dentry,
-		&g_lrme_hw_mgr.debugfs_entry.dump_register)) {
-		CAM_ERR(CAM_LRME, "failed to create dump register entry");
-		rc = -ENOMEM;
-		goto err;
-	}
+		&g_lrme_hw_mgr.debugfs_entry.dump_register);
 
 	return rc;
 

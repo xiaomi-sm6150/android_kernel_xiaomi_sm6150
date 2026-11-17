@@ -79,15 +79,10 @@ static int cam_hw_cdm_create_debugfs_entry(void)
 	if (!debugfs_entry.dentry)
 		return -ENOMEM;
 
-	if (!debugfs_create_bool("dump_register",
+	debugfs_create_bool("dump_register",
 		0644,
 		debugfs_entry.dentry,
-		&debugfs_entry.dump_register)) {
-		CAM_ERR(CAM_CDM,
-			"failed to create dump_register entry");
-		rc = -ENOMEM;
-		goto err;
-	}
+		&debugfs_entry.dump_register);
 
 	return rc;
 err:

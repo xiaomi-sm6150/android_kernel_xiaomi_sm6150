@@ -1007,13 +1007,9 @@ static int cam_sync_create_debugfs(void)
 		return -ENOMEM;
 	}
 
-	if (!debugfs_create_bool("trigger_cb_without_switch",
+	debugfs_create_bool("trigger_cb_without_switch",
 		0644, sync_dev->dentry,
-		&trigger_cb_without_switch)) {
-		CAM_ERR(CAM_SYNC,
-			"failed to create trigger_cb_without_switch entry");
-		return -ENOMEM;
-	}
+		&trigger_cb_without_switch);
 
 	return 0;
 }
