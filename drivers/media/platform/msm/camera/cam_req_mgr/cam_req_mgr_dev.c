@@ -558,8 +558,8 @@ static int cam_video_device_setup(void)
 	g_dev.video->fops = &g_cam_fops;
 	g_dev.video->ioctl_ops = &g_cam_ioctl_ops;
 	g_dev.video->minor = -1;
-	g_dev.video->vfl_type = VFL_TYPE_GRABBER;
-	rc = video_register_device(g_dev.video, VFL_TYPE_GRABBER, -1);
+	g_dev.video->vfl_type = VFL_TYPE_VIDEO;
+	rc = video_register_device(g_dev.video, VFL_TYPE_VIDEO, -1);
 	if (rc)
 		goto v4l2_fail;
 
