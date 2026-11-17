@@ -1169,15 +1169,13 @@ unsafe extern "C" fn wrapfd_add_listener(
         // if the box allocation later failed.
         let handle = KBox::<ListenerHandle>::new_uninit(GFP_KERNEL)?;
 
-        let guard = wrap.inner.lock();
+        let mut guard = wrap.inner.lock();
 
-        let WrapOwner::Device(ref owning_dev) = guard.owner else {
-            return Err(EBUSY);
-        };
+        // SAFETY: `dev` is verified non-null and points to a valid C `struct device`.
+        // `get_device` safely increments its reference count.
+        let device = unsafe { device::Device::get_device(dev) };
 
-        // SAFETY: `dev` has been verified to be a non-null pointer and points to a live C
-        // `struct device` per function contract.
-        if owning_dev != &unsafe { kernel::device::Device::get_device(dev) } {
+        if guard.has_owner() && !guard.owned_by_device(&device) && !guard.owned_by_current_task() {
             return Err(EBUSY);
         }
 

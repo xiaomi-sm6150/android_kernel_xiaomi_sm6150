@@ -65,7 +65,8 @@ int wrapfd_put_mappable(struct file *file, struct device *dev,
 
 /*
  * Register a listener for the mappable object currently wrapped by the @file
- * object. Caller should own the buffer.
+ * object. Buffer does not have to be owned by the caller but should not have
+ * any other owner.
  * The caller can keep the mappable object mapped in its device's address space
  * but it has to unmap it once on_content_release callback is called.
  *
@@ -101,7 +102,7 @@ int wrapfd_put_mappable(struct file *file, struct device *dev,
  * -EBADF: file is invalid.
  * -ENODEV: device is invalid.
  * -EOPNOTSUPP: wrapfd driver is not enabled
- * -EBUSY: buffer is not owned by the caller.
+ * -EBUSY: buffer is owned by someone else.
  * -ENOENT: wrap is empty (buffer got freed or moved).
  * -EINVAL: @ops or @handlep parameter is invalid.
  * -ENOMEM: not enough memory.
