@@ -1129,7 +1129,7 @@ static int cam_jpeg_mgr_hw_dump(void *hw_mgr_priv, void *dump_hw_args)
 	struct cam_jpeg_hw_mgr *hw_mgr = hw_mgr_priv;
 	struct cam_jpeg_hw_ctx_data *ctx_data = NULL;
 	struct cam_jpeg_hw_cfg_req *p_cfg_req = NULL;
-	struct timeval cur_time;
+	struct __kernel_old_timeval cur_time;
 	uint32_t dev_type;
 	uint64_t diff;
 	uint64_t *addr, *start;

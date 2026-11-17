@@ -105,7 +105,7 @@ struct cam_lrme_frame_request {
 	struct cam_lrme_device    *hw_device;
 	struct cam_hw_update_entry hw_update_entries[CAM_LRME_MAX_HW_ENTRIES];
 	uint32_t                   num_hw_update_entries;
-	struct timeval             submit_timestamp;
+	struct __kernel_old_timeval             submit_timestamp;
 };
 
 /**

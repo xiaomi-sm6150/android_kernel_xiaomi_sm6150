@@ -176,7 +176,7 @@ struct hfi_frame_process_info {
 	uint32_t fw_process_flag[CAM_FRAME_CMD_MAX];
 	struct cam_icp_clk_bw_request clk_info[CAM_FRAME_CMD_MAX];
 	struct icp_frame_info frame_info[CAM_FRAME_CMD_MAX];
-	struct timeval submit_timestamp[CAM_FRAME_CMD_MAX];
+	struct __kernel_old_timeval submit_timestamp[CAM_FRAME_CMD_MAX];
 };
 
 /**

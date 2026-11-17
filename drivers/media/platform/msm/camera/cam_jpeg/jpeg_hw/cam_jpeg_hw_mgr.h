@@ -90,7 +90,7 @@ struct cam_jpeg_hw_cfg_req {
 	struct cam_hw_config_args hw_cfg_args;
 	uint32_t dev_type;
 	uintptr_t req_id;
-	struct timeval submit_timestamp;
+	struct __kernel_old_timeval submit_timestamp;
 	uint32_t num_hw_entry_processed;
 };
 

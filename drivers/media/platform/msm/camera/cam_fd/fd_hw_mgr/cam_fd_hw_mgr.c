@@ -1540,7 +1540,7 @@ static int cam_fd_mgr_hw_dump(void *hw_mgr_priv,
 	struct cam_hw_dump_args *dump_args = hw_dump_args;
 	struct cam_fd_mgr_frame_request *frame_req, *req_temp;
 	uint64_t diff;
-	struct timeval cur_time;
+	struct __kernel_old_timeval cur_time;
 	int rc = 0;
 	struct cam_fd_hw_mgr_ctx *hw_ctx =
 		(struct cam_fd_hw_mgr_ctx *)dump_args->ctxt_to_hw_map;

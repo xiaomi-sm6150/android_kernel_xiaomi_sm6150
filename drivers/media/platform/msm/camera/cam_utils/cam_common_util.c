@@ -56,7 +56,7 @@ uint32_t cam_common_util_remove_duplicate_arr(int32_t *arr, uint32_t num)
 	return wr_idx;
 }
 
-uint64_t cam_common_util_get_time_diff(struct timeval *t1, struct timeval *t2)
+uint64_t cam_common_util_get_time_diff(struct __kernel_old_timeval *t1, struct __kernel_old_timeval *t2)
 {
 	uint64_t diff = 0;
 
@@ -65,11 +65,11 @@ uint64_t cam_common_util_get_time_diff(struct timeval *t1, struct timeval *t2)
 	return diff;
 }
 
-void cam_common_util_get_curr_timestamp(struct timeval *time_stamp)
+void cam_common_util_get_curr_timestamp(struct __kernel_old_timeval *time_stamp)
 {
-	struct timespec ts;
+	struct timespec64 ts;
 
-	get_monotonic_boottime(&ts);
+	ktime_get_boottime_ts64(&ts);
 	time_stamp->tv_sec    = ts.tv_sec;
 	time_stamp->tv_usec   = ts.tv_nsec/1000;
 }

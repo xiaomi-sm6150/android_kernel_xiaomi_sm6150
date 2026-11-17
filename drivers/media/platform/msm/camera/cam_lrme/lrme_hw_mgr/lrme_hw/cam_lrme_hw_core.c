@@ -77,7 +77,7 @@ static int cam_lrme_hw_dump(struct cam_hw_info *lrme_hw,
 	struct cam_lrme_core *lrme_core =
 		(struct cam_lrme_core *)lrme_hw->core_info;
 	struct cam_lrme_frame_request *req = NULL;
-	struct timeval cur_time;
+	struct __kernel_old_timeval cur_time;
 	uint64_t diff = 0;
 	char *dst;
 	uint64_t *addr, *start;

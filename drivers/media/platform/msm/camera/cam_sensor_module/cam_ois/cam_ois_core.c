@@ -512,7 +512,7 @@ static int cam_ois_get_data(struct cam_ois_ctrl_t *o_ctrl,
 	uint64_t              boottime64;
 
 	memset(&o_ctrl->ois_data, 0, sizeof(struct ois_data_eis_t));
-	get_monotonic_boottime64(&ts64);
+	ktime_get_boottime_ts64(&ts64);
 	t_now = get_cycles();
 	boottime64 = (uint64_t)((ts64.tv_sec * 1000000000) + ts64.tv_nsec);
 
