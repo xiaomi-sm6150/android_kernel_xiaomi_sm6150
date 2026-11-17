@@ -115,7 +115,8 @@ struct cam_cpas_client {
  *
  * @src: Bus master/src id
  * @dst: Bus slave/dst id
- * @icc: Interconnect path the votes go to
+ * @dev: Device the interconnect path is requested for
+ * @icc: Interconnect path the votes go to, taken on the first vote
  * @level_ab: Average bandwidth of each use case, in kBps
  * @level_ib: Peak bandwidth of each use case, in kBps
  * @client_id: Bus client id
@@ -131,6 +132,7 @@ struct cam_cpas_client {
 struct cam_cpas_bus_client {
 	int src;
 	int dst;
+	struct device *dev;
 	struct icc_path *icc;
 	uint32_t *level_ab;
 	uint32_t *level_ib;
