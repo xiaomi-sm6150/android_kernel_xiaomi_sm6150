@@ -229,12 +229,31 @@ static int msm_v4l2_g_parm(struct file *file, void *fh,
 	return 0;
 }
 
-static int msm_v4l2_g_crop(struct file *file, void *fh,
-			struct v4l2_crop *a)
+/*
+ * 6.1 has no vidioc_g_crop: the core turns VIDIOC_G_CROP, which the vendor
+ * components call, into a crop (capture) or compose (output) selection of
+ * the single-planar buffer type and copies the rectangle back.
+ */
+static int msm_v4l2_g_selection(struct file *file, void *fh,
+			struct v4l2_selection *s)
 {
 	struct msm_vidc_inst *vidc_inst = get_vidc_inst(file, fh);
+	struct v4l2_crop crop = { 0 };
+	int rc;
 
-	return msm_vidc_g_crop(vidc_inst, a);
+	if (s->target != V4L2_SEL_TGT_CROP &&
+			s->target != V4L2_SEL_TGT_COMPOSE)
+		return -EINVAL;
+
+	crop.type = V4L2_TYPE_IS_OUTPUT(s->type) ?
+		V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE :
+		V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+	rc = msm_vidc_g_crop(vidc_inst, &crop);
+	if (rc)
+		return rc;
+
+	s->r = crop.c;
+	return 0;
 }
 
 static int msm_v4l2_enum_framesizes(struct file *file, void *fh,
@@ -263,8 +282,8 @@ static long msm_v4l2_default(struct file *file, void *fh,
 
 static const struct v4l2_ioctl_ops msm_v4l2_ioctl_ops = {
 	.vidioc_querycap = msm_v4l2_querycap,
-	.vidioc_enum_fmt_vid_cap_mplane = msm_v4l2_enum_fmt,
-	.vidioc_enum_fmt_vid_out_mplane = msm_v4l2_enum_fmt,
+	.vidioc_enum_fmt_vid_cap = msm_v4l2_enum_fmt,
+	.vidioc_enum_fmt_vid_out = msm_v4l2_enum_fmt,
 	.vidioc_s_fmt_vid_cap_mplane = msm_v4l2_s_fmt,
 	.vidioc_s_fmt_vid_out_mplane = msm_v4l2_s_fmt,
 	.vidioc_g_fmt_vid_cap_mplane = msm_v4l2_g_fmt,
@@ -285,7 +304,7 @@ static const struct v4l2_ioctl_ops msm_v4l2_ioctl_ops = {
 	.vidioc_encoder_cmd = msm_v4l2_encoder_cmd,
 	.vidioc_s_parm = msm_v4l2_s_parm,
 	.vidioc_g_parm = msm_v4l2_g_parm,
-	.vidioc_g_crop = msm_v4l2_g_crop,
+	.vidioc_g_selection = msm_v4l2_g_selection,
 	.vidioc_enum_framesizes = msm_v4l2_enum_framesizes,
 	.vidioc_default = msm_v4l2_default,
 };
@@ -510,6 +529,9 @@ static int msm_vidc_register_video_device(enum session_type sess_type,
 	core->vdev[sess_type].vdev.vfl_dir = VFL_DIR_M2M;
 	core->vdev[sess_type].type = sess_type;
 	core->vdev[sess_type].vdev.v4l2_dev = &core->v4l2_dev;
+	core->vdev[sess_type].vdev.device_caps =
+		V4L2_CAP_VIDEO_CAPTURE_MPLANE | V4L2_CAP_VIDEO_OUTPUT_MPLANE |
+		V4L2_CAP_STREAMING;
 	rc = video_register_device(&core->vdev[sess_type].vdev,
 					VFL_TYPE_VIDEO, nr);
 	if (rc) {
@@ -530,7 +552,7 @@ static int msm_vidc_probe_vidc_device(struct platform_device *pdev)
 {
 	int rc = 0;
 	struct msm_vidc_core *core;
-	struct device *dev;
+	struct device *dev = NULL;
 	int nr = BASE_DEVICE_NUMBER;
 
 	place_marker("M - DRIVER Video Start");
@@ -781,7 +803,6 @@ static int msm_vidc_pm_suspend(struct device *dev)
 
 static int msm_vidc_pm_resume(struct device *dev)
 {
-	update_marker("vidc resumed");
 	dprintk(VIDC_INFO, "%s\n", __func__);
 	return 0;
 }

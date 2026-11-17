@@ -224,7 +224,6 @@ static const struct file_operations debug_level_fops = {
 
 struct dentry *msm_vidc_debugfs_init_drv(void)
 {
-	bool ok = false;
 	struct dentry *dir = NULL;
 
 	dir = debugfs_create_dir("msm_vidc", NULL);
@@ -233,35 +232,18 @@ struct dentry *msm_vidc_debugfs_init_drv(void)
 		goto failed_create_dir;
 	}
 
-#define __debugfs_create(__type, __name, __value) ({                          \
-	struct dentry *f = debugfs_create_##__type(__name, 0644,	\
-		dir, __value);                                                \
-	if (IS_ERR_OR_NULL(f)) {                                              \
-		dprintk(VIDC_ERR, "Failed creating debugfs file '%pd/%s'\n",  \
-			dir, __name);                                         \
-		f = NULL;                                                     \
-	}                                                                     \
-	f;                                                                    \
-})
-
-	ok =
-	__debugfs_create(x32, "fw_level", &msm_vidc_fw_debug) &&
-	__debugfs_create(u32, "fw_debug_mode", &msm_vidc_fw_debug_mode) &&
-	__debugfs_create(bool, "fw_coverage", &msm_vidc_fw_coverage) &&
-	__debugfs_create(u32, "fw_low_power_mode",
-			&msm_vidc_fw_low_power_mode) &&
-	__debugfs_create(u32, "debug_output", &msm_vidc_debug_out) &&
-	__debugfs_create(bool, "disable_thermal_mitigation",
-			&msm_vidc_thermal_mitigation_disabled) &&
-	__debugfs_create(u32, "core_clock_voting",
-			&msm_vidc_clock_voting) &&
-	__debugfs_create(bool, "disable_video_syscache",
+	debugfs_create_x32("fw_level", 0644, dir, &msm_vidc_fw_debug);
+	debugfs_create_u32("fw_debug_mode", 0644, dir, &msm_vidc_fw_debug_mode);
+	debugfs_create_bool("fw_coverage", 0644, dir, &msm_vidc_fw_coverage);
+	debugfs_create_u32("fw_low_power_mode", 0644, dir,
+			&msm_vidc_fw_low_power_mode);
+	debugfs_create_u32("debug_output", 0644, dir, &msm_vidc_debug_out);
+	debugfs_create_bool("disable_thermal_mitigation", 0644, dir,
+			&msm_vidc_thermal_mitigation_disabled);
+	debugfs_create_u32("core_clock_voting", 0644, dir,
+			&msm_vidc_clock_voting);
+	debugfs_create_bool("disable_video_syscache", 0644, dir,
 			&msm_vidc_syscache_disable);
-
-#undef __debugfs_create
-
-	if (!ok)
-		goto failed_create_dir;
 
 	return dir;
 

@@ -22,6 +22,9 @@
 #include "msm_vidc.h"
 #include "msm_vidc_resources.h"
 
+/* SMEM item of the image version table (4.14 soc/qcom/socinfo.h) */
+#define SMEM_IMAGE_VERSION_TABLE	469
+
 #define CONTAINS(__a, __sz, __t) (\
 	(__t >= __a) && \
 	(__t < __a + __sz) \
