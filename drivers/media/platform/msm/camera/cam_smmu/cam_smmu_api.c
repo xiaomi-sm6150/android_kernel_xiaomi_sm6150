@@ -1589,14 +1589,14 @@ int cam_smmu_reserve_sec_heap(int32_t smmu_hdl,
 		mapped = iommu_map_sg(iommu_cb_set.cb_info[idx].domain,
 			sec_heap_iova,
 			secheap_buf->table->sgl,
-			secheap_buf->table->nents,
+			secheap_buf->table->orig_nents,
 			IOMMU_READ | IOMMU_WRITE);
 		size = mapped < 0 ? 0 : mapped;
 		if (size != sec_heap_iova_len) {
 			CAM_ERR(CAM_SMMU,
 				"IOMMU mapping failed: ret=%zd iova=0x%x len=%zu nents=%u buf=%zu",
 				mapped, sec_heap_iova, sec_heap_iova_len,
-				secheap_buf->table->nents, secheap_buf->buf->size);
+				secheap_buf->table->orig_nents, secheap_buf->buf->size);
 			if (size)
 				iommu_unmap(iommu_cb_set.cb_info[idx].domain,
 					sec_heap_iova, size);
@@ -1737,7 +1737,7 @@ static int cam_smmu_map_buffer_validate(struct dma_buf *buf,
 			goto err_unmap_sg;
 		}
 
-		size = iommu_map_sg(domain, iova, table->sgl, table->nents,
+		size = iommu_map_sg(domain, iova, table->sgl, table->orig_nents,
 				IOMMU_READ | IOMMU_WRITE);
 
 		if (size < 0) {
@@ -2136,7 +2136,7 @@ static int cam_smmu_alloc_scratch_buffer_add_to_list(int idx,
 	}
 
 	/* Now we create the sg list */
-	for_each_sg(table->sgl, sg, table->nents, i)
+	for_each_sg(table->sgl, sg, table->orig_nents, i)
 		sg_set_page(sg, page, phys_len, 0);
 
 
@@ -2155,7 +2155,7 @@ static int cam_smmu_alloc_scratch_buffer_add_to_list(int idx,
 	if (iommu_map_sg(domain,
 		iova,
 		table->sgl,
-		table->nents,
+		table->orig_nents,
 		iommu_dir) != virt_len) {
 		CAM_ERR(CAM_SMMU, "iommu_map_sg() failed");
 		goto err_iommu_map;
