@@ -1526,10 +1526,12 @@ int cam_soc_util_request_platform_resource(
 	for (i = 0; i < soc_info->num_clk; i++) {
 		soc_info->clk[i] = clk_get(soc_info->dev,
 			soc_info->clk_name[i]);
-		if (!soc_info->clk[i]) {
-			CAM_ERR(CAM_UTIL, "get failed for %s",
-				soc_info->clk_name[i]);
-			rc = -ENOENT;
+		if (IS_ERR_OR_NULL(soc_info->clk[i])) {
+			rc = soc_info->clk[i] ? PTR_ERR(soc_info->clk[i]) :
+				-ENOENT;
+			CAM_ERR(CAM_UTIL, "get failed for %s, rc=%d",
+				soc_info->clk_name[i], rc);
+			soc_info->clk[i] = NULL;
 			goto put_clk;
 		}
 	}
@@ -1601,7 +1603,8 @@ int cam_soc_util_release_platform_resource(struct cam_hw_soc_info *soc_info)
 	}
 
 	for (i = soc_info->num_clk - 1; i >= 0; i--) {
-		clk_put(soc_info->clk[i]);
+		if (!IS_ERR_OR_NULL(soc_info->clk[i]))
+			clk_put(soc_info->clk[i]);
 		soc_info->clk[i] = NULL;
 	}
 
