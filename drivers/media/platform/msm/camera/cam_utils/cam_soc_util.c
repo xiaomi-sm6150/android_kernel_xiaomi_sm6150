@@ -372,7 +372,7 @@ int cam_soc_util_set_clk_flags(struct cam_hw_soc_info *soc_info,
 		return -EINVAL;
 	}
 
-	return clk_set_flags(soc_info->clk[clk_index], flags);
+	return qcom_clk_set_flags(soc_info->clk[clk_index], flags);
 }
 
 /**
