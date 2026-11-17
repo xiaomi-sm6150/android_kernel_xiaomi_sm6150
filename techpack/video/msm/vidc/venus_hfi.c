@@ -11,7 +11,6 @@
  *
  */
 
-#include <asm/dma-iommu.h>
 #include <asm/memory.h>
 #include <linux/clk/qcom.h>
 #include <linux/coresight-stm.h>
@@ -994,12 +993,12 @@ static void __iommu_detach(struct venus_hfi_device *device)
 		return;
 	}
 
-	list_for_each_entry(cb, &device->res->context_banks, list) {
-		if (cb->dev)
-			arm_iommu_detach_device(cb->dev);
-		if (cb->mapping)
-			arm_iommu_release_mapping(cb->mapping);
-	}
+	/*
+	 * The context banks stay attached to the DMA domains the IOMMU core
+	 * gave them at probe; there is no driver-owned mapping to release.
+	 */
+	list_for_each_entry(cb, &device->res->context_banks, list)
+		cb->domain = NULL;
 }
 
 static int __devfreq_target(struct device *devfreq_dev,
@@ -1793,7 +1792,7 @@ static void __interface_queues_release(struct venus_hfi_device *device)
 			false, device->res, HAL_BUFFER_INTERNAL_CMD_QUEUE);
 
 		for (i = 0; cb && i < num_entries; i++) {
-			iommu_unmap(cb->mapping->domain,
+			iommu_unmap(cb->domain,
 						mem_map[i].virtual_addr,
 						mem_map[i].size);
 		}
@@ -1827,7 +1826,7 @@ static void __interface_queues_release(struct venus_hfi_device *device)
 }
 
 static int __get_qdss_iommu_virtual_addr(struct venus_hfi_device *dev,
-		struct hfi_mem_map *mem_map, struct dma_iommu_mapping *mapping)
+		struct hfi_mem_map *mem_map, struct iommu_domain *domain)
 {
 	int i;
 	int rc = 0;
@@ -1839,8 +1838,8 @@ static int __get_qdss_iommu_virtual_addr(struct venus_hfi_device *dev,
 		return -ENODATA;
 
 	for (i = 0; i < num_entries; i++) {
-		if (mapping) {
-			rc = iommu_map(mapping->domain, iova,
+		if (domain) {
+			rc = iommu_map(domain, iova,
 					qdss_addr_tbl[i].start,
 					qdss_addr_tbl[i].size,
 					IOMMU_READ | IOMMU_WRITE);
@@ -1868,8 +1867,8 @@ static int __get_qdss_iommu_virtual_addr(struct venus_hfi_device *dev,
 		dprintk(VIDC_ERR,
 			"QDSS mapping failed, Freeing other entries %d\n", i);
 
-		for (--i; mapping && i >= 0; i--) {
-			iommu_unmap(mapping->domain,
+		for (--i; domain && i >= 0; i--) {
+			iommu_unmap(domain,
 				mem_map[i].virtual_addr,
 				mem_map[i].size);
 		}
@@ -2025,7 +2024,7 @@ static int __interface_queues_init(struct venus_hfi_device *dev)
 			return -EINVAL;
 		}
 
-		rc = __get_qdss_iommu_virtual_addr(dev, mem_map, cb->mapping);
+		rc = __get_qdss_iommu_virtual_addr(dev, mem_map, cb->domain);
 		if (rc) {
 			dprintk(VIDC_ERR,
 				"IOMMU mapping failed, Freeing qdss memdata\n");
