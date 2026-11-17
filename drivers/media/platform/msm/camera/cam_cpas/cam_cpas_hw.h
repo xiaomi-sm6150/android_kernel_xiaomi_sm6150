@@ -115,7 +115,9 @@ struct cam_cpas_client {
  *
  * @src: Bus master/src id
  * @dst: Bus slave/dst id
- * @pdata: Bus pdata information
+ * @icc: Interconnect path the votes go to
+ * @level_ab: Average bandwidth of each use case, in kBps
+ * @level_ib: Peak bandwidth of each use case, in kBps
  * @client_id: Bus client id
  * @num_usecases: Number of use cases for this client
  * @num_paths: Number of paths for this client
@@ -129,7 +131,9 @@ struct cam_cpas_client {
 struct cam_cpas_bus_client {
 	int src;
 	int dst;
-	struct msm_bus_scale_pdata *pdata;
+	struct icc_path *icc;
+	uint32_t *level_ab;
+	uint32_t *level_ib;
 	uint32_t client_id;
 	int num_usecases;
 	int num_paths;
