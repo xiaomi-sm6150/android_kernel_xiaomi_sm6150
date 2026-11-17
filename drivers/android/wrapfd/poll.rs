@@ -2,7 +2,7 @@
 
 // Copyright (C) 2026 Google LLC.
 
-use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use core::sync::atomic::{AtomicBool, Ordering};
 
 use crate::wrap::WRAP_FOPS;
 
@@ -20,17 +20,15 @@ use kernel::{
 
 #[derive(Default)]
 struct EventInfo {
-    fd: u32,
     monitored: u32,
     triggered: u32,
     timestamp: u64,
-    seq_num: u32,
+    seq_num: i64,
 }
 
 impl EventInfo {
-    fn new(seq_num: u32, fd: u32) -> Self {
+    fn new(seq_num: i64) -> Self {
         Self {
-            fd,
             monitored: 0,
             triggered: 0,
             timestamp: 0,
@@ -41,6 +39,12 @@ impl EventInfo {
 
 type EventVector = KVec<Option<EventInfo>>;
 
+#[derive(Default)]
+struct FileMonitorInner {
+    events: EventVector,
+    next_seq_num: i64,
+}
+
 #[pin_data]
 pub(crate) struct FileMonitor {
     #[pin]
@@ -48,20 +52,12 @@ pub(crate) struct FileMonitor {
     events_pending: AtomicBool,
 
     #[pin]
-    events: Mutex<EventVector>,
-
-    next_seq_num: AtomicU32,
-}
-
-#[derive(Clone, Copy)]
-pub(crate) enum ProcessMode {
-    Add,
-    Delete,
+    inner: Mutex<FileMonitorInner>,
 }
 
 struct SlotInfo {
     slot: usize,
-    seq_num: u32,
+    seq_num: i64,
 }
 
 impl FileMonitor {
@@ -69,51 +65,68 @@ impl FileMonitor {
         pin_init!(Self {
             condvar <- new_poll_condvar!("FileMonitor::condvar"),
             events_pending: false.into(),
-            events <- new_mutex!(EventVector::default()),
-            next_seq_num: 0.into(),
+            inner <- new_mutex!(FileMonitorInner::default()),
         })
     }
 
-    fn allocate_slot(&self, events: &mut EventVector, fd: u32) -> Result<usize> {
-        let seq_num = self.next_seq_num.fetch_add(1, Ordering::Relaxed);
+    pub(crate) fn clear_all_slots(&self) {
+        let mut guard = self.inner.lock();
+        for info in &mut guard.events {
+            *info = None;
+        }
+    }
 
-        let info = EventInfo::new(seq_num, fd);
+    fn allocate_slot(&self, inner: &mut FileMonitorInner) -> Result<(usize, i64)> {
+        let seq_num = inner.next_seq_num;
 
-        if let Some(slot) = events.iter().position(|entry| entry.is_none()) {
-            events[slot] = Some(info);
-            return Ok(slot);
+        // Make sure we wrap around to 0 if otherwise this would turn into a negative i64.
+        inner.next_seq_num = inner.next_seq_num.checked_add(1).unwrap_or(0);
+
+        let info = EventInfo::new(seq_num);
+
+        if let Some(slot) = inner.events.iter().position(|entry| entry.is_none()) {
+            inner.events[slot] = Some(info);
+            return Ok((slot, seq_num));
         }
 
-        let slot = events.len();
+        let slot = inner.events.len();
 
         // If this fails we'll have already incremented `self.next_seq_num` but that's not
         // problematic.
-        events.push(Some(info), GFP_KERNEL)?;
+        inner.events.push(Some(info), GFP_KERNEL)?;
 
-        Ok(slot)
+        Ok((slot, seq_num))
     }
 
-    pub(crate) fn free_slot(&self, slot: usize) -> Result<()> {
-        let mut guard = self.events.lock();
-        if slot >= guard.len() || guard[slot].is_none() {
+    pub(crate) fn free_slot(&self, slot: usize, seq_num: i64) -> Result<()> {
+        let mut guard = self.inner.lock();
+        if slot >= guard.events.len() {
             return Err(ERANGE);
         }
-
-        guard[slot] = None;
+        let Some(info) = &mut guard.events[slot] else {
+            return Ok(());
+        };
+        if info.seq_num == seq_num {
+            guard.events[slot] = None;
+        }
 
         Ok(())
     }
 
-    pub(crate) fn generate_wrap_event(&self, slot: usize, event: u32) -> Result<()> {
+    pub(crate) fn generate_wrap_event(&self, slot: usize, seq_num: i64, event: u32) -> Result<()> {
         let should_wake = {
-            let mut guard = self.events.lock();
-            if slot >= guard.len() {
+            let mut guard = self.inner.lock();
+            if slot >= guard.events.len() {
                 return Err(ERANGE);
             }
 
-            let Some(info) = &mut guard[slot] else {
+            let Some(info) = &mut guard.events[slot] else {
                 return Err(EINVAL);
             };
+
+            if info.seq_num != seq_num {
+                return Err(EINVAL);
+            }
 
             if (info.monitored & event) == 0 {
                 return Ok(());
@@ -134,13 +147,10 @@ impl FileMonitor {
         Ok(())
     }
 
-    pub(crate) fn process_monitor(
-        filemon: &Arc<Self>,
-        args: &uapi::wrapfd_monitor,
-        mode: ProcessMode,
-    ) -> Result<()> {
+    pub(crate) fn add_monitor(filemon: &Arc<Self>, args: &uapi::wrapfd_add_monitor) -> Result<i64> {
         if (args.events & !uapi::WRAPFD_EVENTS_MASK) != 0
             || (args.events & uapi::WRAPFD_EVENTS_MASK) == 0
+            || args.pad != 0
         {
             return Err(EINVAL);
         }
@@ -154,48 +164,69 @@ impl FileMonitor {
         };
 
         let mut wrap_guard = wrap.inner.lock();
-        if let Some(slot) = wrap_guard.get_slot(filemon) {
-            let mut filemon_guard = filemon.events.lock();
-            let Some(info) = &mut filemon_guard[slot] else {
-                // This really should never happen.
-                return Err(EINVAL);
-            };
-
-            match mode {
-                ProcessMode::Add => {
-                    if info.fd != args.fd {
-                        /*
-                         * Do not allow monitoring the same wrapfd file
-                         * under different (dup'ed) FDs since that
-                         * would cause one wrapfd operation to generate
-                         * multiple events.
-                         */
-                        return Err(EBUSY);
-                    }
-
-                    filemon_guard[slot].as_mut().unwrap().monitored |= args.events;
-                }
-                ProcessMode::Delete => {
-                    info.monitored &= !args.events;
-                    info.triggered &= info.monitored;
-                    if info.monitored == 0 {
-                        _ = wrap_guard.detach_monitor(&filemon);
-                        filemon_guard[slot] = None;
-                    }
-                    return Ok(());
+        let mut filemon_guard = filemon.inner.lock();
+        if let Some((slot, seq_num)) = wrap_guard.get_slot(filemon) {
+            if let Some(ref mut info) = &mut filemon_guard.events[slot] {
+                if info.seq_num == seq_num {
+                    info.monitored |= args.events;
+                    return Ok(seq_num);
                 }
             }
-        } else if matches!(mode, ProcessMode::Delete) {
+
+            // The wrap's previously assigned slot no longer belongs to it, it's either been cleared
+            // altogether or it's been reused since.
+            _ = wrap_guard.detach_monitor(filemon);
+        }
+
+        let (slot, seq_num) = filemon.allocate_slot(&mut filemon_guard)?;
+        wrap_guard
+            .attach_monitor(Arc::clone(filemon), slot, seq_num)
+            .inspect_err(|_err| {
+                filemon_guard.events[slot] = None;
+            })?;
+        filemon_guard.events[slot].as_mut().unwrap().monitored |= args.events;
+
+        Ok(seq_num)
+    }
+
+    pub(crate) fn delete_monitor(
+        filemon: &Arc<Self>,
+        args: &uapi::wrapfd_del_monitor,
+    ) -> Result<()> {
+        if (args.events & !uapi::WRAPFD_EVENTS_MASK) != 0
+            || (args.events & uapi::WRAPFD_EVENTS_MASK) == 0
+            || args.pad != 0
+        {
             return Err(EINVAL);
-        } else {
-            let mut filemon_guard = filemon.events.lock();
-            let slot = filemon.allocate_slot(&mut filemon_guard, args.fd)?;
-            wrap_guard
-                .attach_monitor(Arc::clone(filemon), slot)
-                .inspect_err(|_err| {
-                    filemon_guard[slot] = None;
-                })?;
-            filemon_guard[slot].as_mut().unwrap().monitored |= args.events;
+        }
+
+        // `id` is really a `u63`, or rather a non-negative `i64`.
+        if (args.id & (1 << 63)) != 0 {
+            return Err(EINVAL);
+        }
+
+        let mut filemon_guard = filemon.inner.lock();
+        let Some((slot, info)) =
+            filemon_guard
+                .events
+                .iter_mut()
+                .enumerate()
+                .find_map(|(slot, info)| {
+                    let info = info.as_mut()?;
+                    (info.seq_num == (args.id as i64)).then_some((slot, info))
+                })
+        else {
+            return Err(EINVAL);
+        };
+
+        info.monitored &= !args.events;
+        info.triggered &= info.monitored;
+        if info.monitored == 0 {
+            // Cleanup inside the wrap happens lazily so we do not need to acquire the wrap's
+            // lock here. We will eventually discover that the wrap's slot has been invalidated
+            // (as a result of calling `generate_wrap_event` or while processing `add_monitor`)
+            // and clean up the wrap-internal list of monitor entries.
+            filemon_guard.events[slot] = None;
         }
 
         Ok(())
@@ -209,10 +240,10 @@ impl FileMonitor {
         let mut slot_infos = KVec::<SlotInfo>::with_capacity(max_num_events, GFP_KERNEL)?;
 
         {
-            let mut filemon_guard = self.events.lock();
+            let mut filemon_guard = self.inner.lock();
 
             let mut has_more = false;
-            for (slot, opt_info) in filemon_guard.iter_mut().enumerate() {
+            for (slot, opt_info) in filemon_guard.events.iter_mut().enumerate() {
                 let Some(info) = opt_info else {
                     continue;
                 };
@@ -232,9 +263,10 @@ impl FileMonitor {
                 // If our previous `push_within_capacity` succeeded, so will this one, both vectors
                 // have the same capacity.
                 _ = events.push_within_capacity(uapi::wrapfd_event {
-                    fd: info.fd,
+                    id: info.seq_num as u64,
                     events: info.triggered,
                     timestamp: info.timestamp,
+                    pad: 0,
                 });
 
                 info.triggered = 0;
@@ -252,11 +284,11 @@ impl FileMonitor {
             }
 
             let should_wake = {
-                let mut filemon_guard = self.events.lock();
+                let mut filemon_guard = self.inner.lock();
 
                 let mut restored_any = false;
                 for (SlotInfo { slot, seq_num }, ev) in slot_infos.into_iter().zip(events.iter()) {
-                    let Some(Some(info)) = filemon_guard.get_mut(slot) else {
+                    let Some(Some(info)) = filemon_guard.events.get_mut(slot) else {
                         continue;
                     };
 
@@ -266,8 +298,7 @@ impl FileMonitor {
                     }
 
                     // Make sure that we only restore bits that are still monitored now, after all
-                    // we briefly released our lock, so a `process_monitor` with
-                    // `ProcessMode::Delete` may have been issued.
+                    // we briefly released our lock, so a `delete_monitor` may have been issued.
                     let restore_mask = ev.events & info.monitored;
 
                     if restore_mask == 0 {

@@ -69,6 +69,12 @@ enum WrapState {
     Available,
 }
 
+struct MonitorEntry {
+    filemon: Arc<FileMonitor>,
+    slot: usize,
+    seq_num: i64,
+}
+
 pub(crate) struct WrapInfo {
     pub(crate) content: Option<DmaBufContent>,
     owner: WrapOwner,
@@ -76,14 +82,19 @@ pub(crate) struct WrapInfo {
     vma_file: VmaFile,
     num_pending_mmaps: usize,
     state: WrapState,
-    monitors: KVec<(Arc<FileMonitor>, usize)>,
+    monitors: KVec<MonitorEntry>,
     pub(crate) close_on_exec: bool,
 }
 
 impl Drop for WrapInfo {
     fn drop(&mut self) {
-        for (filemon, slot) in core::mem::take(&mut self.monitors) {
-            _ = filemon.free_slot(slot);
+        for MonitorEntry {
+            filemon,
+            seq_num,
+            slot,
+        } in core::mem::take(&mut self.monitors)
+        {
+            _ = filemon.free_slot(slot, seq_num);
         }
     }
 }
@@ -275,41 +286,68 @@ impl WrapInfo {
         Ok(())
     }
 
-    pub(crate) fn get_slot(&self, filemon: &FileMonitor) -> Option<usize> {
-        self.monitors.iter().find_map(|(existing_filemon, slot)| {
-            (existing_filemon.as_ref() == filemon).then_some(*slot)
-        })
+    pub(crate) fn get_slot(&self, filemon: &FileMonitor) -> Option<(usize, i64)> {
+        self.monitors.iter().find_map(
+            |MonitorEntry {
+                 filemon: existing_filemon,
+                 slot,
+                 seq_num,
+             }| { (existing_filemon.as_ref() == filemon).then_some((*slot, *seq_num)) },
+        )
     }
 
-    pub(crate) fn attach_monitor(&mut self, filemon: Arc<FileMonitor>, slot: usize) -> Result<()> {
-        if let Some(_entry) = self
-            .monitors
-            .iter()
-            .find(|(existing_filemon, _)| existing_filemon.as_ref() == filemon.as_ref())
-        {
+    pub(crate) fn attach_monitor(
+        &mut self,
+        filemon: Arc<FileMonitor>,
+        slot: usize,
+        seq_num: i64,
+    ) -> Result<()> {
+        if let Some(_entry) = self.monitors.iter().find(
+            |MonitorEntry {
+                 filemon: existing_filemon,
+                 ..
+             }| existing_filemon.as_ref() == filemon.as_ref(),
+        ) {
             return Err(EEXIST);
         }
 
-        self.monitors.push((filemon, slot), GFP_KERNEL)?;
+        self.monitors.push(
+            MonitorEntry {
+                filemon,
+                slot,
+                seq_num,
+            },
+            GFP_KERNEL,
+        )?;
 
         Ok(())
     }
 
     pub(crate) fn detach_monitor(&mut self, filemon: &FileMonitor) -> Result<()> {
-        let index = self
+        let Some(index) = self
             .monitors
             .iter()
-            .position(|(existing_filemon, _)| existing_filemon.as_ref() == filemon)
-            .ok_or(EINVAL)?;
+            .position(|entry| entry.filemon.as_ref() == filemon)
+        else {
+            return Err(EINVAL);
+        };
 
         _ = self.monitors.remove(index);
+
         Ok(())
     }
 
-    fn generate_event(&self, event: u32) {
-        for (filemon, slot) in &self.monitors {
-            _ = filemon.generate_wrap_event(*slot, event);
-        }
+    fn generate_event(&mut self, event: u32) {
+        // If `generate_wrap_event` returns an error, it is because the slot no longer belongs to
+        // this wrap, i.e. it has either been cleared or has already been reused as indicated by a
+        // mismatched `seq_num`. In that case we no longer need to keep track of it in our list of
+        // monitor entries.
+        self.monitors.retain(|entry| {
+            entry
+                .filemon
+                .generate_wrap_event(entry.slot, entry.seq_num, event)
+                .is_ok()
+        });
     }
 }
 
@@ -1003,13 +1041,14 @@ unsafe extern "C" fn wrapfd_get_mappable(
         // We acquire an additional reference on `dmabuf` here that will be released in a matching
         // call to `wrapfd_put_mappable`.
         content.dmabuf.inc_ref();
-        guard.generate_event(uapi::WRAPFD_EVENT_MAP);
 
         // SAFETY: `mappable` is a valid, writable pointer to `struct wrapfd_mappable` per caller
         // contract.
         unsafe {
             (*mappable).dmabuf = content.dmabuf.as_ptr();
         }
+
+        guard.generate_event(uapi::WRAPFD_EVENT_MAP);
 
         guard.owner = WrapOwner::Device(device);
 

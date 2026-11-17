@@ -6,7 +6,7 @@ use core::mem::MaybeUninit;
 
 use crate::{
     content::DmaBufContent,
-    poll::{FileMonitor, ProcessMode},
+    poll::FileMonitor,
     wrap::{Wrap, WRAP_FOPS},
 };
 
@@ -46,6 +46,15 @@ impl kernel::miscdevice::MiscDevice for WrapFdDevice {
             },
             GFP_KERNEL,
         )
+    }
+
+    fn release(me: Self::File, _file: &kernel::fs::File) {
+        // Clearing all slots to `None` here, revokes each existing wrap's slot assignment, wraps
+        // will discover this lazily attempting (unsuccessfully) to `generate_wrap_event` and
+        // subsequently drop their own reference to the `FileMonitor`. Once all wraps have done the
+        // `FileMonitor` will be dropped.
+        me.file_monitor.clear_all_slots();
+        drop(me);
     }
 
     fn ioctl(
@@ -127,7 +136,7 @@ impl WrapfdDevFile {
             return Err(EINVAL);
         }
 
-        self.process_monitors(&args.monitors, ProcessMode::Add)
+        self.add_monitors(&args.monitors)
     }
 
     fn del_monitor(&self, user_slice: UserSlice) -> Result<isize> {
@@ -138,7 +147,7 @@ impl WrapfdDevFile {
             return Err(EINVAL);
         }
 
-        self.process_monitors(&args.monitors, ProcessMode::Delete)
+        self.delete_monitors(&args.monitors)
     }
 
     fn query_events(&self, user_slice: UserSlice) -> Result<isize> {
@@ -200,7 +209,7 @@ impl WrapfdDevFile {
         Ok(vec)
     }
 
-    fn process_monitors(&self, args: &uapi::wrapfd_monitors, mode: ProcessMode) -> Result<isize> {
+    fn add_monitors(&self, args: &uapi::wrapfd_monitors) -> Result<isize> {
         if args.len == 0 || args.len > (uapi::WRAPFD_MAX_NR_MONITORS as u64) {
             return Err(EINVAL);
         }
@@ -213,7 +222,7 @@ impl WrapfdDevFile {
 
         let monitors_slice = UserSlice::new(
             UserPtr::from_addr(usize::try_from(args.arr)?),
-            num_monitors * core::mem::size_of::<uapi::wrapfd_monitor>(),
+            num_monitors * core::mem::size_of::<uapi::wrapfd_add_monitor>(),
         );
         let mut monitors_reader = monitors_slice.reader();
         let monitors = Self::read_vec(&mut monitors_reader, num_monitors)?;
@@ -227,7 +236,50 @@ impl WrapfdDevFile {
         for monitor in &monitors {
             // NOTE: Should never fail as we reserved the memory ahead of time above.
             results.push_within_capacity(
-                FileMonitor::process_monitor(&self.file_monitor, monitor, mode)
+                FileMonitor::add_monitor(&self.file_monitor, monitor)
+                    .map_or_else(|err| i64::from(err.to_errno()), |seq_num| seq_num)
+                    .into(),
+            )?;
+        }
+
+        let mut results_writer = results_slice.writer();
+
+        // Note: There is no "safe" way to roll back our prior actions if `write_slice` fails.
+        // Adding the monitors above would have already been visible to userspace through
+        // `query_events` et al.
+        results_writer.write_slice(results.as_bytes())?;
+
+        Ok(0)
+    }
+
+    fn delete_monitors(&self, args: &uapi::wrapfd_monitors) -> Result<isize> {
+        if args.len == 0 || args.len > (uapi::WRAPFD_MAX_NR_MONITORS as u64) {
+            return Err(EINVAL);
+        }
+
+        if args.arr == 0 || args.results == 0 {
+            return Err(EFAULT);
+        }
+
+        let num_monitors: usize = args.len.try_into()?;
+
+        let monitors_slice = UserSlice::new(
+            UserPtr::from_addr(usize::try_from(args.arr)?),
+            num_monitors * core::mem::size_of::<uapi::wrapfd_del_monitor>(),
+        );
+        let mut monitors_reader = monitors_slice.reader();
+        let monitors = Self::read_vec(&mut monitors_reader, num_monitors)?;
+
+        let results_slice = UserSlice::new(
+            UserPtr::from_addr(usize::try_from(args.results)?),
+            num_monitors * core::mem::size_of::<i64>(),
+        );
+
+        let mut results: KVec<i64> = KVec::with_capacity(num_monitors, GFP_KERNEL)?;
+        for monitor in &monitors {
+            // NOTE: Should never fail as we reserved the memory ahead of time above.
+            results.push_within_capacity(
+                FileMonitor::delete_monitor(&self.file_monitor, monitor)
                     .map_or_else(Error::to_errno, |_| 0)
                     .into(),
             )?;
