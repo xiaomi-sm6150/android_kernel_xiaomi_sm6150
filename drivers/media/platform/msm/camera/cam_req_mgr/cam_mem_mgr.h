@@ -72,12 +72,16 @@ struct cam_mem_buf_queue {
  * @bitmap: bitmap of the mem mgr utility
  * @bits: max bits of the utility
  * @bufq: array of buffers
+ * @system_heap: cached system dma-buf heap, looked up on first use
+ * @system_uncached_heap: uncached system dma-buf heap, looked up on first use
  */
 struct cam_mem_table {
 	struct mutex m_lock;
 	void *bitmap;
 	size_t bits;
 	struct cam_mem_buf_queue bufq[CAM_MEM_BUFQ_MAX];
+	struct dma_heap *system_heap;
+	struct dma_heap *system_uncached_heap;
 };
 
 /**
