@@ -6246,21 +6246,15 @@ static int cam_ife_hw_mgr_debug_register(void)
 		goto err;
 	}
 
-	if (!debugfs_create_u32("enable_recovery",
+	debugfs_create_u32("enable_recovery",
 		0644,
 		g_ife_hw_mgr.debug_cfg.dentry,
-		&g_ife_hw_mgr.debug_cfg.enable_recovery)) {
-		CAM_ERR(CAM_ISP, "failed to create enable_recovery");
-		goto err;
-	}
+		&g_ife_hw_mgr.debug_cfg.enable_recovery);
 
-	if (!debugfs_create_u32("enable_reg_dump",
+	debugfs_create_u32("enable_reg_dump",
 		0644,
 		g_ife_hw_mgr.debug_cfg.dentry,
-		&g_ife_hw_mgr.debug_cfg.enable_reg_dump)) {
-		CAM_ERR(CAM_ISP, "failed to create enable_reg_dump");
-		goto err;
-	}
+		&g_ife_hw_mgr.debug_cfg.enable_reg_dump);
 
 	if (!debugfs_create_file("ife_camif_debug",
 		0644,
