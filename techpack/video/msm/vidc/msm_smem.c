@@ -15,8 +15,10 @@
 #include <linux/dma-direction.h>
 #include <linux/iommu.h>
 #include <linux/msm_dma_iommu_mapping.h>
-#include <linux/msm_ion.h>
-#include <linux/ion_kernel.h>
+#include <linux/ion.h>
+#include <linux/mem-buf.h>
+#include <linux/qcom-dma-mapping.h>
+#include <uapi/linux/msm_ion.h>
 #include <linux/slab.h>
 #include <linux/types.h>
 #include "msm_vidc.h"
@@ -193,6 +195,15 @@ void msm_smem_put_dma_buf(void *dma_buf)
 	return;
 }
 
+static bool msm_smem_dma_buf_is_secure(struct dma_buf *dbuf)
+{
+	/* not from a qcom heap: no VM permissions, so not a secure buffer */
+	if (IS_ERR(to_mem_buf_vmperm(dbuf)))
+		return false;
+
+	return !mem_buf_dma_buf_exclusive_owner(dbuf);
+}
+
 int msm_smem_map_dma_buf(struct msm_vidc_inst *inst, struct msm_smem *smem)
 {
 	int rc = 0;
@@ -202,7 +213,6 @@ int msm_smem_map_dma_buf(struct msm_vidc_inst *inst, struct msm_smem *smem)
 	unsigned long buffer_size = 0;
 	unsigned long align = SZ_4K;
 	struct dma_buf *dbuf;
-	unsigned long ion_flags = 0;
 
 	if (!inst || !smem) {
 		dprintk(VIDC_ERR, "%s: Invalid params: %pK %pK\n",
@@ -224,15 +234,14 @@ int msm_smem_map_dma_buf(struct msm_vidc_inst *inst, struct msm_smem *smem)
 
 	smem->dma_buf = dbuf;
 
-	rc = dma_buf_get_flags(dbuf, &ion_flags);
-	if (rc) {
-		dprintk(VIDC_ERR, "Failed to get dma buf flags: %d\n", rc);
-		goto exit;
-	}
-	if (ion_flags & ION_FLAG_CACHED)
-		smem->flags |= SMEM_CACHED;
+	/*
+	 * 4.14 read the ION flags of the buffer. A 6.1 dma-buf has none: the
+	 * qcom heaps skip the CPU sync of an uncached buffer themselves, and
+	 * a secure buffer is one that HLOS does not own exclusively.
+	 */
+	smem->flags |= SMEM_CACHED;
 
-	if (ion_flags & ION_FLAG_SECURE)
+	if (msm_smem_dma_buf_is_secure(dbuf))
 		smem->flags |= SMEM_SECURE;
 
 	buffer_size = smem->size;
@@ -426,8 +435,10 @@ static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 	}
 
 	if (map_kernel) {
+		struct iosys_map map;
+
 		dma_buf_begin_cpu_access(dbuf, DMA_BIDIRECTIONAL);
-		mem->kvaddr = dma_buf_vmap(dbuf);
+		mem->kvaddr = dma_buf_vmap(dbuf, &map) ? NULL : map.vaddr;
 		if (!mem->kvaddr) {
 			dprintk(VIDC_ERR,
 				"Failed to map shared mem in kernel\n");
@@ -467,7 +478,9 @@ static int free_dma_mem(struct msm_smem *mem)
 	}
 
 	if (mem->kvaddr) {
-		dma_buf_vunmap(mem->dma_buf, mem->kvaddr);
+		struct iosys_map map = IOSYS_MAP_INIT_VADDR(mem->kvaddr);
+
+		dma_buf_vunmap(mem->dma_buf, &map);
 		mem->kvaddr = NULL;
 		dma_buf_end_cpu_access(mem->dma_buf, DMA_BIDIRECTIONAL);
 	}
@@ -521,22 +534,16 @@ int msm_smem_cache_operations(struct dma_buf *dbuf,
 	enum smem_cache_ops cache_op, unsigned long offset, unsigned long size)
 {
 	int rc = 0;
-	unsigned long flags = 0;
 
 	if (!dbuf) {
 		dprintk(VIDC_ERR, "%s: Invalid params\n", __func__);
 		return -EINVAL;
 	}
 
-	/* Return if buffer doesn't support caching */
-	rc = dma_buf_get_flags(dbuf, &flags);
-	if (rc) {
-		dprintk(VIDC_ERR, "%s: dma_buf_get_flags failed, err %d\n",
-			__func__, rc);
-		return rc;
-	} else if (!(flags & ION_FLAG_CACHED)) {
-		return rc;
-	}
+	/*
+	 * No ION_FLAG_CACHED to test on 6.1: the qcom heaps make the partial
+	 * CPU access calls below a no-op for an uncached buffer.
+	 */
 
 	switch (cache_op) {
 	case SMEM_CACHE_CLEAN:

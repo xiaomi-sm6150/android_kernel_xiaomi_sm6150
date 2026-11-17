@@ -16,7 +16,7 @@
 #include <linux/debugfs.h>
 #include <linux/delay.h>
 #include "msm_vidc_internal.h"
-#include "trace/events/msm_vidc_events.h"
+#include "msm_vidc_events.h"
 
 #ifndef VIDC_DBG_LABEL
 #define VIDC_DBG_LABEL "msm_vidc"
