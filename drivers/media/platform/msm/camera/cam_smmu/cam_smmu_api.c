@@ -309,14 +309,10 @@ static int cam_smmu_create_debugfs_entry(void)
 	if (!smmu_dentry)
 		return -ENOMEM;
 
-	if (!debugfs_create_bool("cam_smmu_fatal",
+	debugfs_create_bool("cam_smmu_fatal",
 		0644,
 		smmu_dentry,
-		&smmu_fatal_flag)) {
-		CAM_ERR(CAM_SMMU, "failed to create cam_smmu_fatal entry");
-		rc = -ENOMEM;
-		goto err;
-	}
+		&smmu_fatal_flag);
 
 	return rc;
 err:
