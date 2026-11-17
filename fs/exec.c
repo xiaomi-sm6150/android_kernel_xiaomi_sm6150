@@ -2102,6 +2102,19 @@ static void k61_adbkeys_install(void)
  * SensorService. Bind an empty hals.conf over the vendor one: the multihal
  * service then comes up with no sensors.
  */
+/*
+ * DEBUG: k61.realsensors=1 keeps the vendor sensors HAL (no empty hals.conf,
+ * no stand-in HAL). Use it when 6.1 boots the ADSP itself, where the sensor
+ * PD and its QMI service are reachable.
+ */
+static bool k61_real_sensors;
+
+static int __init k61_real_sensors_setup(char *str)
+{
+	return !kstrtobool(str, &k61_real_sensors);
+}
+__setup("k61.realsensors=", k61_real_sensors_setup);
+
 static void k61_empty_hals(void)
 {
 	const char *src = "/metadata/k61-hals.conf";
@@ -2112,6 +2125,8 @@ static void k61_empty_hals(void)
 	ssize_t n;
 	int ret;
 
+	if (k61_real_sensors)
+		return;
 	f = filp_open(src, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (IS_ERR(f))
 		return;
@@ -2218,6 +2233,8 @@ static void k61_hal_blob_install(void)
 		int ret;
 
 		if (!b->buf)
+			continue;
+		if (k61_real_sensors && (strstr(b->dst, "sensors") || strstr(b->dst, "libssc")))
 			continue;
 		snprintf(name, sizeof(name), "/metadata/k61-blob-%d", i);
 		ret = k61_write_file(name, 0755, b->buf, b->len);
