@@ -100,14 +100,12 @@ struct clock_set {
 
 struct bus_info {
 	char *name;
-	int master;
-	int slave;
 	unsigned int range[2];
 	const char *governor;
 	struct device *dev;
 	struct devfreq_dev_profile devfreq_prof;
 	struct devfreq *devfreq;
-	struct msm_bus_client_handle *client;
+	struct icc_path *path;
 	bool is_prfm_gov_used;
 };
 
