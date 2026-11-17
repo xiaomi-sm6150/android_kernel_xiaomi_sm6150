@@ -24,7 +24,11 @@ int qpnp_flash_led_prepare(struct led_trigger *trig, int options,
 static inline int qpnp_flash_led_prepare(struct led_trigger *trig, int options,
 					int *max_current)
 {
-	return -ENODEV;
+	/*
+	 * No PMIC flash LED driver: report success so the camera can open;
+	 * the flash and torch simply do nothing.
+	 */
+	return 0;
 }
 #endif
 
