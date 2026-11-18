@@ -47988,6 +47988,11 @@ member {
   type_id: 0x67d43857
 }
 member {
+  id: 0x3a587ec7
+  type_id: 0x664fa497
+  offset: 8
+}
+member {
   id: 0x3a7ed482
   type_id: 0x66d53bfd
   offset: 640
@@ -130798,6 +130803,12 @@ member {
   name: "keep_fastcall_stack"
   type_id: 0x6d7f5ff6
   offset: 151
+  bitsize: 1
+}
+member {
+  id: 0xc287487c
+  name: "keep_rp_msi_en"
+  type_id: 0x6d7f5ff6
   bitsize: 1
 }
 member {
@@ -247250,6 +247261,15 @@ struct_union {
   }
 }
 struct_union {
+  id: 0x664fa497
+  kind: UNION
+  definition {
+    bytesize: 1
+    member_id: 0xc287487c
+    member_id: 0x52ad2439
+  }
+}
+struct_union {
   id: 0x66d53bfd
   kind: UNION
   definition {
@@ -261943,6 +261963,7 @@ struct_union {
     bytesize: 328
     member_id: 0x59400335
     member_id: 0xff4e46f9
+    member_id: 0x3a587ec7
     member_id: 0x2463b959
     member_id: 0xa0ebc2b4
     member_id: 0xef5968cc

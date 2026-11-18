@@ -63,3 +63,6 @@ type 'struct vm_area_struct' changed
   member 'u64 __kabi_reserved_backport1' was removed
   member 'union { union { struct ptshare_desc* __vm_ptshare_desc; refcount_t __vm_ptshare_refcount; }; struct { u64 __kabi_reserved_backport1; }; union { }; }' was added
 
+type 'struct dw_pcie_rp' changed
+  member 'union { bool keep_rp_msi_en:1; unsigned char __kabi_ignored1; }' was added
+
