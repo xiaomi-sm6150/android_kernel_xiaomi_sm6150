@@ -103,6 +103,12 @@ static void smmu_copy_from_host(struct hyp_arm_smmu_v3_device *smmu,
 	memcpy(dst_hyp_va, src_hyp_va, size);
 }
 
+static void smmu_clean_for_smmu(struct hyp_arm_smmu_v3_device *smmu, void *va, size_t size)
+{
+	if (!(smmu->features & ARM_SMMU_FEAT_COHERENCY))
+		kvm_flush_dcache_to_poc(va, size);
+}
+
 /*
  * CMDQ, STE host copies are accessed by the hypervisor, we share them to
  * - Prevent the host from passing protected VM memory.
@@ -250,7 +256,7 @@ static int smmu_probe(struct hyp_arm_smmu_v3_nested_device *nested_smmu)
 
 	/* IDR0 */
 	reg = readl_relaxed(smmu->base + ARM_SMMU_IDR0);
-	smmu->features = smmu_idr0_features(reg);
+	smmu->features |= smmu_idr0_features(reg);
 
 	/*
 	 * Some MMU600 and MMU700 have errata that prevent them from using nesting,
@@ -305,6 +311,7 @@ static int smmu_init_cmdq(struct hyp_arm_smmu_v3_device *smmu)
 		return ret;
 
 	smmu->cmdq.base = hyp_phys_to_virt(smmu->cmdq.base_dma);
+	smmu_clean_for_smmu(smmu, smmu->cmdq.base, cmdq_nr_pages << PAGE_SHIFT);
 	smmu->cmdq.prod_reg = smmu->base + ARM_SMMU_CMDQ_PROD;
 	smmu->cmdq.cons_reg = smmu->base + ARM_SMMU_CMDQ_CONS;
 	smmu->cmdq.q_base = smmu->cmdq.base_dma |
@@ -373,11 +380,12 @@ static int smmu_get_host_l2_ste(struct hyp_arm_smmu_v3_nested_device *nested_smm
 	phys_addr_t host_l2_tab;
 	int ret;
 
-	host_l1_desc.l2ptr = le64_to_cpu(READ_ONCE(host_ste_base[arm_smmu_strtab_l1_idx(sid)]));
-	if (!(host_l1_desc.l2ptr & STRTAB_L1_DESC_SPAN))
+	smmu_copy_from_host(smmu, &host_l1_desc, &host_ste_base[arm_smmu_strtab_l1_idx(sid)],
+			    sizeof(host_l1_desc));
+	if (!(le64_to_cpu(host_l1_desc.l2ptr) & STRTAB_L1_DESC_SPAN))
 		return -EINVAL;
 
-	host_l2_tab = host_l1_desc.l2ptr & STRTAB_L1_DESC_L2PTR_MASK;
+	host_l2_tab = le64_to_cpu(host_l1_desc.l2ptr) & STRTAB_L1_DESC_L2PTR_MASK;
 	/* Share and pin the table before accessing it. */
 	ret = smmu_share_pages(host_l2_tab, sizeof(struct arm_smmu_strtab_l2));
 	if (ret)
@@ -445,6 +453,7 @@ static int smmu_reshadow_ste(struct hyp_arm_smmu_v3_nested_device *nested_smmu, 
 			l2table = kvm_iommu_donate_pages_atomic(get_order(sizeof(*l2table)));
 			if (!l2table)
 				return -ENOMEM;
+			smmu_clean_for_smmu(smmu, l2table, sizeof(*l2table));
 			arm_smmu_write_strtab_l1_desc(&l1tab[l1_idx], hyp_virt_to_phys(l2table));
 		}
 		l2ptr = hyp_phys_to_virt(le64_to_cpu(l1tab[l1_idx].l2ptr) &
@@ -475,9 +484,11 @@ static int smmu_reshadow_ste(struct hyp_arm_smmu_v3_nested_device *nested_smmu, 
 	kvm_smmu_hw_lock(nested_smmu);
 	for (i = 1; i < STRTAB_STE_DWORDS; i++)
 		WRITE_ONCE(hyp_ste_ptr->data[i], target.data[i]);
+	smmu_clean_for_smmu(smmu, hyp_ste_ptr, sizeof(*hyp_ste_ptr));
 
 	WARN_ON(smmu_send_cmd(smmu, &cfgi_cmd));
 	WRITE_ONCE(hyp_ste_ptr->data[0], target.data[0]);
+	smmu_clean_for_smmu(smmu, hyp_ste_ptr, sizeof(*hyp_ste_ptr));
 	kvm_smmu_hw_unlock(nested_smmu);
 	return 0;
 }
@@ -498,6 +509,9 @@ static int smmu_init_strtab(struct hyp_arm_smmu_v3_nested_device *nested_smmu)
 					   false, prot);
 	if (ret)
 		return ret;
+
+	smmu_clean_for_smmu(smmu, hyp_phys_to_virt(nested_smmu->strtab_dma),
+			    nested_smmu->strtab_size);
 
 	if (smmu->features & ARM_SMMU_FEAT_2_LVL_STRTAB) {
 		unsigned int last_sid_idx =
