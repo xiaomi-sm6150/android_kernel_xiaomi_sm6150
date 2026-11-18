@@ -973,7 +973,7 @@ static noinline void __sched __mutex_unlock_slowpath(struct mutex *lock, unsigne
 		MUTEX_WARN_ON(__owner_task(owner) != current);
 		MUTEX_WARN_ON(owner & MUTEX_FLAG_PICKUP);
 
-		if (sched_proxy_exec() && current->blocked_donor) {
+		if (sched_proxy_exec() && READ_ONCE(current->blocked_donor)) {
 			/* force handoff if we have a blocked_donor */
 			owner = MUTEX_FLAG_HANDOFF;
 			break;
@@ -1010,7 +1010,7 @@ static noinline void __sched __mutex_unlock_slowpath(struct mutex *lock, unsigne
 				next = donor;
 				__set_task_blocked_on_waking(donor, next_lock);
 				wake_q_add(&wake_q, donor);
-				current->blocked_donor = NULL;
+				WRITE_ONCE(current->blocked_donor, NULL);
 			}
 			raw_spin_unlock(&donor->blocked_lock);
 		}
