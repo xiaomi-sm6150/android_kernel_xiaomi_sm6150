@@ -843,11 +843,16 @@ static void smmu_emulate_cmdq_disable(struct hyp_arm_smmu_v3_nested_device *smmu
 }
 
 static void smmu_emulate_queue(struct hyp_arm_smmu_v3_nested_device *nested_smmu,
-				   unsigned long q_base, size_t ent_size_shift)
+			       unsigned long q_base, size_t ent_size_shift)
 {
 	/* Q_BASE_ADDR_MASK is not enough as the SMMU also ignores bits > OAS */
 	phys_addr_t base = q_base & Q_BASE_ADDR_MASK & ((1ULL << nested_smmu->common.oas) - 1);
 	size_t size = 1UL << (FIELD_GET(Q_BASE_LOG2SIZE, q_base) + ent_size_shift);
+
+	/* The host must program the base first, aligned and within OAS. */
+	if (WARN_ON(!q_base || (base & (size - 1)) ||
+		    base + size > (1ULL << nested_smmu->common.oas)))
+		return;
 
 	WARN_ON(smmu_share_pages(base, size));
 }
@@ -933,8 +938,6 @@ static bool smmu_dabt_device(struct hyp_arm_smmu_v3_nested_device *nested_smmu,
 		if (is_write) {
 			bool last_cmdq_en = is_cmdq_enabled(nested_smmu);
 			bool last_smmu_en = is_smmu_enabled(nested_smmu);
-			bool last_evtq_en = is_evtq_enabled(nested_smmu);
-			bool last_priq_en = is_priq_enabled(nested_smmu);
 
 			nested_smmu->cr0 = val;
 			if (!last_cmdq_en && is_cmdq_enabled(nested_smmu))
@@ -944,19 +947,19 @@ static bool smmu_dabt_device(struct hyp_arm_smmu_v3_nested_device *nested_smmu,
 
 			/*
 			 * Share PRI and EVTQ to avoid the host using them to write to
-			 * protected memory. However, panic on disable for those queues
+			 * protected memory. However, do not unshare for those queues
 			 * as that is more complicated, unsharing from here can lead to
 			 * use-after-unshare issues, and requires ordering with cr0ack.
-			 * As the host never disable those queues, don't support that.
+			 * Leave them shared on disable and forbid changing their base.
 			 */
-			if (!last_evtq_en && is_evtq_enabled(nested_smmu))
+			if (is_evtq_enabled(nested_smmu) && !nested_smmu->evtq_shared) {
 				smmu_emulate_queue(nested_smmu, nested_smmu->evtq_base, EVTQ_ENT_SZ_SHIFT);
-			else if (last_evtq_en && !is_evtq_enabled(nested_smmu))
-				WARN_ON(1);
-			if (!last_priq_en && is_priq_enabled(nested_smmu))
+				nested_smmu->evtq_shared = true;
+			}
+			if (is_priq_enabled(nested_smmu) && !nested_smmu->priq_shared) {
 				smmu_emulate_queue(nested_smmu, nested_smmu->priq_base, PRIQ_ENT_SZ_SHIFT);
-			else if (last_priq_en && !is_priq_enabled(nested_smmu))
-				WARN_ON(1);
+				nested_smmu->priq_shared = true;
+			}
 
 			if (!last_smmu_en && is_smmu_enabled(nested_smmu))
 				smmu_emulate_enable(nested_smmu);
@@ -986,7 +989,8 @@ static bool smmu_dabt_device(struct hyp_arm_smmu_v3_nested_device *nested_smmu,
 			break;
 
 		if (is_write) {
-			if (is_evtq_enabled(nested_smmu))
+			if (is_evtq_enabled(nested_smmu) ||
+			    (nested_smmu->evtq_shared && nested_smmu->evtq_base != val))
 				break;
 			nested_smmu->evtq_base = val;
 		}
@@ -998,7 +1002,8 @@ static bool smmu_dabt_device(struct hyp_arm_smmu_v3_nested_device *nested_smmu,
 			break;
 
 		if (is_write) {
-			if (is_priq_enabled(nested_smmu))
+			if (is_priq_enabled(nested_smmu) ||
+			    (nested_smmu->priq_shared && nested_smmu->priq_base != val))
 				break;
 			nested_smmu->priq_base = val;
 		}
