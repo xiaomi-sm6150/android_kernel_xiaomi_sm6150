@@ -4354,11 +4354,30 @@ static int __protect_cp_mem(struct venus_hfi_device *device)
 		}
 	}
 
+	/*
+	 * Without the secure non-pixel context bank in the DT, TZ still needs
+	 * the non-pixel range (it rejects 0/0 with a generic error). Take it
+	 * from qcom,cp-nonpixel = <start size>, the values 4.14 read from
+	 * venus_sec_non_pixel; mainline venus passes the same numbers.
+	 */
+	if (!memprot.cp_nonpixel_size) {
+		u32 np[2];
+
+		if (!of_property_read_u32_array(device->res->pdev->dev.of_node,
+				"qcom,cp-nonpixel", np, 2)) {
+			memprot.cp_nonpixel_start = np[0];
+			memprot.cp_nonpixel_size = np[1];
+		}
+	}
+
 	rc = qcom_scm_mem_protect_video_var(memprot.cp_start, memprot.cp_size,
 			memprot.cp_nonpixel_start, memprot.cp_nonpixel_size);
 
 	if (rc) {
-		dprintk(VIDC_ERR, "Failed to protect memory(%d)\n", rc);
+		dprintk(VIDC_ERR,
+			"Failed to protect memory(%d): cp %#x+%#x nonpixel %#x+%#x\n",
+			rc, memprot.cp_start, memprot.cp_size,
+			memprot.cp_nonpixel_start, memprot.cp_nonpixel_size);
 	}
 
 	trace_venus_hfi_var_done(
