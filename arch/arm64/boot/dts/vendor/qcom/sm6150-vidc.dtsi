@@ -27,6 +27,8 @@
 		interrupts = <GIC_SPI 174 IRQ_TYPE_LEVEL_HIGH>;
 		memory-region = <&pil_video_mem>;
 		qcom,pas-id = <9>;
+		/* venus_sec_non_pixel IOVA range of 4.14, for the TZ memprot */
+		qcom,cp-nonpixel = <0x01000000 0x24800000>;
 
 		/* Supply */
 		venus-supply = <&venus_gdsc>;
