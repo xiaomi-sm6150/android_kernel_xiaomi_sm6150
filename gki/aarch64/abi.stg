@@ -429638,6 +429638,15 @@ elf_symbol {
   full_name: "enable_percpu_irq"
 }
 elf_symbol {
+  id: 0xadddd86b
+  name: "enable_work"
+  is_defined: true
+  symbol_type: FUNCTION
+  crc: 0x35480a5b
+  type_id: 0xfdf39d0a
+  full_name: "enable_work"
+}
+elf_symbol {
   id: 0x309cb0fd
   name: "end_buffer_read_sync"
   is_defined: true
@@ -482584,6 +482593,7 @@ interface {
   symbol_id: 0x1dc0390f
   symbol_id: 0x8f99729e
   symbol_id: 0xb6a9c6f8
+  symbol_id: 0xadddd86b
   symbol_id: 0x309cb0fd
   symbol_id: 0x45c0e0ad
   symbol_id: 0xbec9fe47
