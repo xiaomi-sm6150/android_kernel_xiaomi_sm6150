@@ -283,6 +283,7 @@ struct venus_hfi_device {
 	unsigned int skip_pc_count;
 	struct msm_vidc_capability *sys_init_capabilities;
 	struct venus_hfi_vpu_ops *vpu_ops;
+	unsigned int fw_load_failures;
 };
 
 void venus_hfi_delete_device(void *device);
