@@ -81,6 +81,7 @@ static inline int get_dumpable(struct mm_struct *mm)
  * lifecycle of this mm, just for simplicity.
  */
 #define MMF_HAS_PINNED		27	/* FOLL_PIN has run, never cleared */
+#define MMF_OOM_VICTIM		28	/* mm is the oom victim (Simple LMK) */
 #define MMF_DISABLE_THP_MASK	(1 << MMF_DISABLE_THP)
 
 #define MMF_INIT_MASK		(MMF_DUMPABLE_MASK | MMF_DUMP_FILTER_MASK |\

@@ -12,10 +12,14 @@
 #include <linux/moduleparam.h>
 #include <linux/oom.h>
 #include <linux/ratelimit.h>
+#include <linux/sched/coredump.h>
 #include <linux/sched/mm.h>
+#include <linux/sched/signal.h>
 #include <linux/sort.h>
 #include <linux/vmpressure.h>
 #include <uapi/linux/sched/types.h>
+
+static struct cpumask slmk_big_cpus;
 
 /* The minimum number of pages to free per reclaim */
 static unsigned short slmk_minfree __read_mostly = CONFIG_ANDROID_SIMPLE_LMK_MINFREE;
@@ -97,7 +101,7 @@ static unsigned long find_victims(int *vindex)
 		sig = tsk->signal;
 		adj = READ_ONCE(sig->oom_score_adj);
 		if (adj < 0 ||
-		    sig->flags & (SIGNAL_GROUP_EXIT | SIGNAL_GROUP_COREDUMP) ||
+		    sig->flags & SIGNAL_GROUP_EXIT || sig->core_state ||
 		    (thread_group_empty(tsk) && tsk->flags & PF_EXITING))
 			continue;
 
@@ -268,7 +272,7 @@ static void scan_and_kill(void)
 		set_bit(MMF_OOM_VICTIM, &mm->flags);
 
 		/* Accelerate the victim's death by forcing the kill signal */
-		do_send_sig_info(SIGKILL, SEND_SIG_FORCED, vtsk, true);
+		do_send_sig_info(SIGKILL, SEND_SIG_PRIV, vtsk, true);
 
 		/*
 		 * Mark the thread group dead so that other kernel code knows,
@@ -355,14 +359,14 @@ static struct mm_struct *next_reap_victim(void)
 			continue;
 
 		/* Do a trylock so the reaper thread doesn't sleep */
-		if (!down_read_trylock(&mm->mmap_sem)) {
+		if (!mmap_read_trylock(mm)) {
 			should_retry = true;
 			continue;
 		}
 
 		/* Skip any mm with notifiers for now since they can sleep */
 		if (mm_has_notifiers(mm)) {
-			up_read(&mm->mmap_sem);
+			mmap_read_unlock(mm);
 			should_retry = true;
 			continue;
 		}
@@ -378,7 +382,7 @@ static struct mm_struct *next_reap_victim(void)
 		 */
 		if (!test_bit(MMF_OOM_SKIP, &mm->flags))
 			break;
-		up_read(&mm->mmap_sem);
+		mmap_read_unlock(mm);
 	}
 
 	if (!mm) {
@@ -416,7 +420,7 @@ static void reap_victims(void)
 		__oom_reap_task_mm(mm);
 		clear_bit(MMF_OOM_VICTIM, &mm->flags);
 		set_bit(MMF_OOM_SKIP, &mm->flags);
-		up_read(&mm->mmap_sem);
+		mmap_read_unlock(mm);
 	}
 }
 
@@ -498,10 +502,18 @@ static int simple_lmk_init_set(const char *val, const struct kernel_param *kp)
 		thread = kthread_run(simple_lmk_reaper_thread, NULL,
 				     "simple_lmkd_reaper");
 		BUG_ON(IS_ERR(thread));
-		thread = kthread_run_perf_critical(cpu_perf_mask,
-						   simple_lmk_reclaim_thread,
-						   NULL, "simple_lmkd");
+		/* sm6150 big cluster is CPUs 6-7; keep reclaim off the little cores */
+		thread = kthread_create(simple_lmk_reclaim_thread, NULL,
+					"simple_lmkd");
 		BUG_ON(IS_ERR(thread));
+		cpumask_clear(&slmk_big_cpus);
+		if (cpu_possible(6))
+			cpumask_set_cpu(6, &slmk_big_cpus);
+		if (cpu_possible(7))
+			cpumask_set_cpu(7, &slmk_big_cpus);
+		if (!cpumask_empty(&slmk_big_cpus))
+			set_cpus_allowed_ptr(thread, &slmk_big_cpus);
+		wake_up_process(thread);
 		BUG_ON(vmpressure_notifier_register(&vmpressure_notif));
 	}
 
