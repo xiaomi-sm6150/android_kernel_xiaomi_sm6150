@@ -1888,6 +1888,7 @@ enum {
 
 #define MMF_PTSHARE_CREATOR	32	/* mm created its sharing domain */
 #define MMF_PTSHARE_SHADOW	33	/* mm is the shadow MM of a domain */
+#define MMF_OOM_VICTIM		34	/* mm is the oom victim (Simple LMK) */
 
 #define MMF_INIT_LEGACY_MASK	(MMF_DUMPABLE_MASK | MMF_DUMP_FILTER_MASK |\
 				 MMF_DISABLE_THP_MASK | MMF_HAS_MDWE_MASK |\
