@@ -22,7 +22,7 @@
 #else
 #define SDE_EVTLOG_DEFAULT_ENABLE 0
 #endif /* CONFIG_MSM_SDE_ROTATOR_EVTLOG_DEBUG */
-#define SDE_EVTLOG_DEFAULT_PANIC 1
+#define SDE_EVTLOG_DEFAULT_PANIC 0
 #define SDE_EVTLOG_DEFAULT_REGDUMP SDE_ROT_DBG_DUMP_IN_MEM
 #define SDE_EVTLOG_DEFAULT_VBIF_DBGBUSDUMP SDE_ROT_DBG_DUMP_IN_MEM
 #define SDE_EVTLOG_DEFAULT_ROT_DBGBUSDUMP SDE_ROT_DBG_DUMP_IN_MEM
@@ -658,7 +658,7 @@ void sde_rot_evtlog_tout_handler(bool queue, const char *name, ...)
 			dump_rot_dbgbus = true;
 
 		if (!strcmp(blk_name, "panic"))
-			dead = true;
+			dead = !!sde_rot_dbg_evtlog.panic_on_err;
 	}
 	va_end(args);
 
