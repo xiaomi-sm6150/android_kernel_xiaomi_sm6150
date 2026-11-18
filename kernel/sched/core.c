@@ -7729,6 +7729,13 @@ find_proxy_task(struct rq *rq, struct task_struct *donor, struct rq_flags *rf)
 		cycle_span++;
 		if ((owner == cycle_checkpoint) ||
 		    (++chain_depth > MAX_PROXY_CHAIN_DEPTH)) {
+			/*
+			 * Never block_task()-deactivate rq->curr in-place
+			 * before it has switched off CPU; switch to rq->idle
+			 * first and break the cycle on the next schedule pass.
+			 */
+			if (curr_in_chain)
+				return proxy_resched_idle(rq);
 			__clear_task_blocked_on(p, NULL);
 			goto deactivate;
 		}
