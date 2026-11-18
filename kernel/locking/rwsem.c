@@ -432,6 +432,17 @@ rwsem_del_waiter(struct rw_semaphore *sem, struct rwsem_waiter *waiter)
 	return false;
 }
 
+static inline void rwsem_clear_curr_donor(struct task_struct *tsk)
+{
+	if (!sched_proxy_exec() || READ_ONCE(current->blocked_donor) != tsk)
+		return;
+
+	raw_spin_lock(&current->blocked_lock);
+	if (current->blocked_donor == tsk)
+		WRITE_ONCE(current->blocked_donor, NULL);
+	raw_spin_unlock(&current->blocked_lock);
+}
+
 /*
  * handle the lock release when processes blocked on it that can now run
  * - if we come here from up_xxxx(), then the RWSEM_FLAG_WAITERS bit must
@@ -505,9 +516,8 @@ static void rwsem_mark_wake(struct rw_semaphore *sem,
 			 * PROXY_WAKING if it is.
 			 */
 			__set_task_blocked_on_waking(waiter->task, sem);
-			if (waiter->task == current->blocked_donor)
-				current->blocked_donor = NULL;
 			raw_spin_unlock(&waiter->task->blocked_lock);
+			rwsem_clear_curr_donor(waiter->task);
 			wake_q_add(wake_q, waiter->task);
 			lockevent_inc(rwsem_wake_writer);
 		}
@@ -642,9 +652,8 @@ static void rwsem_mark_wake(struct rw_semaphore *sem,
 		 * PROXY_WAKING if we are.
 		 */
 		__set_task_blocked_on_waking(tsk, sem);
-		if (tsk == current->blocked_donor)
-			current->blocked_donor = NULL;
 		raw_spin_unlock(&tsk->blocked_lock);
+		rwsem_clear_curr_donor(tsk);
 		get_task_struct(tsk);
 
 		/*
