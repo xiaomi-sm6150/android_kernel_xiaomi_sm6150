@@ -312,7 +312,7 @@ impl WrapfdDevFile {
     }
 }
 
-#[cfg(CONFIG_ANDROID_WRAPFD_KUNIT_TEST)]
+#[cfg(CONFIG_KUNIT)]
 #[export]
 /// Wraps the dma-buf `fd` like `WRAPFD_DEV_IOC_WRAP` does, for the wrapfd KUnit test.
 ///

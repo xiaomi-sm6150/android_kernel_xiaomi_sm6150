@@ -1300,7 +1300,7 @@ unsafe extern "C" fn wrapfd_release_ownership(
     }
 }
 
-#[cfg(CONFIG_ANDROID_WRAPFD_KUNIT_TEST)]
+#[cfg(CONFIG_KUNIT)]
 #[export]
 /// Empties the wrap on behalf of `dev` like `WRAPFD_DEV_IOC_EMPTY` does for its owner task, for
 /// the wrapfd KUnit test.

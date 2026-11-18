@@ -177,14 +177,14 @@ int wrapfd_acquire_ownership(struct file *file, struct device *dev);
  */
 int wrapfd_release_ownership(struct file *file, struct device *dev);
 
-#if IS_ENABLED(CONFIG_ANDROID_WRAPFD_KUNIT_TEST)
+#if IS_ENABLED(CONFIG_KUNIT)
 /*
  * Hooks for the wrapfd KUnit test only, exported in the
  * EXPORTED_FOR_KUNIT_TESTING namespace. Not part of the wrapfd kernel API.
  */
 int create_wrapfd(int fd, int prot);
 int empty_wrapfd(struct file *file, struct device *dev);
-#endif /* CONFIG_ANDROID_WRAPFD_KUNIT_TEST */
+#endif /* CONFIG_KUNIT */
 
 /*
  * Check if the file is a wrapfd file.
