@@ -21,6 +21,9 @@
 
 static struct cpumask slmk_big_cpus;
 
+/* vmpressure (0-100) at which to start killing; 95 is the kernel's critical level */
+#define SLMK_PRESSURE_THRESHOLD 95
+
 /* The minimum number of pages to free per reclaim */
 static unsigned short slmk_minfree __read_mostly = CONFIG_ANDROID_SIMPLE_LMK_MINFREE;
 #define MIN_FREE_PAGES (slmk_minfree * SZ_1M / PAGE_SIZE)
@@ -72,11 +75,12 @@ static unsigned long get_total_mm_pages(struct mm_struct *mm)
 	 * Skip file pages. On Android they're mostly mappings of the framework,
 	 * ART images and shared libraries that every app shares with zygote, so
 	 * killing an app gives almost none of them back. Counting them makes
-	 * small apps look as large as big ones.
+	 * small apps look as large as big ones. Swapped pages are skipped too:
+	 * an app that lives in zram frees little RAM when it dies, so counting
+	 * them made every victim look like it would free its full target.
 	 */
 	return get_mm_counter(mm, MM_ANONPAGES) +
-	       get_mm_counter(mm, MM_SHMEMPAGES) +
-	       get_mm_counter(mm, MM_SWAPENTS);
+	       get_mm_counter(mm, MM_SHMEMPAGES);
 }
 
 static unsigned long find_victims(int *vindex)
@@ -480,7 +484,7 @@ void simple_lmk_trigger(void)
 static int simple_lmk_vmpressure_cb(struct notifier_block *nb,
 				    unsigned long pressure, void *data)
 {
-	if (pressure >= 90)
+	if (pressure >= SLMK_PRESSURE_THRESHOLD)
 		simple_lmk_trigger();
 
 	return NOTIFY_OK;
@@ -519,10 +523,10 @@ static int simple_lmk_init_set(const char *val, const struct kernel_param *kp)
 
 	si_meminfo(&i);
 	if (i.totalram << (PAGE_SHIFT-10) > 4096ull * 1024) {
-	  slmk_minfree = 80;
+	  slmk_minfree = 160;
 	  slmk_timeout = 150;
 	} else {
-	  slmk_minfree = 48;
+	  slmk_minfree = 96;
 	  slmk_timeout = 100;
 	}
 
