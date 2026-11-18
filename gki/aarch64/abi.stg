@@ -443973,6 +443973,15 @@ elf_symbol {
   full_name: "mipi_dsi_dcs_get_display_brightness"
 }
 elf_symbol {
+  id: 0x6817183c
+  name: "mipi_dsi_dcs_nop"
+  is_defined: true
+  symbol_type: FUNCTION
+  crc: 0x6187ea9d
+  type_id: 0x9fd879f0
+  full_name: "mipi_dsi_dcs_nop"
+}
+elf_symbol {
   id: 0xefe40ad0
   name: "mipi_dsi_dcs_read"
   is_defined: true
@@ -484182,6 +484191,7 @@ interface {
   symbol_id: 0xc42d006b
   symbol_id: 0xded087d1
   symbol_id: 0x3a394021
+  symbol_id: 0x6817183c
   symbol_id: 0xefe40ad0
   symbol_id: 0x54a680f9
   symbol_id: 0x6ee51cd8

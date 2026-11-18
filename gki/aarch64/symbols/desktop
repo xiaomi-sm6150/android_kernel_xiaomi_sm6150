@@ -87,6 +87,7 @@
   clear_page
   clk_bulk_disable
   clk_bulk_enable
+  clk_bulk_get
   clk_bulk_prepare
   clk_bulk_put
   clk_bulk_unprepare
@@ -120,6 +121,7 @@
   clk_round_rate
   clk_set_parent
   clk_set_rate
+  clk_sync_state
   clk_unprepare
   cma_alloc
   cma_get_name
@@ -269,6 +271,7 @@
   devm_drm_of_get_bridge
   __devm_drm_panel_alloc
   devm_free_irq
+  devm_fwnode_gpiod_get_index
   devm_gpiochip_add_data_with_key
   devm_gpiod_get
   devm_gpiod_get_optional
@@ -334,6 +337,7 @@
   __devm_spi_alloc_controller
   devm_spi_mem_dirmap_create
   devm_spi_register_controller
+  devm_spmi_controller_alloc
   devm_thermal_add_hwmon_sysfs
   devm_thermal_of_cooling_device_register
   devm_thermal_of_zone_register
@@ -571,6 +575,7 @@
   drm_panel_add_follower
   drm_panel_bridge_set_orientation
   drm_panel_disable
+  drm_panel_init
   drm_panel_of_backlight
   drm_panel_remove
   drm_panel_remove_follower
@@ -920,6 +925,14 @@
   memunmap
   mfd_add_devices
   mfd_remove_devices
+  mipi_dsi_attach
+  mipi_dsi_dcs_enter_sleep_mode
+  mipi_dsi_dcs_nop
+  mipi_dsi_dcs_set_display_off
+  mipi_dsi_dcs_write_buffer_multi
+  mipi_dsi_detach
+  mipi_dsi_driver_register_full
+  mipi_dsi_driver_unregister
   mipi_dsi_host_register
   mipi_dsi_host_unregister
   misc_deregister
@@ -1131,6 +1144,7 @@
   phy_power_off
   phy_power_on
   phy_reset
+  phy_set_mode_ext
   pid_task
   pinconf_generic_parse_dt_config
   pinctrl_dev_get_drvdata
@@ -1181,6 +1195,7 @@
   __pm_runtime_suspend
   __pm_runtime_use_autosuspend
   pm_suspend_global_flags
+  pm_suspend_target_state
   pm_system_wakeup
   pm_wakeup_dev_event
   power_supply_changed
@@ -1282,6 +1297,7 @@
   regulator_map_voltage_linear
   regulator_map_voltage_linear_range
   regulator_put
+  regulator_set_active_discharge_regmap
   regulator_set_mode
   regulator_set_voltage
   regulator_set_voltage_rdev
@@ -1556,6 +1572,8 @@
   spi_sync
   spi_sync_locked
   spi_unregister_controller
+  spmi_controller_add
+  spmi_controller_remove
   __spmi_driver_register
   sprintf
   sscanf
