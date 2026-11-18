@@ -17,7 +17,12 @@
 /* SDE_ROT_ROTTOP:
  * OFFSET=0x0A9000
  */
+#if IS_ENABLED(CONFIG_QTI_DISPLAY_SM6150)
+/* MDSS 5.x places the rotator 0x800 lower */
+#define SDE_ROT_ROTTOP_OFFSET 0xA8800
+#else
 #define SDE_ROT_ROTTOP_OFFSET                   0x0A9000
+#endif
 #define ROTTOP_HW_VERSION                       (SDE_ROT_ROTTOP_OFFSET+0x00)
 #define ROTTOP_CLK_CTRL                         (SDE_ROT_ROTTOP_OFFSET+0x10)
 #define ROTTOP_CLK_STATUS                       (SDE_ROT_ROTTOP_OFFSET+0x14)
@@ -54,7 +59,12 @@
 /* SDE_ROT_SSPP:
  * OFFSET=0x0A9100
  */
+#if IS_ENABLED(CONFIG_QTI_DISPLAY_SM6150)
+/* MDSS 5.x places the rotator 0x800 lower */
+#define SDE_ROT_SSPP_OFFSET 0xA8900
+#else
 #define SDE_ROT_SSPP_OFFSET                     0x0A9100
+#endif
 #define ROT_SSPP_SRC_SIZE                       (SDE_ROT_SSPP_OFFSET+0x00)
 #define ROT_SSPP_SRC_IMG_SIZE                   (SDE_ROT_SSPP_OFFSET+0x04)
 #define ROT_SSPP_SRC_XY                         (SDE_ROT_SSPP_OFFSET+0x08)
@@ -144,7 +154,12 @@
 /* SDE_ROT_WB:
  * OFFSET=0x0A9300
  */
+#if IS_ENABLED(CONFIG_QTI_DISPLAY_SM6150)
+/* MDSS 5.x places the rotator 0x800 lower */
+#define SDE_ROT_WB_OFFSET 0xA8B00
+#else
 #define SDE_ROT_WB_OFFSET                       0x0A9300
+#endif
 #define ROT_WB_DST_FORMAT                       (SDE_ROT_WB_OFFSET+0x000)
 #define ROT_WB_DST_OP_MODE                      (SDE_ROT_WB_OFFSET+0x004)
 #define ROT_WB_DST_PACK_PATTERN                 (SDE_ROT_WB_OFFSET+0x008)
@@ -203,14 +218,24 @@
 /* SDE_ROT_REGDMA_RAM:
  * OFFSET=0x0A9600
  */
+#if IS_ENABLED(CONFIG_QTI_DISPLAY_SM6150)
+/* MDSS 5.x places the rotator 0x800 lower */
+#define SDE_ROT_REGDMA_RAM_OFFSET 0xA8E00
+#else
 #define SDE_ROT_REGDMA_RAM_OFFSET              0x0A9600
+#endif
 #define REGDMA_RAM_REGDMA_CMD_RAM              (SDE_ROT_REGDMA_RAM_OFFSET+0x00)
 
 
 /* SDE_ROT_REGDMA_CSR:
  * OFFSET=0x0AB600
  */
+#if IS_ENABLED(CONFIG_QTI_DISPLAY_SM6150)
+/* MDSS 5.x places the rotator 0x800 lower */
+#define SDE_ROT_REGDMA_OFFSET 0xAAE00
+#else
 #define SDE_ROT_REGDMA_OFFSET                    0x0AB600
+#endif
 #define REGDMA_CSR_REGDMA_VERSION                (SDE_ROT_REGDMA_OFFSET+0x00)
 #define REGDMA_CSR_REGDMA_OP_MODE                (SDE_ROT_REGDMA_OFFSET+0x04)
 #define REGDMA_CSR_REGDMA_QUEUE_0_SUBMIT         (SDE_ROT_REGDMA_OFFSET+0x10)
