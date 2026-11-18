@@ -38,9 +38,14 @@
 		rot-vdd-supply = <&mdss_core_gdsc>;
 		qcom,supply-names = "rot-vdd";
 
-		clocks = <&dispcc DISP_CC_MDSS_AHB_CLK>,
+		/*
+		 * The r3 core init wants an MDSS AXI clock on MDSS 5.x; it is
+		 * the GCC display HF AXI branch the MDP also takes as gcc_bus.
+		 */
+		clocks = <&gcc GCC_DISP_HF_AXI_CLK>,
+			 <&dispcc DISP_CC_MDSS_AHB_CLK>,
 			 <&dispcc DISP_CC_MDSS_ROT_CLK>;
-		clock-names = "iface_clk", "rot_clk";
+		clock-names = "axi_clk", "iface_clk", "rot_clk";
 
 		interrupt-parent = <&mdss_mdp>;
 		interrupts = <2 0>;
