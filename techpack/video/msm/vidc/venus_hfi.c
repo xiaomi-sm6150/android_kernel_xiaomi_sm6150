@@ -4991,9 +4991,19 @@ static void __venus_mdt_unload(struct venus_hfi_device *device)
 		dprintk(VIDC_ERR, "%s: shutdown: %d\n", __func__, rc);
 }
 
+/*
+ * Codec2 probes every component at start and retries after each crash, so a
+ * firmware that cannot come up gets loaded and torn down hundreds of times.
+ * Give up after a few attempts until reboot.
+ */
+#define VENUS_FW_LOAD_MAX_FAILURES	3
+
 static int __load_fw(struct venus_hfi_device *device)
 {
 	int rc = 0;
+
+	if (device->fw_load_failures >= VENUS_FW_LOAD_MAX_FAILURES)
+		return -ENODEV;
 
 	/* Initialize resources */
 	rc = __init_resources(device, device->res);
@@ -5035,6 +5045,7 @@ static int __load_fw(struct venus_hfi_device *device)
 		}
 	}
 	trace_msm_v4l2_vidc_fw_load_end("msm_v4l2_vidc venus_fw load end");
+	device->fw_load_failures = 0;
 	return rc;
 fail_protect_mem:
 	if (device->resources.fw.cookie)
@@ -5047,6 +5058,10 @@ fail_init_pkt:
 	__deinit_resources(device);
 fail_init_res:
 	trace_msm_v4l2_vidc_fw_load_end("msm_v4l2_vidc venus_fw load end");
+	if (++device->fw_load_failures >= VENUS_FW_LOAD_MAX_FAILURES)
+		dprintk(VIDC_ERR,
+			"Venus FW failed to load %u times, giving up\n",
+			device->fw_load_failures);
 	return rc;
 }
 
