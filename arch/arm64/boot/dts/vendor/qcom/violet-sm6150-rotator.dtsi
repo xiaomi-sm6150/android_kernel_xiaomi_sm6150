@@ -1,0 +1,69 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * sm6150 (violet) SDE offline rotator for the 6.1 techpack/display driver
+ * (rotator r3, MDSS 5.3). The display HAL rotates 90/270 degree layers
+ * (portrait video) through this V4L2 device; without it they reach the
+ * MDP unrotated.
+ *
+ * Values are from the live 4.14 qcom,mdss_rotator@ae00000. Differences:
+ *  - interconnects instead of msm-bus (the 4.14 vectors are
+ *    MASTER_ROTATOR -> EBI and APPSS -> DISPLAY_CFG).
+ *  - GCC_DISP_AHB_CLK ("gcc_iface") is always on and not exposed by the
+ *    6.1 gcc, as for the MDP.
+ *  - the MDSS GDSC is taken as rot-vdd directly, no power-domains on the
+ *    MDP (that would make sde_kms a genpd provider).
+ *  - no secure context bank (0xc41): attaching a secure domain goes
+ *    through TZ, see violet-sm6150-sde.dtsi.
+ */
+
+&soc {
+	mdss_rotator: qcom,mdss_rotator@ae00000 {
+		compatible = "qcom,sde_rotator";
+		reg = <0x0ae00000 0xac000>,
+		      <0x0aeb8000 0x3000>;
+		reg-names = "mdp_phys",
+			"rot_vbif_phys";
+
+		#list-cells = <1>;
+
+		qcom,mdss-rot-mode = <1>;
+		qcom,mdss-highest-bank-bit = <0x1>;
+
+		/* Bus Scale Settings */
+		interconnects = <&mmss_noc MASTER_ROTATOR &mc_virt SLAVE_EBI1>,
+				<&gem_noc MASTER_APPSS_PROC
+					&config_noc SLAVE_DISPLAY_CFG>;
+		interconnect-names = "qcom,rot-data-bus0", "qcom,sde-reg-bus";
+
+		rot-vdd-supply = <&mdss_core_gdsc>;
+		qcom,supply-names = "rot-vdd";
+
+		clocks = <&dispcc DISP_CC_MDSS_AHB_CLK>,
+			 <&dispcc DISP_CC_MDSS_ROT_CLK>;
+		clock-names = "iface_clk", "rot_clk";
+
+		interrupt-parent = <&mdss_mdp>;
+		interrupts = <2 0>;
+
+		/* VBIF QoS remapper settings */
+		qcom,mdss-rot-vbif-qos-setting = <3 3 3 3 3 3 3 3>;
+		qcom,mdss-rot-vbif-memtype = <3 3>;
+		qcom,mdss-rot-cdp-setting = <1 1>;
+		qcom,mdss-rot-qos-lut = <0x0 0x0 0x0 0x0>;
+		qcom,mdss-rot-danger-lut = <0x0 0x0>;
+		qcom,mdss-rot-safe-lut = <0x0000ffff 0x0000ffff>;
+
+		qcom,mdss-rot-qos-cpu-mask = <0xf>;
+		qcom,mdss-rot-qos-cpu-dma-latency = <75>;
+
+		qcom,mdss-default-ot-rd-limit = <32>;
+		qcom,mdss-default-ot-wr-limit = <32>;
+
+		qcom,mdss-sbuf-headroom = <20>;
+
+		smmu_rot_unsec: qcom,smmu_rot_unsec_cb {
+			compatible = "qcom,smmu_sde_rot_unsec";
+			iommus = <&apps_smmu 0xc40 0x0>;
+		};
+	};
+};
