@@ -1282,6 +1282,14 @@ ifeq ($(KBUILD_EXTMOD),)
 		$(MAKE) $(hdr-inst)=techpack/video/include/uapi dst=usr/techpack/video/include && \
 		cp -a usr/techpack/video/include/. usr/include/; \
 	fi
+	@# The 4.14 display UAPI (sde_drm.h, msm_drm.h, msm_drm_pp.h,
+	@# msm_sde_rotator.h) goes over the techpack's: the prebuilt display
+	@# blobs (libsdedrm) share structs with the source-built HWC, so the
+	@# HALs must build against the headers those blobs were built with.
+	$(Q)if [ -d $(srctree)/techpack/display/include/uapi-legacy/display ]; then \
+		$(MAKE) $(hdr-inst)=techpack/display/include/uapi-legacy/display dst=usr/techpack/display-legacy/include && \
+		cp -a usr/techpack/display-legacy/include/. usr/include/; \
+	fi
 endif
 
 # ---------------------------------------------------------------------------
