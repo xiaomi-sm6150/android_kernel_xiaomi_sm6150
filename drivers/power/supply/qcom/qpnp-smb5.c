@@ -1385,6 +1385,99 @@ static const struct power_supply_desc batt_psy_desc = {
 	.property_is_writeable = smb5_batt_prop_is_writeable,
 };
 
+/*
+ * Charging control nodes the Lineage health HAL looks for on the battery
+ * supply (4.14 power_supply properties that 6.1 does not have): without one
+ * of them the HAL never registers, and system_server waits for it forever
+ * because the vendor VINTF manifest declares it.
+ *
+ * charging_enabled: 0 stops charging (PixelOS 4684c8f0d878 "qpnp-smb5:
+ * Implement charging_enabled node"). input_suspend: 1 suspends the USB and
+ * DC inputs.
+ */
+static ssize_t charging_enabled_show(struct device *dev,
+				     struct device_attribute *attr, char *buf)
+{
+	struct smb_charger *chg = power_supply_get_drvdata(to_power_supply(dev));
+
+	return sysfs_emit(buf, "%d\n",
+			  !get_effective_result(chg->chg_disable_votable));
+}
+
+static ssize_t charging_enabled_store(struct device *dev,
+				      struct device_attribute *attr,
+				      const char *buf, size_t count)
+{
+	struct smb_charger *chg = power_supply_get_drvdata(to_power_supply(dev));
+	bool enable;
+	int rc;
+
+	rc = kstrtobool(buf, &enable);
+	if (rc)
+		return rc;
+
+	rc = vote(chg->chg_disable_votable, USER_VOTER, !enable, 0);
+	if (rc < 0)
+		return rc;
+
+	return count;
+}
+static DEVICE_ATTR_RW(charging_enabled);
+
+static ssize_t input_suspend_show(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	struct smb_charger *chg = power_supply_get_drvdata(to_power_supply(dev));
+	union power_supply_propval val = {0, };
+	int rc;
+
+	rc = smblib_get_prop_input_suspend(chg, &val);
+	if (rc < 0)
+		return rc;
+
+	return sysfs_emit(buf, "%d\n", val.intval);
+}
+
+static ssize_t input_suspend_store(struct device *dev,
+				   struct device_attribute *attr,
+				   const char *buf, size_t count)
+{
+	struct smb_charger *chg = power_supply_get_drvdata(to_power_supply(dev));
+	union power_supply_propval val = {0, };
+	bool suspend;
+	int rc;
+
+	rc = kstrtobool(buf, &suspend);
+	if (rc)
+		return rc;
+
+	val.intval = suspend;
+	rc = smblib_set_prop_input_suspend(chg, &val);
+	if (rc < 0)
+		return rc;
+
+	return count;
+}
+static DEVICE_ATTR_RW(input_suspend);
+
+static struct attribute *smb5_batt_ctl_attrs[] = {
+	&dev_attr_charging_enabled.attr,
+	&dev_attr_input_suspend.attr,
+	NULL,
+};
+
+static const struct attribute_group smb5_batt_ctl_group = {
+	.attrs = smb5_batt_ctl_attrs,
+};
+
+static const struct attribute_group *smb5_batt_groups[] = {
+	&smb5_batt_ctl_group,
+#if IS_ENABLED(CONFIG_QPNP_SMB5_XIAOMI_THERMAL)
+	&smb5_xm_batt_group,
+#endif
+	NULL,
+};
+
 static int smb5_init_batt_psy(struct smb5 *chip)
 {
 	struct power_supply_config batt_cfg = {};
@@ -1393,7 +1486,7 @@ static int smb5_init_batt_psy(struct smb5 *chip)
 
 	batt_cfg.drv_data = chg;
 	batt_cfg.of_node = chg->dev->of_node;
-	batt_cfg.attr_grp = smb5_xm_batt_groups;
+	batt_cfg.attr_grp = smb5_batt_groups;
 	chg->batt_psy = devm_power_supply_register(chg->dev,
 					   &batt_psy_desc,
 					   &batt_cfg);
