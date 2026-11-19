@@ -364,8 +364,11 @@ endif
 DTC_FLAGS += $(DTC_FLAGS_$(basetarget))
 
 ifeq ($(CONFIG_ARCH_QCOM),y)
-# Forcibly set -@ for all DTB[O]s in case of QCOM targets
+# Forcibly set -@ for all DTB[O]s in case of QCOM targets, unless the
+# directory opts out with DTC_NO_SYMBOLS := y
+ifneq ($(DTC_NO_SYMBOLS),y)
 DTC_FLAGS += -@
+endif
 else
 # Set -@ if the target is a base DTB that overlay is applied onto
 DTC_FLAGS += $(if $(filter $(patsubst $(obj)/%,%,$@), $(base-dtb-y)), -@)
