@@ -420,6 +420,13 @@ static int a6xx_rgmu_fw_start(struct adreno_device *adreno_dev,
 				A6X_RGMU_SHORT_IFPC_HYST | adreno_dev->ifpc_hyst);
 		gmu_core_regwrite(device, A6XX_GMU_PWR_COL_INTER_FRAME_CTRL,
 				BIT(0));
+	} else {
+		/*
+		 * The GMU CX registers keep their value across slumber while
+		 * the CX GDSC stays up (the GPU SMMU holds it), so clear the
+		 * IFPC enable left by an earlier boot with IFPC on.
+		 */
+		gmu_core_regwrite(device, A6XX_GMU_PWR_COL_INTER_FRAME_CTRL, 0);
 	}
 
 	/* For RGMU CX interrupt */
