@@ -8,7 +8,7 @@ use kernel::{
     seq_file::SeqFile,
     seq_print,
     str::BStr,
-    sync::atomic::{ordering::Relaxed, Atomic},
+    sync::atomic::{ordering::Relaxed, Atomic, AtomicFlag},
     sync::{Arc, SetOnce, SpinLock},
     task::{Kuid, Pid},
     time::{Instant, Monotonic},
@@ -325,7 +325,7 @@ pub(crate) struct Transaction {
     sender_euid: Kuid,
     txn_security_ctx_off: Option<usize>,
     start_time: Instant<Monotonic>,
-    set_priority_called: Atomic<bool>,
+    set_priority_called: AtomicFlag,
     priority: BinderPriority,
     #[pin]
     saved_priority: SpinLock<BinderPriority>,
@@ -397,7 +397,7 @@ impl Transaction {
                 BinderPriority::default(),
                 "Transaction::saved_priority"
             ),
-            set_priority_called: Atomic::new(false),
+            set_priority_called: AtomicFlag::new(false),
         }))?)
     }
 
@@ -433,7 +433,7 @@ impl Transaction {
                 BinderPriority::default(),
                 "Transaction::saved_priority"
             ),
-            set_priority_called: Atomic::new(false),
+            set_priority_called: AtomicFlag::new(false),
         }))?)
     }
 
