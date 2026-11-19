@@ -19,6 +19,8 @@ override c_flags = $(UAPI_CFLAGS) -Wp,-MMD,$(depfile) -I $(obj) -I $(srctree)/us
 
 # QCOM headers kept as 4.14 or the techpack exported them for the vendor
 # HALs; they are not self-contained.
+no-header-test += drm/msm_drm.h
+no-header-test += drm/sde_drm.h
 no-header-test += linux/ipa_qmi_service_v01.h
 no-header-test += linux/msm_ipa.h
 no-header-test += linux/rmnet_data.h
