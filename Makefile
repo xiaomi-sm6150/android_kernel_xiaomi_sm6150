@@ -1265,6 +1265,24 @@ endif
 	$(Q)for d in $(ext-mod-dirs); do \
 		$(MAKE) $(hdr-inst)=$$d/include/uapi; \
 	done
+ifeq ($(KBUILD_EXTMOD),)
+	@# QCOM techpack UAPI headers, as 4.14 exported them for the vendor
+	@# HALs. Audio goes to usr/techpack/audio/include (its 4.14 place).
+	@# Display and video install to their own trees first, since each
+	@# install pass removes headers it does not own from its destination
+	@# directories, and are then merged into usr/include.
+	$(Q)if [ -d $(srctree)/techpack/audio/include/uapi ]; then \
+		$(MAKE) $(hdr-inst)=techpack/audio/include/uapi dst=usr/techpack/audio/include; \
+	fi
+	$(Q)if [ -d $(srctree)/techpack/display/include/uapi/display ]; then \
+		$(MAKE) $(hdr-inst)=techpack/display/include/uapi/display dst=usr/techpack/display/include && \
+		cp -a usr/techpack/display/include/. usr/include/; \
+	fi
+	$(Q)if [ -d $(srctree)/techpack/video/include/uapi ]; then \
+		$(MAKE) $(hdr-inst)=techpack/video/include/uapi dst=usr/techpack/video/include && \
+		cp -a usr/techpack/video/include/. usr/include/; \
+	fi
+endif
 
 # ---------------------------------------------------------------------------
 # Devicetree files
