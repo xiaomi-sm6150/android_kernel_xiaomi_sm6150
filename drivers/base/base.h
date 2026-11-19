@@ -250,6 +250,7 @@ void device_links_force_bind(struct device *dev);
 void device_links_driver_bound(struct device *dev);
 void device_links_driver_cleanup(struct device *dev);
 void device_links_no_driver(struct device *dev);
+void device_links_probe_failed(struct device *dev);
 bool device_links_busy(struct device *dev);
 void device_links_unbind_consumers(struct device *dev);
 bool device_link_flag_is_sync_state_only(u32 flags);
