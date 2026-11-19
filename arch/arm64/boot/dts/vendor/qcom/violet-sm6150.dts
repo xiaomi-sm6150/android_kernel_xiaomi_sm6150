@@ -745,3 +745,12 @@
 #include "sm6150-camera.dtsi"
 #include "sm6150-camera-sensor-idp.dtsi"
 #include "violet-camera.dtsi"
+
+/* Xiaomi touch feature (touch_dev class, /dev/xiaomi-touch), as on 4.14 */
+&soc {
+	xiaomi_touch {
+		compatible = "xiaomi-touch";
+		status = "ok";
+		touch,name = "xiaomi-touch";
+	};
+};
