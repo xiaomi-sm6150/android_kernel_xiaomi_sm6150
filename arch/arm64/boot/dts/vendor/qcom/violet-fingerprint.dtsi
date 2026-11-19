@@ -1,0 +1,66 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * violet fingerprint: a unit carries either a Goodix GF3208 or an FPC1020
+ * (the bootloader says which in androidboot.fpsensor). Both nodes, as in
+ * the 4.14 violet-sm6150-fingerprint.dtsi, plus the panel whose blank
+ * events the drivers follow.
+ */
+
+&tlmm {
+	violet_fp_reset_low: violet-fp-reset-low {
+		pins = "gpio101";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-disable;
+		output-low;
+	};
+
+	violet_fp_reset_high: violet-fp-reset-high {
+		pins = "gpio101";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-disable;
+		output-high;
+	};
+
+	violet_fp_irq_active: violet-fp-irq-active {
+		pins = "gpio93";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-pull-down;
+	};
+};
+
+&soc {
+	goodix_fp {
+		compatible = "goodix,fingerprint";
+		interrupt-parent = <&tlmm>;
+		interrupt = <93 0x0>;
+		vcc_spi-supply = <&pm6150l_l7>;
+		vcc_ana-supply = <&pm6150l_l7>;
+		vdd_io-supply = <&pm6150l_l7>;
+		fp-gpio-irq = <&tlmm 93 0x00>;
+		fp-gpio-reset = <&tlmm 101 0x00>;
+		panel = <&dsi_nt36672a_shenchao_video>;
+		status = "okay";
+	};
+
+	fpc1020 {
+		compatible = "fpc,fpc1020";
+		interrupt-parent = <&tlmm>;
+		interrupts = <93 0x0>;
+		fpc,gpio_rst = <&tlmm 101 0x0>;
+		fpc,gpio_irq = <&tlmm 93 0x0>;
+		vcc_spi-supply = <&pm6150l_l10>;
+		vdd_io-supply = <&pm6150l_l10>;
+		vdd_ana-supply = <&pm6150l_l10>;
+		pinctrl-names = "fpc1020_reset_reset",
+				"fpc1020_reset_active",
+				"fpc1020_irq_active";
+		pinctrl-0 = <&violet_fp_reset_low>;
+		pinctrl-1 = <&violet_fp_reset_high>;
+		pinctrl-2 = <&violet_fp_irq_active>;
+		panel = <&dsi_nt36672a_shenchao_video>;
+		status = "okay";
+	};
+};
