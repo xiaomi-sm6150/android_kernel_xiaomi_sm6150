@@ -4265,6 +4265,7 @@ void move_queued_task_locked(struct rq *src_rq, struct rq *dst_rq, struct task_s
 
 	while (task) {
 		struct task_struct *owner = NULL;
+		bool blocked;
 
 		if (!task_queued_on_rq(src_rq, task) || task->se.sched_delayed ||
 		    task_current_donor(src_rq, task))
@@ -4278,10 +4279,17 @@ void move_queued_task_locked(struct rq *src_rq, struct rq *dst_rq, struct task_s
 
 		proxy_clear_curr_donor(src_rq, task);
 		scoped_guard (raw_spinlock, &task->blocked_lock) {
-			if (task_is_blocked(task))
+			blocked = task_is_blocked(task);
+			if (blocked)
 				owner = task_blocked_on_owner(task);
 		}
-		__move_queued_task_locked(src_rq, dst_rq, task);
+		if (blocked) {
+			deactivate_task(src_rq, task, 0);
+			proxy_set_task_cpu(task, cpu_of(dst_rq));
+			activate_task(dst_rq, task, 0);
+		} else {
+			__move_queued_task_locked(src_rq, dst_rq, task);
+		}
 		if (task == owner)
 			break;
 		task = owner;
