@@ -42,3 +42,4 @@ obj-$(CONFIG_QCOM_INLINE_CRYPTO_ENGINE)	+= qcom_ice.o
 obj-$(CONFIG_QCOM_PBS) +=	qcom-pbs.o
 obj-$(CONFIG_QCOM_UBWC_CONFIG) += ubwc_config.o
 obj-$(CONFIG_K61_SUBSYS_SHIM)	+= k61_subsys.o
+obj-y += k61_splashwatch.o
