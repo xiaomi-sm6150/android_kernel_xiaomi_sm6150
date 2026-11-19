@@ -121,6 +121,23 @@ error:
 /**
  * dsi_pwr_enable_vregs() - enable/disable regulators
  */
+/*
+ * TDDI panels (violet NT36672A): the touch half of the IC scans only while
+ * the panel keeps its supplies and reset. The touch driver sets this while
+ * double tap to wake is armed; power off and the following power on then
+ * leave lab, ibb and vddio alone, as the 4.14 violet display driver did.
+ */
+bool dsi_panel_tddi_gesture_wake;
+EXPORT_SYMBOL(dsi_panel_tddi_gesture_wake);
+
+static bool dsi_pwr_keep_for_gesture(struct dsi_vreg *vreg)
+{
+	return dsi_panel_tddi_gesture_wake &&
+		(!strcmp(vreg->vreg_name, "lab") ||
+		 !strcmp(vreg->vreg_name, "ibb") ||
+		 !strcmp(vreg->vreg_name, "vddio"));
+}
+
 static int dsi_pwr_enable_vregs(struct dsi_regulator_info *regs, bool enable)
 {
 	int rc = 0, i = 0;
@@ -132,6 +149,8 @@ static int dsi_pwr_enable_vregs(struct dsi_regulator_info *regs, bool enable)
 	if (enable) {
 		for (i = 0; i < regs->count; i++) {
 			vreg = &regs->vregs[i];
+			if (dsi_pwr_keep_for_gesture(vreg))
+				continue;
 			pre_on_ms = vreg->pre_on_sleep;
 			post_on_ms = vreg->post_on_sleep;
 
@@ -172,6 +191,8 @@ static int dsi_pwr_enable_vregs(struct dsi_regulator_info *regs, bool enable)
 	} else {
 		for (i = (regs->count - 1); i >= 0; i--) {
 			vreg = &regs->vregs[i];
+			if (dsi_pwr_keep_for_gesture(vreg))
+				continue;
 			pre_off_ms = vreg->pre_off_sleep;
 			post_off_ms = vreg->post_off_sleep;
 
