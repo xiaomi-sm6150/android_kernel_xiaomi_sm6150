@@ -754,3 +754,25 @@
 		touch,name = "xiaomi-touch";
 	};
 };
+
+/*
+ * Built without -@ (see Makefile): the one symbol the dtbo overlay's &soc
+ * fixup needs. The fixup also needs /soc to have a phandle, which dtc only
+ * gives referenced nodes without -@, hence the reference below.
+ */
+/ {
+	k61,dtbo-target = <&soc>;
+
+	__symbols__ {
+		soc = "/soc";
+	};
+};
+
+/*
+ * The command line comes from the boot image; ABL merges it in. Keep only
+ * what has to be there before that (kexec parity), not sm6150.dtsi's
+ * defaults (performance governor, kpti=0, ...).
+ */
+&chosen {
+	bootargs = "irqchip.gicv3_pseudo_nmi=1";
+};
