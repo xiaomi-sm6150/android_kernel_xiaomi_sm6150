@@ -87,6 +87,8 @@ include/uapi/linux/atmdev.h:CONFIG_COMPAT
 include/uapi/linux/eventpoll.h:CONFIG_PM_SLEEP
 include/uapi/linux/hw_breakpoint.h:CONFIG_HAVE_MIXED_BREAKPOINTS_REGS
 include/uapi/linux/pktcdvd.h:CONFIG_CDROM_PKTCDVD_WCACHE
+techpack/audio/include/uapi/linux/msm-ds2-dap-config.h:CONFIG_DOLBY_DS2
+techpack/audio/include/uapi/linux/msm-ds2-dap-config.h:CONFIG_DOLBY_LICENSE
 "
 
 for c in $configs
