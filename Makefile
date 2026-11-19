@@ -1283,7 +1283,7 @@ ifeq ($(KBUILD_EXTMOD),)
 		cp -a usr/techpack/video/include/. usr/include/; \
 	fi
 	@# The 4.14 display UAPI (sde_drm.h, msm_drm.h, msm_drm_pp.h,
-	@# msm_sde_rotator.h) goes over the techpack's: the prebuilt display
+	@# drm_mode.h) goes over the techpack and upstream ones: the prebuilt display
 	@# blobs (libsdedrm) share structs with the source-built HWC, so the
 	@# HALs must build against the headers those blobs were built with.
 	$(Q)if [ -d $(srctree)/include/uapi-legacy/display ]; then \
