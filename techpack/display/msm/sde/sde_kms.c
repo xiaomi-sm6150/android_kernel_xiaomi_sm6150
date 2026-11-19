@@ -4892,8 +4892,14 @@ static int _sde_kms_get_splash_data(struct sde_splash_data *data)
 
 	memset(data, 0, sizeof(*data));
 
-	if (k61_nosplash) {
-		pr_info("k61: ignoring the bootloader splash\n");
+	/*
+	 * qcom,sde-skip-splash-handoff: power the panel up from scratch on the
+	 * first commit instead of taking over the bootloader splash (on violet
+	 * the takeover leaves the panel black).
+	 */
+	if (k61_nosplash ||
+	    of_find_node_with_property(NULL, "qcom,sde-skip-splash-handoff")) {
+		pr_info("sde: not taking over the bootloader splash\n");
 		return 0;
 	}
 
