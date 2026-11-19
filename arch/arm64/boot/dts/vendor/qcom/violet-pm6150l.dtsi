@@ -204,6 +204,9 @@
 			interrupt-names = "ovp-irq", "pre-flash-irq",
 					  "flash-irq";
 			qcom,auto-calibration;
+			/* two strings of 7 LEDs, as on 4.14 (sm6150-idp.dtsi) */
+			qcom,string-cfg = <3>;
+			qcom,leds-per-string = <7>;
 			qcom,fs-current-limit = <25000>;
 			qcom,en-cabc;
 			qcom,cabc-sel = <1>;
