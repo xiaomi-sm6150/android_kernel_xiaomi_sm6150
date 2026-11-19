@@ -120,6 +120,17 @@ const uint16_t gesture_key_array[] = {
 static bool nvt_gesture_enabled;
 static bool nvt_gesture_armed;
 
+/*
+ * The TDDI touch half scans only while the panel keeps reset and its
+ * supplies: tell the display driver to leave them on while armed.
+ */
+#if IS_ENABLED(CONFIG_QTI_DISPLAY_SM6150)
+extern bool dsi_panel_tddi_gesture_wake;
+#define nvt_tddi_keep_powered(on) (dsi_panel_tddi_gesture_wake = (on))
+#else
+#define nvt_tddi_keep_powered(on) do { } while (0)
+#endif
+
 static ssize_t double_tap_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -1862,6 +1873,7 @@ static int32_t nvt_ts_suspend(struct device *dev)
 	}
 
 	nvt_gesture_armed = nvt_gesture_enabled;
+	nvt_tddi_keep_powered(nvt_gesture_armed);
 	if (!nvt_gesture_armed)
 		nvt_irq_enable(false);
 
@@ -1952,6 +1964,7 @@ static int32_t nvt_ts_resume(struct device *dev)
 	if (nvt_gesture_armed) {
 		disable_irq_wake(ts->client->irq);
 		nvt_gesture_armed = false;
+		nvt_tddi_keep_powered(false);
 	} else {
 		nvt_irq_enable(true);
 	}
