@@ -279,8 +279,8 @@
 
 			k61,late-boot;
 		k61,no-panic;
-		/* rmt_storage (modem EFS) is up at ~40 s uptime */
-		k61,boot-uptime = <45>;
+		/* boot once rmt_storage serves the modem EFS (QMI RMTFS, 14) */
+		k61,wait-qmi-service = <14>;
 
 		glink-edge {
 			qcom,remote-pid = <1>;
