@@ -103,12 +103,9 @@
  */
 &adsp_pas {
 	status = "okay";
-	k61,restart-running;
 	k61,late-boot;
 	k61,no-panic;
 	k61,solo-cpu;
-	/* ask the 4.14-started ADSP to stop (smp2p stop bit) before the TZ shutdown, as 4.14 does */
-	k61,graceful-stop;
 	/*
 	 * The driver asks for a regulator named \"cx\" (reg-names), but the node only
 	 * had vdd_cx-supply, so it got a dummy and the ADSP rail (lcx.lvl, retention
@@ -127,12 +124,9 @@
  */
 &cdsp_pas {
 	status = "okay";
-	k61,restart-running;
 	k61,late-boot;
 	k61,no-panic;
 	k61,solo-cpu;
-	/* stop the 4.14-started CDSP the way 4.14 does before the TZ shutdown */
-	k61,graceful-stop;
 	/* tell the AOP the CDSP is loading (qcom,signal-aop -> qmp_get(qcom,qmp)) */
 	qcom,signal-aop;
 };
@@ -205,7 +199,6 @@
 		reg = <0x18800000 0x800000>;
 		reg-names = "membase";
 		memory-region = <&wlan_msa_mem>;
-		qcom,msa-fixed-perm;
 		/* icnss runs the WCN3990 with qcom,smmu-s1-bypass */
 		qcom,iommu-dma = "bypass";
 		iommus = <&apps_smmu 0x1640 0x1>;
@@ -284,8 +277,7 @@
 		qcom,smem-states = <&modem_smp2p_out 0>;
 		qcom,smem-state-names = "stop";
 
-		k61,restart-running;
-		k61,late-boot;
+			k61,late-boot;
 		k61,no-panic;
 		k61,solo-cpu;
 		/* rmt_storage (modem EFS) is up at ~40 s uptime */
