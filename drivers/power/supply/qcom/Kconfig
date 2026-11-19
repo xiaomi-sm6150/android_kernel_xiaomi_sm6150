@@ -39,6 +39,17 @@ config QPNP_SMB5
 	  To compile this driver as a module, choose M here: the
 	  module will be called qpnp-smb5-main.
 
+config QPNP_SMB5_XIAOMI_THERMAL
+	bool "Xiaomi per charger type thermal mitigation for SMB5"
+	depends on QPNP_SMB5
+	help
+	  Say Y to limit charging per thermal level with Xiaomi's per charger
+	  type tables (qcom,thermal-mitigation-dcp/-qc2/-pd-base/-icl and
+	  qcom,thermal-fcc-qc3-normal) as the Xiaomi 4.14 sm6150 kernel does,
+	  and to provide the battery system_temp_level node the Xiaomi vendor
+	  thermal-engine writes. Without the tables in the DT the stock
+	  qcom,thermal-mitigation behaviour is kept.
+
 config SMB1398_CHARGER
 	tristate "SMB1398 power supply framework based driver"
 	depends on MFD_I2C_PMIC && IIO
