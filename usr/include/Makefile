@@ -17,6 +17,16 @@ UAPI_CFLAGS += $(USERCFLAGS)
 
 override c_flags = $(UAPI_CFLAGS) -Wp,-MMD,$(depfile) -I $(obj) -I $(srctree)/usr/dummy-include
 
+# QCOM headers kept as 4.14 or the techpack exported them for the vendor
+# HALs; they are not self-contained.
+no-header-test += linux/ipa_qmi_service_v01.h
+no-header-test += linux/msm_ipa.h
+no-header-test += linux/rmnet_data.h
+no-header-test += media/msm_sde_rotator.h
+no-header-test += media/msm_vidc_private.h
+no-header-test += media/msm_vidc_v4l2.h
+no-header-test += video/msm_hdmi_modes.h
+
 # The following are excluded for now because they fail to build.
 #
 # Do not add a new header to the blacklist without legitimate reason.
