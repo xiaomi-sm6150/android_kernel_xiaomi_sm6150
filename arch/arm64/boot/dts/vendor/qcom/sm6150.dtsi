@@ -49,6 +49,7 @@
 			power-domains = <&CPU_PD0>;
 			power-domain-names = "psci";
 			capacity-dmips-mhz = <1024>;
+			dynamic-power-coefficient = <100>;
 			i-cache-size = <0x8000>;
 			d-cache-size = <0x8000>;
 			next-level-cache = <&L2_0>;
@@ -77,6 +78,7 @@
 			power-domains = <&CPU_PD1>;
 			power-domain-names = "psci";
 			capacity-dmips-mhz = <1024>;
+			dynamic-power-coefficient = <100>;
 			i-cache-size = <0x8000>;
 			d-cache-size = <0x8000>;
 			next-level-cache = <&L2_100>;
@@ -99,6 +101,7 @@
 			power-domains = <&CPU_PD2>;
 			power-domain-names = "psci";
 			capacity-dmips-mhz = <1024>;
+			dynamic-power-coefficient = <100>;
 			i-cache-size = <0x8000>;
 			d-cache-size = <0x8000>;
 			next-level-cache = <&L2_200>;
@@ -120,6 +123,7 @@
 			power-domains = <&CPU_PD3>;
 			power-domain-names = "psci";
 			capacity-dmips-mhz = <1024>;
+			dynamic-power-coefficient = <100>;
 			i-cache-size = <0x8000>;
 			d-cache-size = <0x8000>;
 			next-level-cache = <&L2_300>;
@@ -141,6 +145,7 @@
 			power-domains = <&CPU_PD4>;
 			power-domain-names = "psci";
 			capacity-dmips-mhz = <1024>;
+			dynamic-power-coefficient = <100>;
 			i-cache-size = <0x8000>;
 			d-cache-size = <0x8000>;
 			next-level-cache = <&L2_400>;
@@ -162,6 +167,7 @@
 			power-domains = <&CPU_PD5>;
 			power-domain-names = "psci";
 			capacity-dmips-mhz = <1024>;
+			dynamic-power-coefficient = <100>;
 			i-cache-size = <0x8000>;
 			d-cache-size = <0x8000>;
 			next-level-cache = <&L2_500>;
@@ -183,6 +189,7 @@
 			power-domains = <&CPU_PD6>;
 			power-domain-names = "psci";
 			capacity-dmips-mhz = <1740>;
+			dynamic-power-coefficient = <404>;
 			i-cache-size = <0x10000>;
 			d-cache-size = <0x10000>;
 			next-level-cache = <&L2_600>;
@@ -205,6 +212,7 @@
 			power-domains = <&CPU_PD7>;
 			power-domain-names = "psci";
 			capacity-dmips-mhz = <1740>;
+			dynamic-power-coefficient = <404>;
 			i-cache-size = <0x10000>;
 			d-cache-size = <0x10000>;
 			next-level-cache = <&L2_700>;
