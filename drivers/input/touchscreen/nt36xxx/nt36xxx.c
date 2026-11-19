@@ -95,20 +95,91 @@ const uint16_t touch_key_array[TOUCH_KEY_NUM] = {
 
 #if WAKEUP_GESTURE
 const uint16_t gesture_key_array[] = {
-	KEY_POWER,  //GESTURE_WORD_C
-	KEY_POWER,  //GESTURE_WORD_W
-	KEY_POWER,  //GESTURE_WORD_V
-	KEY_POWER,  //GESTURE_DOUBLE_CLICK
-	KEY_POWER,  //GESTURE_WORD_Z
-	KEY_POWER,  //GESTURE_WORD_M
-	KEY_POWER,  //GESTURE_WORD_O
-	KEY_POWER,  //GESTURE_WORD_e
-	KEY_POWER,  //GESTURE_WORD_S
-	KEY_POWER,  //GESTURE_SLIDE_UP
-	KEY_POWER,  //GESTURE_SLIDE_DOWN
-	KEY_POWER,  //GESTURE_SLIDE_LEFT
-	KEY_POWER,  //GESTURE_SLIDE_RIGHT
+	KEY_WAKEUP,  //GESTURE_WORD_C
+	KEY_WAKEUP,  //GESTURE_WORD_W
+	KEY_WAKEUP,  //GESTURE_WORD_V
+	KEY_WAKEUP,  //GESTURE_DOUBLE_CLICK
+	KEY_WAKEUP,  //GESTURE_WORD_Z
+	KEY_WAKEUP,  //GESTURE_WORD_M
+	KEY_WAKEUP,  //GESTURE_WORD_O
+	KEY_WAKEUP,  //GESTURE_WORD_e
+	KEY_WAKEUP,  //GESTURE_WORD_S
+	KEY_WAKEUP,  //GESTURE_SLIDE_UP
+	KEY_WAKEUP,  //GESTURE_SLIDE_DOWN
+	KEY_WAKEUP,  //GESTURE_SLIDE_LEFT
+	KEY_WAKEUP,  //GESTURE_SLIDE_RIGHT
 };
+
+/*
+ * violet: wake gestures stay off until userspace turns them on through
+ * /sys/devices/virtual/touch/touch_dev/double_tap, the node the 4.14
+ * xiaomi_touch class provided and the power HAL writes. Off, suspend
+ * puts the controller in deep sleep. Gestures report KEY_WAKEUP as on
+ * 4.14, so a stray one cannot put an awake phone to sleep.
+ */
+static bool nvt_gesture_enabled;
+static bool nvt_gesture_armed;
+
+static ssize_t double_tap_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return sysfs_emit(buf, "%d\n", nvt_gesture_enabled);
+}
+
+static ssize_t double_tap_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	bool val;
+	int ret;
+
+	ret = kstrtobool(buf, &val);
+	if (ret)
+		return ret;
+
+	nvt_gesture_enabled = val;
+	NVT_LOG("double tap %s\n", val ? "on" : "off");
+
+	return count;
+}
+static DEVICE_ATTR_RW(double_tap);
+
+static struct attribute *nvt_touch_dev_attrs[] = {
+	&dev_attr_double_tap.attr,
+	NULL,
+};
+ATTRIBUTE_GROUPS(nvt_touch_dev);
+
+static struct class *nvt_touch_class;
+static struct device *nvt_touch_dev;
+
+static void nvt_touch_dev_create(void)
+{
+	nvt_touch_class = class_create(THIS_MODULE, "touch");
+	if (IS_ERR(nvt_touch_class)) {
+		NVT_ERR("touch class: %ld\n", PTR_ERR(nvt_touch_class));
+		nvt_touch_class = NULL;
+		return;
+	}
+
+	nvt_touch_dev = device_create_with_groups(nvt_touch_class, NULL,
+			MKDEV(0, 0), NULL, nvt_touch_dev_groups, "touch_dev");
+	if (IS_ERR(nvt_touch_dev)) {
+		NVT_ERR("touch_dev: %ld\n", PTR_ERR(nvt_touch_dev));
+		nvt_touch_dev = NULL;
+		class_destroy(nvt_touch_class);
+		nvt_touch_class = NULL;
+	}
+}
+
+static void nvt_touch_dev_destroy(void)
+{
+	if (nvt_touch_dev)
+		device_unregister(nvt_touch_dev);
+	if (nvt_touch_class)
+		class_destroy(nvt_touch_class);
+	nvt_touch_dev = NULL;
+	nvt_touch_class = NULL;
+}
 #endif
 
 static uint8_t bTouchIsAwake = 0;
@@ -1621,6 +1692,7 @@ static int32_t nvt_ts_probe(struct i2c_client *client,
 		goto err_register_fb_notif_failed;
 	}
 #endif
+	nvt_touch_dev_create();
 	NVT_LOG("end\n");
 #ifdef CONFIG_TOUCHSCREEN_NT36XXX_LATE_EN
 	nvt_ts_late_init();
@@ -1650,6 +1722,7 @@ static int32_t  nvt_ts_remove(struct i2c_client *client)
 #endif
 {
 	NVT_LOG("Removing driver...\n");
+	nvt_touch_dev_destroy();
 
 #if defined(CONFIG_DRM)
 	if (active_panel && ts->notifier_cookie)
@@ -1788,9 +1861,9 @@ static int32_t nvt_ts_suspend(struct device *dev)
 		return 0;
 	}
 
-#if !WAKEUP_GESTURE
-	nvt_irq_enable(false);
-#endif
+	nvt_gesture_armed = nvt_gesture_enabled;
+	if (!nvt_gesture_armed)
+		nvt_irq_enable(false);
 
 #if NVT_TOUCH_ESD_PROTECT
 	NVT_LOG("cancel delayed work sync\n");
@@ -1804,22 +1877,21 @@ static int32_t nvt_ts_suspend(struct device *dev)
 
 	bTouchIsAwake = 0;
 
-#if WAKEUP_GESTURE
-	//---write command to enter "wakeup gesture mode"---
-	buf[0] = EVENT_MAP_HOST_CMD;
-	buf[1] = 0x13;
-	CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 2);
+	if (nvt_gesture_armed) {
+		//---write command to enter "wakeup gesture mode"---
+		buf[0] = EVENT_MAP_HOST_CMD;
+		buf[1] = 0x13;
+		CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 2);
 
-	enable_irq_wake(ts->client->irq);
+		enable_irq_wake(ts->client->irq);
 
-	NVT_LOG("Enabled touch wakeup gesture\n");
-
-#else // WAKEUP_GESTURE
-	//---write command to enter "deep sleep mode"---
-	buf[0] = EVENT_MAP_HOST_CMD;
-	buf[1] = 0x11;
-	CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 2);
-#endif // WAKEUP_GESTURE
+		NVT_LOG("Enabled touch wakeup gesture\n");
+	} else {
+		//---write command to enter "deep sleep mode"---
+		buf[0] = EVENT_MAP_HOST_CMD;
+		buf[1] = 0x11;
+		CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 2);
+	}
 
 	mutex_unlock(&ts->lock);
 
@@ -1877,9 +1949,12 @@ static int32_t nvt_ts_resume(struct device *dev)
 		nvt_check_fw_reset_state(RESET_STATE_REK);
 	}
 
-#if !WAKEUP_GESTURE
-	nvt_irq_enable(true);
-#endif
+	if (nvt_gesture_armed) {
+		disable_irq_wake(ts->client->irq);
+		nvt_gesture_armed = false;
+	} else {
+		nvt_irq_enable(true);
+	}
 
 #if NVT_TOUCH_ESD_PROTECT
 	nvt_esd_check_enable(false);
