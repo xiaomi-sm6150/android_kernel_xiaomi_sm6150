@@ -1498,7 +1498,8 @@ module_param(k61_sta_bcn_fix, bool, 0644);
  * bit 1 = start a station vdev in HT20 instead of a no-HT phymode
  * bit 2 = create the BSS peer before starting a station vdev (like qcacld)
  */
-unsigned int k61_vs;
+/* bit 2 by default: the WCN3990 HL firmware needs the BSS peer first */
+unsigned int k61_vs = 4;
 module_param(k61_vs, uint, 0644);
 
 static int ath10k_vdev_start_restart(struct ath10k_vif *arvif,
