@@ -498,6 +498,8 @@
 
 &qupv3_se1_i2c {
 	status = "okay";
+	/* nt36xxx defers its probe until the panel exists only if listed here */
+	qcom,i2c-touch-active = "novatek,NVT-ts";
 
 	/*
 	 * Novatek NT36672A TDDI touch (this phone: NVT-ts bound at 1-0062 on
@@ -513,6 +515,12 @@
 		novatek,irq-gpio = <&tlmm 89 0x2001>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&ts_int_active &ts_reset_active>;
+		/*
+		 * The panel whose blank/unblank events suspend and resume the
+		 * touch controller (deep sleep, or gesture mode for double tap).
+		 * Without it nothing is delivered: the notifier matches by panel.
+		 */
+		panel = <&dsi_nt36672a_shenchao_video>;
 	};
 };
 
