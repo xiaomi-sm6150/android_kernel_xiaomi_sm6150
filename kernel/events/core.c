@@ -4972,10 +4972,16 @@ find_get_context(struct task_struct *task, struct perf_event *event)
 	int err;
 
 	if (!task) {
-		/* Must be root to operate on a CPU event: */
-		err = perf_allow_cpu();
-		if (err)
-			return ERR_PTR(err);
+		/*
+		 * Must be root to operate on a CPU event. Counters created by
+		 * kernel code are exempt: they would otherwise be checked
+		 * against whatever kthread runs the caller (cpuhp, kworker).
+		 */
+		if (!is_kernel_event(event)) {
+			err = perf_allow_cpu();
+			if (err)
+				return ERR_PTR(err);
+		}
 
 		cpuctx = per_cpu_ptr(&perf_cpu_context, event->cpu);
 		ctx = &cpuctx->ctx;
