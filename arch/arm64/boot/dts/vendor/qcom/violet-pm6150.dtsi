@@ -412,4 +412,22 @@
 			};
 		};
 	};
+
+	/*
+	 * pm6150 SID 1: the LDO vibrator (ERM). 4.14 pm6150.dtsi node with
+	 * violet's 2.8 V (violet-sm6150-pm6150.dtsi), overdrive disabled.
+	 */
+	qcom,pm6150@1 {
+		compatible = "qcom,spmi-pmic";
+		reg = <0x1 SPMI_USID>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		pm6150_vib: qcom,vibrator@5300 {
+			compatible = "qcom,qpnp-vibrator-ldo";
+			reg = <0x5300>;
+			qcom,vib-ldo-volt-uv = <2800000>;
+			qcom,disable-overdrive;
+		};
+	};
 };
