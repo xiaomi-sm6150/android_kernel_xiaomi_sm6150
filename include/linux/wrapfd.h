@@ -187,6 +187,40 @@ int wrapfd_release_ownership(struct file *file, struct device *dev);
  */
 bool is_wrapfd_file(struct file *file);
 
+/*
+ * Allow other tasks to use the buffer. The caller should own the buffer, and
+ * the wrap should not be empty. If guests are already allowed, this is a no-op
+ * and returns 0.
+ *
+ * file: wrap file associated with the mappable object.
+ * dev: device requesting the operation.
+ *
+ * On success returns 0. On error returns:
+ * -EBADF: file is invalid.
+ * -ENODEV: device is invalid.
+ * -EBUSY: buffer is not owned by the caller.
+ * -ENOENT: wrap is empty.
+ * -EOPNOTSUPP: wrapfd driver is not enabled.
+ */
+int wrapfd_allow_guests(struct file *file, struct device *dev);
+
+/*
+ * Prohibit other tasks from using the buffer. The caller should own the buffer,
+ * and the buffer should not be in use (e.g. mapped). If guests are already
+ * prohibited, this is a no-op and returns 0.
+ *
+ * file: wrap file associated with the mappable object.
+ * dev: device requesting the operation.
+ *
+ * On success returns 0. On error returns:
+ * -EBADF: file is invalid.
+ * -ENODEV: device is invalid.
+ * -EBUSY: buffer is not owned by the caller.
+ * -EINVAL: buffer is in use.
+ * -EOPNOTSUPP: wrapfd driver is not enabled.
+ */
+int wrapfd_prohibit_guests(struct file *file, struct device *dev);
+
 #else /* CONFIG_ANDROID_WRAPFD */
 
 static inline bool is_wrapfd_vma(struct vm_area_struct *vma)
@@ -231,6 +265,16 @@ static inline int wrapfd_release_ownership(struct file *file, struct device *dev
 static inline bool is_wrapfd_file(struct file *file)
 {
 	return false;
+}
+
+static inline int wrapfd_allow_guests(struct file *file, struct device *dev)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline int wrapfd_prohibit_guests(struct file *file, struct device *dev)
+{
+	return -EOPNOTSUPP;
 }
 
 #endif /* CONFIG_ANDROID_WRAPFD */
