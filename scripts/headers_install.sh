@@ -78,6 +78,8 @@ arch/nios2/include/uapi/asm/swab.h:CONFIG_NIOS2_CI_SWAB_NO
 arch/nios2/include/uapi/asm/swab.h:CONFIG_NIOS2_CI_SWAB_SUPPORT
 arch/x86/include/uapi/asm/auxvec.h:CONFIG_IA32_EMULATION
 arch/x86/include/uapi/asm/auxvec.h:CONFIG_X86_64
+techpack/audio/include/uapi/linux/msm-ds2-dap-config.h:CONFIG_DOLBY_DS2
+techpack/audio/include/uapi/linux/msm-ds2-dap-config.h:CONFIG_DOLBY_LICENSE
 "
 
 for c in $configs
