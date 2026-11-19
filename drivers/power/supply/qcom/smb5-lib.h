@@ -865,7 +865,7 @@ void smblib_moisture_detection_enable(struct smb_charger *chg, int pval);
 int smb5_xm_thermal_parse_dt(struct smb_charger *chg, struct device_node *node);
 void smb5_xm_thermal_apply(struct smb_charger *chg);
 int smb5_xm_set_level(struct smb_charger *chg, int level);
-extern const struct attribute_group *smb5_xm_batt_groups[];
+extern const struct attribute_group smb5_xm_batt_group;
 static inline bool smb5_xm_thermal_active(struct smb_charger *chg)
 {
 	return chg->xm_thermal;
@@ -881,7 +881,6 @@ static inline int smb5_xm_set_level(struct smb_charger *chg, int level)
 {
 	return 0;
 }
-#define smb5_xm_batt_groups NULL
 static inline bool smb5_xm_thermal_active(struct smb_charger *chg)
 {
 	return false;

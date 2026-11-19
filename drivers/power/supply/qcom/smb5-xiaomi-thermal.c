@@ -222,11 +222,6 @@ static struct attribute *smb5_xm_batt_attrs[] = {
 	NULL,
 };
 
-static const struct attribute_group smb5_xm_batt_group = {
+const struct attribute_group smb5_xm_batt_group = {
 	.attrs = smb5_xm_batt_attrs,
-};
-
-const struct attribute_group *smb5_xm_batt_groups[] = {
-	&smb5_xm_batt_group,
-	NULL,
 };
