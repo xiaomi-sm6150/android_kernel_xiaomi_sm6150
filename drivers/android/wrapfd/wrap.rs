@@ -1246,3 +1246,19 @@ unsafe extern "C" fn wrapfd_release_ownership(
         Err(err) => err.to_errno(),
     }
 }
+
+#[export]
+/// # Safety
+///
+/// - `file` must be NULL or a valid pointer to a live C `struct file` for the duration of this
+///   call.
+unsafe extern "C" fn is_wrapfd_file(file: *mut bindings::file) -> bool {
+    if file.is_null() {
+        return false;
+    }
+
+    // SAFETY: `file` is verified non-null and guaranteed by the caller to point to a live
+    // `struct file` for the duration of this call.
+    let file = unsafe { LocalFile::from_raw_file(file) };
+    WRAP_FOPS.borrow_private(file).is_some()
+}
