@@ -107,7 +107,6 @@
 	status = "okay";
 	k61,late-boot;
 	k61,no-panic;
-	k61,solo-cpu;
 	/*
 	 * The driver asks for a regulator named \"cx\" (reg-names), but the node only
 	 * had vdd_cx-supply, so it got a dummy and the ADSP rail (lcx.lvl, retention
@@ -121,14 +120,13 @@
 
 /*
  * CDSP: same recipe as the ADSP (firmware on the modem partition, kexec
- * inherited instance stopped through TZ, solo-CPU around the TZ calls).
- * qcom,signal-aop makes the driver send the AOP load_state message.
+ * inherited instance stopped through TZ). qcom,signal-aop makes the driver
+ * send the AOP load_state message.
  */
 &cdsp_pas {
 	status = "okay";
 	k61,late-boot;
 	k61,no-panic;
-	k61,solo-cpu;
 	/* tell the AOP the CDSP is loading (qcom,signal-aop -> qmp_get(qcom,qmp)) */
 	qcom,signal-aop;
 };
@@ -281,7 +279,6 @@
 
 			k61,late-boot;
 		k61,no-panic;
-		k61,solo-cpu;
 		/* rmt_storage (modem EFS) is up at ~40 s uptime */
 		k61,boot-uptime = <45>;
 
