@@ -4214,6 +4214,9 @@ struct task_struct *find_exec_ctx(struct rq *rq, struct task_struct *p)
 
 	lockdep_assert_rq_held(rq);
 
+	if (p->se.sched_delayed)
+		return NULL;
+
 	for (exec_ctx = p; task_is_blocked(exec_ctx) && !task_on_cpu(rq, exec_ctx);
 							exec_ctx = owner) {
 		/* Keep Brent's checkpoint state local to this walk. */
@@ -4227,7 +4230,8 @@ struct task_struct *find_exec_ctx(struct rq *rq, struct task_struct *p)
 		if (!owner || owner == exec_ctx)
 			break;
 
-		if (!task_queued_on_rq(rq, owner) || task_current_donor(rq, owner)) {
+		if (!task_queued_on_rq(rq, owner) || owner->se.sched_delayed ||
+		    task_current_donor(rq, owner)) {
 			exec_ctx = NULL;
 			break;
 		}
@@ -4262,7 +4266,8 @@ void move_queued_task_locked(struct rq *src_rq, struct rq *dst_rq, struct task_s
 	while (task) {
 		struct task_struct *owner = NULL;
 
-		if (!task_queued_on_rq(src_rq, task) || task_current_donor(src_rq, task))
+		if (!task_queued_on_rq(src_rq, task) || task->se.sched_delayed ||
+		    task_current_donor(src_rq, task))
 			break;
 		/*
 		 * Never move a task that is running on src_rq (e.g. rq->curr
@@ -4298,7 +4303,7 @@ int task_is_pushable(struct rq *rq, struct task_struct *p, int cpu)
 	if (!sched_proxy_exec())
 		return __task_is_pushable(rq, p, cpu);
 
-	if (task_rq(p) != rq || !task_on_rq_queued(p))
+	if (task_rq(p) != rq || !task_on_rq_queued(p) || p->se.sched_delayed)
 		return 0;
 
 	exec_ctx = find_exec_ctx(rq, p);
