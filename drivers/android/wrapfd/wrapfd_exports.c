@@ -25,3 +25,5 @@ EXPORT_SYMBOL_GPL(wrapfd_del_listener);
 EXPORT_SYMBOL_GPL(wrapfd_acquire_ownership);
 EXPORT_SYMBOL_GPL(wrapfd_release_ownership);
 EXPORT_SYMBOL_GPL(is_wrapfd_file);
+EXPORT_SYMBOL_GPL(wrapfd_allow_guests);
+EXPORT_SYMBOL_GPL(wrapfd_prohibit_guests);

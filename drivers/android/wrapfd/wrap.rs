@@ -46,6 +46,11 @@ enum WrapOwner {
     None,
 }
 
+enum Caller {
+    CurrentTask,
+    Device(ARef<device::Device>),
+}
+
 enum VmaFile {
     /// This is the case where the `vma_file` matches the file our driver is bound to, in this
     /// case we can be sure that the raw pointer stays valid as long as our driver is. We don't
@@ -162,6 +167,13 @@ impl WrapInfo {
         matches!(&self.owner, WrapOwner::Device(owning_dev) if *dev == **owning_dev)
     }
 
+    fn owned_by(&mut self, caller: &Caller) -> bool {
+        match caller {
+            Caller::CurrentTask => self.owned_by_current_task(),
+            Caller::Device(dev) => self.owned_by_device(dev),
+        }
+    }
+
     fn has_pending_mmaps(&self) -> bool {
         !matches!(self.vma_file, VmaFile::None) && self.num_pending_mmaps > 0
     }
@@ -220,8 +232,8 @@ impl WrapInfo {
         self.content.as_ref().ok_or(ENOENT)
     }
 
-    fn check_modifiable(&mut self) -> Result<()> {
-        if !self.owned_by_current_task() {
+    fn check_modifiable(&mut self, caller: &Caller) -> Result<()> {
+        if !self.owned_by(caller) {
             return Err(EBUSY);
         }
 
@@ -232,8 +244,8 @@ impl WrapInfo {
         Ok(())
     }
 
-    fn check_modifiable_and_has_content(&mut self) -> Result<()> {
-        self.check_modifiable()?;
+    fn check_modifiable_and_has_content(&mut self, caller: &Caller) -> Result<()> {
+        self.check_modifiable(caller)?;
 
         if self.content.is_none() {
             return Err(ENOENT);
@@ -508,7 +520,7 @@ impl Wrap {
 
         let (_use_guard, content, close_on_exec, was_writable) = {
             let mut guard = self.inner.lock();
-            guard.check_modifiable()?;
+            guard.check_modifiable(&Caller::CurrentTask)?;
 
             let Some(mut content) = guard.content.take() else {
                 return Err(ENOENT);
@@ -551,19 +563,34 @@ impl Wrap {
     fn empty(&self) -> Result<isize> {
         let _content = {
             let mut guard = self.inner.lock();
-            guard.check_modifiable_and_has_content()?;
+            guard.check_modifiable_and_has_content(&Caller::CurrentTask)?;
             guard.content.take()
         };
         Ok(0)
     }
 
-    fn allow_guests(&self, allow: AllowState) -> Result<isize> {
+    fn allow_guests(&self, caller: Caller, allow: AllowState) -> Result {
         let mut guard = self.inner.lock();
 
-        guard.check_modifiable_and_has_content()?;
-        guard.allow_guests = matches!(allow, AllowState::AllowGuests);
+        match allow {
+            AllowState::AllowGuests => {
+                if !guard.owned_by(&caller) {
+                    return Err(EBUSY);
+                }
 
-        Ok(0)
+                if guard.content.is_none() {
+                    return Err(ENOENT);
+                }
+
+                guard.allow_guests = true;
+            }
+            AllowState::ProhibitGuests => {
+                guard.check_modifiable(&caller)?;
+                guard.allow_guests = false;
+            }
+        }
+
+        Ok(())
     }
 
     pub(crate) fn repopulate(&self, wrap_file: &LocalFile, fd: u32) -> Result<bool> {
@@ -761,8 +788,12 @@ impl AnonInodeFileInterface for Wrap {
                 wrap.rewrap(user_slice).map(|fd| fd as isize)
             }
             uapi::WRAPFD_DEV_IOC_EMPTY => wrap.empty(),
-            uapi::WRAPFD_DEV_IOC_ALLOW_GUESTS => wrap.allow_guests(AllowState::AllowGuests),
-            uapi::WRAPFD_DEV_IOC_PROHIBIT_GUESTS => wrap.allow_guests(AllowState::ProhibitGuests),
+            uapi::WRAPFD_DEV_IOC_ALLOW_GUESTS => wrap
+                .allow_guests(Caller::CurrentTask, AllowState::AllowGuests)
+                .map(|()| 0),
+            uapi::WRAPFD_DEV_IOC_PROHIBIT_GUESTS => wrap
+                .allow_guests(Caller::CurrentTask, AllowState::ProhibitGuests)
+                .map(|()| 0),
             _ => wrap.file_ioctl(cmd, arg),
         }
     }
@@ -1261,4 +1292,73 @@ unsafe extern "C" fn is_wrapfd_file(file: *mut bindings::file) -> bool {
     // `struct file` for the duration of this call.
     let file = unsafe { LocalFile::from_raw_file(file) };
     WRAP_FOPS.borrow_private(file).is_some()
+}
+
+/// # Safety
+///
+/// - `file` must be NULL or a valid pointer to a live C `struct file` for the duration of this
+///   call.
+/// - `dev` must be NULL or a valid pointer to a live C `struct device` for the duration of this
+///   call.
+unsafe fn wrapfd_set_guest_policy(
+    file: *mut bindings::file,
+    dev: *mut bindings::device,
+    label: &'static str,
+    allow: AllowState,
+) -> ffi::c_int {
+    let result = with_wrap_helper(file, label, |wrap| {
+        if dev.is_null() {
+            return Err(ENODEV);
+        }
+
+        // SAFETY: `dev` is verified non-null and points to a valid C `struct device`. `get_device`
+        // safely increments its reference count.
+        let device = unsafe { device::Device::get_device(dev) };
+
+        wrap.allow_guests(Caller::Device(device), allow)
+    });
+
+    match result {
+        Ok(()) => 0,
+        Err(err) => err.to_errno(),
+    }
+}
+
+#[export]
+/// # Safety
+///
+/// - `file` must be NULL or a valid pointer to a live C `struct file` for the duration of this
+///   call.
+/// - `dev` must be NULL or a valid pointer to a live C `struct device` for the duration of this
+///   call.
+unsafe extern "C" fn wrapfd_allow_guests(
+    file: *mut bindings::file,
+    dev: *mut bindings::device,
+) -> ffi::c_int {
+    // SAFETY: The caller guarantees `file` and `dev` are NULL or valid pointers to live objects
+    // for the duration of this call.
+    unsafe { wrapfd_set_guest_policy(file, dev, "wrapfd_allow_guests", AllowState::AllowGuests) }
+}
+
+#[export]
+/// # Safety
+///
+/// - `file` must be NULL or a valid pointer to a live C `struct file` for the duration of this
+///   call.
+/// - `dev` must be NULL or a valid pointer to a live C `struct device` for the duration of this
+///   call.
+unsafe extern "C" fn wrapfd_prohibit_guests(
+    file: *mut bindings::file,
+    dev: *mut bindings::device,
+) -> ffi::c_int {
+    // SAFETY: The caller guarantees `file` and `dev` are NULL or valid pointers to live objects
+    // for the duration of this call.
+    unsafe {
+        wrapfd_set_guest_policy(
+            file,
+            dev,
+            "wrapfd_prohibit_guests",
+            AllowState::ProhibitGuests,
+        )
+    }
 }
