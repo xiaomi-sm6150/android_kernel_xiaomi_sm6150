@@ -2513,6 +2513,9 @@ int smblib_set_prop_system_temp_level(struct smb_charger *chg,
 	if (val->intval > chg->thermal_levels)
 		return -EINVAL;
 
+	if (smb5_xm_thermal_active(chg))
+		return smb5_xm_set_level(chg, val->intval);
+
 	chg->system_temp_level = val->intval;
 
 	if (chg->system_temp_level == chg->thermal_levels)
@@ -4832,6 +4835,8 @@ int smblib_set_prop_pd_active(struct smb_charger *chg,
 			vote(chg->usb_icl_votable, USB_PSY_VOTER, false, 0);
 	}
 
+	smb5_xm_thermal_apply(chg);
+
 	power_supply_changed(chg->usb_psy);
 	return rc;
 }
@@ -5967,6 +5972,8 @@ static void smblib_handle_apsd_done(struct smb_charger *chg, bool rising)
 	default:
 		break;
 	}
+
+	smb5_xm_thermal_apply(chg);
 
 	smblib_dbg(chg, PR_INTERRUPT, "IRQ: apsd-done rising; %s detected\n",
 		   apsd_result->name);
