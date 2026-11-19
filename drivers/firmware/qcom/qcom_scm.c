@@ -1245,6 +1245,28 @@ bool qcom_scm_ice_available(void)
 }
 EXPORT_SYMBOL_GPL(qcom_scm_ice_available);
 
+#define QCOM_SCM_ES_CONFIG_SET_ICE_KEY_V2	0x05
+#define QCOM_SCM_ES_CLEAR_ICE_KEY		0x06
+
+/**
+ * qcom_scm_ice_v2_available() - Does TZ take the storage type in ICE key calls?
+ *
+ * Older TZs (e.g. sm6150) implement only the legacy QCOM_SCM_ES_CONFIG_SET_ICE_KEY
+ * and QCOM_SCM_ES_INVALIDATE_ICE_KEY calls and fail the V2 / CLEAR ones that
+ * carry a storage (CE) type.
+ */
+bool qcom_scm_ice_v2_available(void)
+{
+	if (!__scm)
+		return false;
+
+	return __qcom_scm_is_call_available(__scm->dev, QCOM_SCM_SVC_ES,
+					    QCOM_SCM_ES_CONFIG_SET_ICE_KEY_V2) &&
+		__qcom_scm_is_call_available(__scm->dev, QCOM_SCM_SVC_ES,
+					     QCOM_SCM_ES_CLEAR_ICE_KEY);
+}
+EXPORT_SYMBOL(qcom_scm_ice_v2_available);
+
 /**
  * qcom_scm_ice_invalidate_key() - Invalidate an inline encryption key
  * @index: the keyslot to invalidate
