@@ -23,6 +23,15 @@
 #include <linux/ptrace.h>
 #include <linux/sched/debug.h>
 #include <linux/console.h>
+#include <linux/moduleparam.h>
+
+/*
+ * The heartbeats, IRQ-rate monitor, IPI and coherency tests, the per-CPU
+ * cycle-counter NMIs and the GIC/PCSR probes run only with
+ * k61_debugprobes=1. The bark dump helpers below stay available.
+ */
+static bool k61_debugprobes;
+core_param(k61_debugprobes, k61_debugprobes, bool, 0444);
 #include <linux/perf_event.h>
 
 struct k61_cpu {
@@ -225,6 +234,9 @@ static int k61_probe_thread(void *arg)
 
 static int __init k61_ipitest_init(void)
 {
+	if (!k61_debugprobes)
+		return 0;
+
 	timer_setup(&k61_irq_timer, k61_irq_fn, 0);
 	mod_timer(&k61_irq_timer, jiffies + HZ);
 	timer_setup(&k61_hb_timer, k61_hb_fn, 0);
@@ -278,6 +290,9 @@ static int __init k61_nmi_init(void)
 		.sample_period = 100000000ULL,
 	};
 	int cpu;
+
+	if (!k61_debugprobes)
+		return 0;
 
 	for_each_online_cpu(cpu) {
 		struct perf_event *e;
@@ -483,6 +498,9 @@ static int k61_coh2_thread(void *arg)
 
 static int __init k61_coh_init(void)
 {
+	if (!k61_debugprobes)
+		return 0;
+
 	/* v1 disabled: its irq-off polling starves the v2 writers */
 	kthread_run(k61_coh2_thread, NULL, "k61coh2");
 	return 0;
@@ -617,6 +635,9 @@ void k61_gic_report(void)
 
 static int __init k61gic_init(void)
 {
+	if (!k61_debugprobes)
+		return 0;
+
 	on_each_cpu(k61gic_start, NULL, 1);
 	return 0;
 }
@@ -646,6 +667,9 @@ static void k61gic_dump_start(void *u)
 }
 static int __init k61gic_dump_init(void)
 {
+	if (!k61_debugprobes)
+		return 0;
+
 	smp_call_function_single(0, k61gic_dump_start, NULL, 1);
 	return 0;
 }
@@ -730,6 +754,9 @@ void k61_pcsr_report(const char *why)
 static int __init k61pcsr_init(void)
 {
 	int c;
+
+	if (!k61_debugprobes)
+		return 0;
 
 	pr_emerg("k61pcsr: qdss vote = %d\n", k61_aoss_send("{class: clock, res: qdss, val: 1}"));
 	for (c = 0; c < 8; c++) {
