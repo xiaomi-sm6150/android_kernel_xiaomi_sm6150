@@ -12,10 +12,3 @@ config SPECTRA_CAMERA
 	  and postprocessing drivers) forward-ported from the 4.14 sm6150
 	  kernel. It keeps the 4.14 UAPI the CamX blobs are built against.
 
-config MACH_XIAOMI_VIOLET
-	bool "Xiaomi violet camera UAPI"
-	depends on SPECTRA_CAMERA
-	help
-	  Say Y here to build the Spectra camera UAPI as the Xiaomi violet
-	  (Redmi Note 7 Pro) CamX blobs expect it: cam_cmd_probe carries a
-	  sensor name.

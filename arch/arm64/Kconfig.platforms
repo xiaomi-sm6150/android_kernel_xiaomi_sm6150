@@ -243,6 +243,45 @@ config ARCH_QCOM
 	help
 	  This enables support for the ARMv8 based Qualcomm chipsets.
 
+menu "Xiaomi sm6150 family devices"
+	depends on ARCH_QCOM
+
+comment "Select the device the kernel is built for; device specific code depends on it"
+
+config MACH_XIAOMI_VIOLET
+	bool "Xiaomi violet (Redmi Note 7 Pro)"
+	help
+	  Build for the Xiaomi violet (sm6150). Also selects the Spectra
+	  camera UAPI its CamX blobs expect (cam_cmd_probe carries a sensor
+	  name).
+
+config MACH_XIAOMI_SWEET
+	bool "Xiaomi sweet (Redmi Note 10 Pro)"
+	help
+	  Build for the Xiaomi sweet (sm7150).
+
+config MACH_XIAOMI_DAVINCI
+	bool "Xiaomi davinci (Redmi K20 / Mi 9T)"
+	help
+	  Build for the Xiaomi davinci (sm7150).
+
+config MACH_XIAOMI_PHOENIX
+	bool "Xiaomi phoenix (Redmi K30 / Poco X2)"
+	help
+	  Build for the Xiaomi phoenix (sm7150).
+
+config MACH_XIAOMI_TOCO
+	bool "Xiaomi toco (Mi Note 10 Lite)"
+	help
+	  Build for the Xiaomi toco (sm7150).
+
+config MACH_XIAOMI_TUCANA
+	bool "Xiaomi tucana (Mi Note 10 / CC9 Pro)"
+	help
+	  Build for the Xiaomi tucana (sm7150).
+
+endmenu
+
 config ARCH_QTI_VM
 	bool "Enable Virtual Machines Support for Qualcomm Technologies, Inc."
 	depends on ARCH_QCOM
