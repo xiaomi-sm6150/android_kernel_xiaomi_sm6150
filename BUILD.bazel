@@ -288,8 +288,7 @@ common_kernel(
     gki_system_dlkm_modules = ":gki_system_dlkm_modules_arm64",
     kcflags = COMMON_KCFLAGS,
     kmi_symbol_list = "gki/aarch64/symbols/base",
-    # TODO(b/571902075): Re-enable once dedicated 16K symbol lists are added.
-    kmi_symbol_list_strict_mode = False,
+    kmi_symbol_list_strict_mode = True,
     make_goals = _GKI_AARCH64_MAKE_GOALS,
     makefile = ":Makefile",
     module_implicit_outs = get_gki_modules_list("arm64") + get_kunit_modules_list("arm64"),
