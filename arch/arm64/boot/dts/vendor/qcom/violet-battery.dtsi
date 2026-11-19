@@ -104,6 +104,31 @@
 	qcom,thermal-mitigation = <3000000 2900000
 			2800000 2600000 2400000 2200000 2000000 1800000 1500000
 			1000000 500000>;
+	/*
+	 * violet's per charger type mitigation steps from the 4.14
+	 * violet-sm6150-battery.dtsi (CONFIG_QPNP_SMB5_XIAOMI_THERMAL).
+	 * The charge pump tables (qc3-cp, pps-cp) are left out: no
+	 * charge pump driver yet.
+	 */
+	qcom,thermal-mitigation-icl
+			= <2800000 2700000 2600000 2400000 2200000 2100000 2000000
+			   2000000 2000000 1900000 1800000 1600000 1500000 1300000
+			   1000000 750000>;
+	qcom,thermal-mitigation-dcp
+			= <1800000 1800000 1800000 1800000 1800000 1800000 1800000
+			   1800000 1800000 1700000 1600000 1400000 1200000 1100000
+			   1100000 1000000>;
+	qcom,thermal-mitigation-qc2
+			= <1500000 1500000 1500000 1500000 1450000 1400000 1350000
+			   1300000 1150000 1100000 1000000 900000 850000 750000
+			   650000 500000>;
+	qcom,thermal-fcc-qc3-normal
+			= <3000000 2900000
+			   2800000 2700000 2600000 2400000 2200000 2000000 2000000
+			   750000 700000>;
+	qcom,thermal-mitigation-pd-base
+			= <3000000 2800000 2600000 2400000 2200000 2000000
+			   1000000 700000>;
 };
 
 /* thermistor channels the charger needs (skin THM2, connector THM4) */
