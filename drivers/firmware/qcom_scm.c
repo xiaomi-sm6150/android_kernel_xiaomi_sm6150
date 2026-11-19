@@ -2414,6 +2414,25 @@ int qcom_scm_ice_set_key(u32 index, const u8 *key, u32 key_size,
 }
 EXPORT_SYMBOL(qcom_scm_ice_set_key);
 
+/**
+ * qcom_scm_ice_v2_available() - Does TZ take the storage type in ICE key calls?
+ *
+ * Older TZs (e.g. sm6150) implement only the legacy QCOM_SCM_ES_CONFIG_SET_ICE_KEY
+ * and QCOM_SCM_ES_INVALIDATE_ICE_KEY calls and fail the V2 / CLEAR ones that
+ * carry a storage (CE) type.
+ */
+bool qcom_scm_ice_v2_available(void)
+{
+	if (SCM_NOT_INITIALIZED())
+		return false;
+
+	return __qcom_scm_is_call_available(__scm->dev, QCOM_SCM_SVC_ES,
+					    QCOM_SCM_ES_CONFIG_SET_ICE_KEY_V2) &&
+		__qcom_scm_is_call_available(__scm->dev, QCOM_SCM_SVC_ES,
+					     QCOM_SCM_ES_CLEAR_ICE_KEY);
+}
+EXPORT_SYMBOL(qcom_scm_ice_v2_available);
+
 int qcom_scm_config_set_ice_key(uint32_t index, phys_addr_t paddr, size_t size,
 				uint32_t cipher, unsigned int data_unit,
 				unsigned int ce)
