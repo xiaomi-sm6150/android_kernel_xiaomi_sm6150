@@ -1390,5 +1390,6 @@ config TOUCHSCREEN_ZINITIX
 	  module will be called zinitix.
 
 source "drivers/input/touchscreen/nt36xxx/Kconfig"
+source "drivers/input/touchscreen/xiaomi/Kconfig"
 
 endif
