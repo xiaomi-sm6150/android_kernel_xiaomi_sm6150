@@ -44,6 +44,9 @@
 #endif
 
 #include "nt36xxx.h"
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE)
+#include "../xiaomi/xiaomi_touch.h"
+#endif
 #if NVT_TOUCH_ESD_PROTECT
 #include <linux/jiffies.h>
 #endif /* #if NVT_TOUCH_ESD_PROTECT */
@@ -111,11 +114,11 @@ const uint16_t gesture_key_array[] = {
 };
 
 /*
- * violet: wake gestures stay off until userspace turns them on through
- * /sys/devices/virtual/touch/touch_dev/double_tap, the node the 4.14
- * xiaomi_touch class provided and the power HAL writes. Off, suspend
- * puts the controller in deep sleep. Gestures report KEY_WAKEUP as on
- * 4.14, so a stray one cannot put an awake phone to sleep.
+ * violet: wake gestures stay off until userspace turns them on through the
+ * Xiaomi touch feature (touch_dev/double_tap, /dev/xiaomi-touch mode
+ * Touch_Doubletap_Mode), as on 4.14. The setting is latched when the panel
+ * blanks. Off, suspend puts the controller in deep sleep. Gestures report
+ * KEY_WAKEUP as on 4.14, so a stray one cannot put an awake phone to sleep.
  */
 static bool nvt_gesture_enabled;
 static bool nvt_gesture_armed;
@@ -131,66 +134,6 @@ extern bool dsi_panel_tddi_gesture_wake;
 #define nvt_tddi_keep_powered(on) do { } while (0)
 #endif
 
-static ssize_t double_tap_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	return sysfs_emit(buf, "%d\n", nvt_gesture_enabled);
-}
-
-static ssize_t double_tap_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
-{
-	bool val;
-	int ret;
-
-	ret = kstrtobool(buf, &val);
-	if (ret)
-		return ret;
-
-	nvt_gesture_enabled = val;
-	NVT_LOG("double tap %s\n", val ? "on" : "off");
-
-	return count;
-}
-static DEVICE_ATTR_RW(double_tap);
-
-static struct attribute *nvt_touch_dev_attrs[] = {
-	&dev_attr_double_tap.attr,
-	NULL,
-};
-ATTRIBUTE_GROUPS(nvt_touch_dev);
-
-static struct class *nvt_touch_class;
-static struct device *nvt_touch_dev;
-
-static void nvt_touch_dev_create(void)
-{
-	nvt_touch_class = class_create(THIS_MODULE, "touch");
-	if (IS_ERR(nvt_touch_class)) {
-		NVT_ERR("touch class: %ld\n", PTR_ERR(nvt_touch_class));
-		nvt_touch_class = NULL;
-		return;
-	}
-
-	nvt_touch_dev = device_create_with_groups(nvt_touch_class, NULL,
-			MKDEV(0, 0), NULL, nvt_touch_dev_groups, "touch_dev");
-	if (IS_ERR(nvt_touch_dev)) {
-		NVT_ERR("touch_dev: %ld\n", PTR_ERR(nvt_touch_dev));
-		nvt_touch_dev = NULL;
-		class_destroy(nvt_touch_class);
-		nvt_touch_class = NULL;
-	}
-}
-
-static void nvt_touch_dev_destroy(void)
-{
-	if (nvt_touch_dev)
-		device_unregister(nvt_touch_dev);
-	if (nvt_touch_class)
-		class_destroy(nvt_touch_class);
-	nvt_touch_dev = NULL;
-	nvt_touch_class = NULL;
-}
 #endif
 
 static uint8_t bTouchIsAwake = 0;
@@ -1636,6 +1579,217 @@ static int nvt_ts_late_init(void)
         return 0;
 }
 #endif
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE)
+/*
+ * Xiaomi touch feature modes, from the Xiaomi f7b Novatek driver of the
+ * 4.14 violet kernel: game mode switches written to the firmware host
+ * command bytes of the event buffer while the touch is awake.
+ */
+static struct xiaomi_touch_interface xiaomi_touch_interfaces;
+
+static int32_t nvt_xiaomi_write_reg(uint8_t write_buf_high, uint8_t write_buf_low)
+{
+	uint8_t buf[8] = {0};
+	int32_t ret;
+
+	if (write_buf_high == 0 && write_buf_low == 0)
+		return 0;
+
+	mutex_lock(&ts->lock);
+
+	//---set xdata index to EVENT BUF ADDR---
+	buf[0] = 0xFF;
+	buf[1] = (ts->mmap->EVENT_BUF_ADDR >> 16) & 0xFF;
+	buf[2] = (ts->mmap->EVENT_BUF_ADDR >> 8) & 0xFF;
+	ret = CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 3);
+	if (ret >= 0) {
+		//---write the mode command and value at 0x50/0x51---
+		buf[0] = EVENT_MAP_HOST_CMD;
+		buf[1] = write_buf_high;
+		buf[2] = write_buf_low;
+		ret = CTP_I2C_WRITE(ts->client, I2C_FW_Address, buf, 3);
+	}
+
+	mutex_unlock(&ts->lock);
+
+	return ret;
+}
+
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE_GAMEMODE)
+static void nvt_init_touchmode_data(void)
+{
+	int (*m)[VALUE_TYPE_SIZE] = xiaomi_touch_interfaces.touch_mode;
+
+	/* Touch Game Mode Switch */
+	m[Touch_Game_Mode][GET_MAX_VALUE] = 1;
+	/* Active Mode */
+	m[Touch_Active_MODE][GET_MAX_VALUE] = 1;
+	m[Touch_Active_MODE][GET_DEF_VALUE] = 1;
+	/* sensitivity */
+	m[Touch_UP_THRESHOLD][GET_MAX_VALUE] = 50;
+	m[Touch_UP_THRESHOLD][GET_MIN_VALUE] = 35;
+	/* tolerance */
+	m[Touch_Tolerance][GET_MAX_VALUE] = 255;
+	m[Touch_Tolerance][GET_MIN_VALUE] = 64;
+	m[Touch_Tolerance][GET_DEF_VALUE] = 112;
+	/* edge filter orientation */
+	m[Touch_Panel_Orientation][GET_MAX_VALUE] = 3;
+	/* edge filter area */
+	m[Touch_Edge_Filter][GET_MAX_VALUE] = 3;
+	m[Touch_Edge_Filter][GET_DEF_VALUE] = 2;
+	m[Touch_Edge_Filter][SET_CUR_VALUE] = 2;
+	m[Touch_Edge_Filter][GET_CUR_VALUE] = 2;
+	/* double tap */
+	m[Touch_Doubletap_Mode][GET_MAX_VALUE] = 1;
+}
+
+static int nvt_set_cur_value(int nvt_mode, int nvt_value)
+{
+	int (*m)[VALUE_TYPE_SIZE] = xiaomi_touch_interfaces.touch_mode;
+	uint8_t cmd = 0, reg_value = 0;
+	int temp_value;
+
+	if (nvt_mode < 0 || nvt_mode >= Touch_Mode_NUM) {
+		NVT_ERR("nvt mode is error:%d\n", nvt_mode);
+		return -EINVAL;
+	}
+
+	/* latched at the next blank, see nvt_ts_suspend() */
+	if (nvt_mode == Touch_Doubletap_Mode) {
+		if (nvt_value < 0)
+			return -EINVAL;
+		nvt_gesture_enabled = !!nvt_value;
+		m[Touch_Doubletap_Mode][SET_CUR_VALUE] = !!nvt_value;
+		m[Touch_Doubletap_Mode][GET_CUR_VALUE] = !!nvt_value;
+		NVT_LOG("double tap %s\n", nvt_value ? "on" : "off");
+		return 0;
+	}
+
+	if (!bTouchIsAwake) {
+		NVT_ERR("mode %d not set while the touch is suspended\n", nvt_mode);
+		return 0;
+	}
+
+	if (nvt_value > m[nvt_mode][GET_MAX_VALUE])
+		nvt_value = m[nvt_mode][GET_MAX_VALUE];
+	else if (nvt_value < m[nvt_mode][GET_MIN_VALUE])
+		nvt_value = m[nvt_mode][GET_MIN_VALUE];
+	m[nvt_mode][SET_CUR_VALUE] = nvt_value;
+	temp_value = nvt_value;
+
+	switch (nvt_mode) {
+	case Touch_UP_THRESHOLD:
+		if (temp_value > 35 && temp_value <= 40)
+			reg_value = 0;
+		else if (temp_value > 40 && temp_value <= 45)
+			reg_value = 1;
+		else if (temp_value > 45 && temp_value <= 50)
+			reg_value = 2;
+		else
+			reg_value = 3;
+		cmd = 0x71;
+		break;
+	case Touch_Tolerance:
+		if (temp_value <= 80)
+			reg_value = 0;
+		else if (temp_value <= 150)
+			reg_value = 1;
+		else
+			reg_value = 2;
+		cmd = 0x70;
+		break;
+	case Touch_Edge_Filter:
+		/* filter 0,1,2,3 = default,1,2,3 level */
+		reg_value = temp_value;
+		cmd = 0x72;
+		break;
+	case Touch_Panel_Orientation:
+		/* 0,1,2,3 = 0, 90, 180, 270 */
+		if (temp_value == 1)
+			cmd = 0xBB;
+		else if (temp_value == 3)
+			cmd = 0xBC;
+		else
+			cmd = 0xBA;
+		break;
+	default:
+		/* Touch_Game_Mode, Touch_Active_MODE: no firmware command */
+		break;
+	}
+
+	m[nvt_mode][GET_CUR_VALUE] = m[nvt_mode][SET_CUR_VALUE];
+	NVT_LOG("mode:%d value:%d cmd:0x%x reg:0x%x\n", nvt_mode, nvt_value, cmd, reg_value);
+
+	if (cmd && nvt_xiaomi_write_reg(cmd, reg_value) < 0)
+		NVT_ERR("writing mode %d failed\n", nvt_mode);
+
+	return 0;
+}
+
+static int nvt_get_mode_value(int mode, int value_type)
+{
+	if (mode < 0 || mode >= Touch_Mode_NUM ||
+	    value_type < 0 || value_type >= VALUE_TYPE_SIZE)
+		return -EINVAL;
+
+	return xiaomi_touch_interfaces.touch_mode[mode][value_type];
+}
+
+static int nvt_get_mode_all(int mode, int *value)
+{
+	int (*m)[VALUE_TYPE_SIZE] = xiaomi_touch_interfaces.touch_mode;
+
+	if (mode < 0 || mode >= Touch_Mode_NUM)
+		return -EINVAL;
+
+	value[0] = m[mode][GET_CUR_VALUE];
+	value[1] = m[mode][GET_DEF_VALUE];
+	value[2] = m[mode][GET_MIN_VALUE];
+	value[3] = m[mode][GET_MAX_VALUE];
+
+	return 0;
+}
+
+static int nvt_reset_mode(int mode)
+{
+	int (*m)[VALUE_TYPE_SIZE] = xiaomi_touch_interfaces.touch_mode;
+	int i;
+
+	if (mode > 0 && mode < Touch_Mode_NUM) {
+		nvt_set_cur_value(mode, m[mode][GET_DEF_VALUE]);
+	} else if (mode == 0) {
+		/* each mode to its own default; double tap is a user setting */
+		for (i = 0; i < Touch_Mode_NUM; i++)
+			if (i != Touch_Doubletap_Mode)
+				nvt_set_cur_value(i, m[i][GET_DEF_VALUE]);
+	} else {
+		return -EINVAL;
+	}
+
+	return 0;
+}
+#endif /* CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE_GAMEMODE */
+
+static void nvt_xiaomi_touch_register(void)
+{
+	int ret;
+
+	memset(&xiaomi_touch_interfaces, 0, sizeof(xiaomi_touch_interfaces));
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE_GAMEMODE)
+	xiaomi_touch_interfaces.getModeValue = nvt_get_mode_value;
+	xiaomi_touch_interfaces.setModeValue = nvt_set_cur_value;
+	xiaomi_touch_interfaces.resetMode = nvt_reset_mode;
+	xiaomi_touch_interfaces.getModeAll = nvt_get_mode_all;
+	nvt_init_touchmode_data();
+#endif
+	ret = xiaomitouch_register_modedata(&xiaomi_touch_interfaces);
+	if (ret)
+		NVT_ERR("xiaomi touch registration failed: %d\n", ret);
+}
+#else
+static inline void nvt_xiaomi_touch_register(void) { }
+#endif /* CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE */
+
 /*******************************************************
  * Description:
  *     Novatek touchscreen driver probe function.
@@ -1703,7 +1857,7 @@ static int32_t nvt_ts_probe(struct i2c_client *client,
 		goto err_register_fb_notif_failed;
 	}
 #endif
-	nvt_touch_dev_create();
+	nvt_xiaomi_touch_register();
 	NVT_LOG("end\n");
 #ifdef CONFIG_TOUCHSCREEN_NT36XXX_LATE_EN
 	nvt_ts_late_init();
@@ -1733,7 +1887,6 @@ static int32_t  nvt_ts_remove(struct i2c_client *client)
 #endif
 {
 	NVT_LOG("Removing driver...\n");
-	nvt_touch_dev_destroy();
 
 #if defined(CONFIG_DRM)
 	if (active_panel && ts->notifier_cookie)
