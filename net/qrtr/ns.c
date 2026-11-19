@@ -20,6 +20,31 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/qrtr.h>
 
+/*
+ * Services that have registered at least once, for kernel code that must
+ * wait for a userspace QMI server (the modem needs rmt_storage's RMTFS
+ * service before it boots).
+ */
+#define QRTR_NS_SEEN_MAX	1024
+static DECLARE_BITMAP(qrtr_ns_seen, QRTR_NS_SEEN_MAX);
+static DECLARE_WAIT_QUEUE_HEAD(qrtr_ns_seen_wq);
+
+/**
+ * qrtr_ns_wait_service() - wait until a QMI service has registered
+ * @service: QMI service id (below 1024)
+ * @timeout: in jiffies
+ *
+ * Returns true once the service has registered, false on timeout.
+ */
+bool qrtr_ns_wait_service(unsigned int service, unsigned long timeout)
+{
+	if (service >= QRTR_NS_SEEN_MAX)
+		return false;
+	return wait_event_timeout(qrtr_ns_seen_wq,
+				  test_bit(service, qrtr_ns_seen), timeout) > 0;
+}
+EXPORT_SYMBOL_GPL(qrtr_ns_wait_service);
+
 #define NS_LOG_PAGE_CNT 4
 static void *ns_ilc;
 #define NS_INFO(x, ...) ipc_log_string(ns_ilc, x, ##__VA_ARGS__)
@@ -307,6 +332,10 @@ static struct qrtr_server *server_add(unsigned int service,
 
 	trace_qrtr_ns_server_add(srv->service, srv->instance,
 				 srv->node, srv->port);
+
+	if (srv->service < QRTR_NS_SEEN_MAX &&
+	    !test_and_set_bit(srv->service, qrtr_ns_seen))
+		wake_up_all(&qrtr_ns_seen_wq);
 
 	NS_INFO("%s: [0x%x:0x%x]@[0x%x:0x%x]\n", __func__, srv->service,
 		srv->instance, srv->node, srv->port);
