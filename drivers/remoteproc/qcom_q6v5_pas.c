@@ -46,6 +46,8 @@
 #include "qcom_common.h"
 #include "qcom_pil_info.h"
 #include "qcom_q6v5.h"
+
+bool qrtr_ns_wait_service(unsigned int service, unsigned long timeout);
 #include "remoteproc_internal.h"
 
 #define XO_FREQ		19200000
@@ -1990,8 +1992,17 @@ static int k61_late_boot_fn(void *data)
 		ret = -ENOENT;
 		/*
 		 * Some DSPs depend on a userspace daemon (the modem on
-		 * rmt_storage): hold the boot until this uptime.
+		 * rmt_storage): k61,wait-qmi-service holds the boot until that
+		 * daemon has registered its QMI service (120 s at most);
+		 * k61,boot-uptime holds it until a fixed uptime.
 		 */
+		if (!of_property_read_u32(rproc->dev.parent->of_node,
+					  "k61,wait-qmi-service", &up)) {
+			bool seen = qrtr_ns_wait_service(up, 120 * HZ);
+
+			dev_info(&rproc->dev, "k61: QMI service %u %s\n", up,
+				 seen ? "registered" : "not registered in 120 s");
+		}
 		if (!of_property_read_u32(rproc->dev.parent->of_node,
 					  "k61,boot-uptime", &up)) {
 			while (ktime_get_boottime_seconds() < up)
