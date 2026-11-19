@@ -103,4 +103,6 @@ int dsi_pwr_enable_regulator(struct dsi_regulator_info *regs, bool enable);
 int dsi_pwr_panel_regulator_mode_set(struct dsi_regulator_info *regs,
 						const char *reg_name,
 						int regulator_mode);
+extern bool dsi_panel_tddi_gesture_wake;
+
 #endif /* _DSI_PWR_H_ */
