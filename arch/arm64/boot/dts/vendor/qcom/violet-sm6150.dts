@@ -284,8 +284,6 @@
 		k61,solo-cpu;
 		/* rmt_storage (modem EFS) is up at ~40 s uptime */
 		k61,boot-uptime = <45>;
-		/* RAM copies of the EFS partitions: the real eMMC stays read-only */
-		k61,efs-scratch = "modemst1", "modemst2", "fsg", "fsc";
 
 		glink-edge {
 			qcom,remote-pid = <1>;
