@@ -1548,6 +1548,50 @@ void device_links_no_driver(struct device *dev)
 }
 
 /**
+ * device_links_probe_failed - Release the suppliers of a failed consumer.
+ * @dev: Device whose driver failed to probe with an error other than
+ *	 -EPROBE_DEFER.
+ *
+ * A supplier gets its sync_state() call only when all of its consumers
+ * have bound. A consumer whose driver matched but whose probe failed for
+ * good never binds, so its fw_devlink links would keep the supplier's boot
+ * state (proxy votes, unused clocks, interconnect floors) forever.
+ * fw_devlink_drivers_done() only relaxes links of consumers that have no
+ * matching driver at all. Drop the inferred links of such a consumer and
+ * let its suppliers sync.
+ *
+ * Links that a driver created explicitly are left alone.
+ */
+void device_links_probe_failed(struct device *dev)
+{
+	struct device_link *link, *ln;
+	LIST_HEAD(sync_list);
+
+	device_links_write_lock();
+
+	list_for_each_entry_safe(link, ln, &dev->links.suppliers, c_node) {
+		struct device *supplier = link->supplier;
+
+		if (!(link->flags & DL_FLAG_MANAGED) ||
+		    !(link->flags & DL_FLAG_INFERRED))
+			continue;
+
+		dev_info(dev, "probe failed, dropping the link to %s\n",
+			 dev_name(supplier));
+		device_link_drop_managed(link);
+
+		if (defer_sync_state_count)
+			__device_links_supplier_defer_sync(supplier);
+		else
+			__device_links_queue_sync_state(supplier, &sync_list);
+	}
+
+	device_links_write_unlock();
+
+	device_links_flush_sync_list(&sync_list, dev);
+}
+
+/**
  * device_links_driver_cleanup - Update links after driver removal.
  * @dev: Device whose driver has just gone away.
  *

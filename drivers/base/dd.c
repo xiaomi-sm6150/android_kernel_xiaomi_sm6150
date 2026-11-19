@@ -736,6 +736,9 @@ sysfs_failed:
 		dev->bus->dma_cleanup(dev);
 pinctrl_bind_failed:
 	device_links_no_driver(dev);
+	/* call_driver_probe() errors are positive here */
+	if (ret != -EPROBE_DEFER && ret != EPROBE_DEFER)
+		device_links_probe_failed(dev);
 	device_unbind_cleanup(dev);
 done:
 	return ret;
