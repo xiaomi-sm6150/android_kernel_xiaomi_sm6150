@@ -2,8 +2,6 @@
 
 // Copyright (C) 2026 Google LLC.
 
-use core::sync::atomic::{AtomicBool, Ordering};
-
 use crate::wrap::WRAP_FOPS;
 
 use kernel::{
@@ -12,6 +10,10 @@ use kernel::{
     new_mutex, new_poll_condvar,
     prelude::*,
     sync::{
+        atomic::{
+            ordering::{Acquire, Release},
+            Atomic,
+        },
         poll::{PollCondVar, PollTable},
         Arc, Mutex,
     },
@@ -49,7 +51,7 @@ struct FileMonitorInner {
 pub(crate) struct FileMonitor {
     #[pin]
     condvar: PollCondVar,
-    events_pending: AtomicBool,
+    events_pending: Atomic<bool>,
 
     #[pin]
     inner: Mutex<FileMonitorInner>,
@@ -64,7 +66,7 @@ impl FileMonitor {
     pub(crate) fn new() -> impl PinInit<Self> {
         pin_init!(Self {
             condvar <- new_poll_condvar!("FileMonitor::condvar"),
-            events_pending: false.into(),
+            events_pending: Atomic::new(false),
             inner <- new_mutex!(FileMonitorInner::default()),
         })
     }
@@ -137,7 +139,7 @@ impl FileMonitor {
             // SAFETY: Calling `ktime_get_ns` is always safe.
             info.timestamp = unsafe { bindings::ktime_get_ns() };
 
-            !self.events_pending.swap(true, Ordering::Release)
+            !self.events_pending.xchg(true, Release)
         };
 
         if should_wake {
@@ -273,7 +275,7 @@ impl FileMonitor {
             }
 
             if !has_more {
-                self.events_pending.store(false, Ordering::Release);
+                self.events_pending.store(false, Release);
             }
         }
 
@@ -312,7 +314,7 @@ impl FileMonitor {
                     restored_any = true;
                 }
 
-                restored_any && !self.events_pending.swap(true, Ordering::Release)
+                restored_any && !self.events_pending.xchg(true, Release)
             };
 
             if should_wake {
@@ -333,7 +335,7 @@ impl FileMonitor {
         table.register_wait(file, &self.condvar);
 
         let mut mask = 0;
-        if self.events_pending.load(Ordering::Acquire) {
+        if self.events_pending.load(Acquire) {
             mask |= bindings::POLLIN | bindings::POLLRDNORM;
         }
 
