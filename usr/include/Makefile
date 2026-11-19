@@ -22,6 +22,7 @@ override c_flags = $(UAPI_CFLAGS) -Wp,-MMD,$(depfile) -I $(obj) -I $(srctree)/us
 no-header-test += linux/ipa_qmi_service_v01.h
 no-header-test += linux/msm_ipa.h
 no-header-test += linux/rmnet_data.h
+no-header-test += linux/rmnet_ipa_fd_ioctl.h
 no-header-test += media/msm_sde_rotator.h
 no-header-test += media/msm_vidc_private.h
 no-header-test += media/msm_vidc_v4l2.h
