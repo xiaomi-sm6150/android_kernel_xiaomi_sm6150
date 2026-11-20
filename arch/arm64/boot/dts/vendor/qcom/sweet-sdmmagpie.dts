@@ -341,13 +341,9 @@
 	};
 };
 
-&spmi_bus {
-
-	qcom,pm6150l@5 {
-	};
-
-	qcom,pm6150l@4 {
-	};
+&L7C {
+	regulator-min-microvolt = <3312000>;
+	qcom,init-voltage = <3312000>;
 };
 
 &pm6150_vadc {
@@ -707,9 +703,6 @@
 };
 
 &tlmm {
-
-	nfc {
-	};
 
 	pmx_ts_active {
 
