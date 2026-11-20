@@ -383,6 +383,17 @@ struct cam_sensor_board_info {
 #endif
 };
 
+/*
+ * Size of the probe command the CamX blobs send. The UAPI struct carries
+ * violet's sensorName (4.14 had it under CONFIG_MACH_XIAOMI_VIOLET, which a
+ * 6.1 UAPI header cannot test); everyone else's command ends at reserved.
+ */
+#if IS_ENABLED(CONFIG_MACH_XIAOMI_VIOLET)
+#define CAM_CMD_PROBE_SIZE	sizeof(struct cam_cmd_probe)
+#else
+#define CAM_CMD_PROBE_SIZE	offsetof(struct cam_cmd_probe, sensorName)
+#endif
+
 enum msm_camera_vreg_name_t {
 	CAM_VDIG,
 	CAM_VIO,

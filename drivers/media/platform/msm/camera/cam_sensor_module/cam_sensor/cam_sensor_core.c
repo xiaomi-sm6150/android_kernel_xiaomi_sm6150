@@ -401,7 +401,7 @@ int32_t cam_handle_cmd_buffers_for_probe(void *cmd_buf,
 
 		if (remain_len <
 			(sizeof(struct cam_cmd_i2c_info) +
-			sizeof(struct cam_cmd_probe))) {
+			CAM_CMD_PROBE_SIZE)) {
 			CAM_ERR(CAM_SENSOR,
 				"not enough buffer for cam_cmd_i2c_info");
 			return -EINVAL;
