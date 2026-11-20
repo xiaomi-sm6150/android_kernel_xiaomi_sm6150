@@ -1205,6 +1205,16 @@ unsafe extern "C" fn wrapfd_del_listener(handle: *mut ffi::c_void) -> ffi::c_int
 }
 
 #[export]
+/// # Safety
+///
+/// - `file` is a pointer to a valid struct file and remains valid throughout this call.
+/// - `dev` is a pointer to a valid struct device and remains valid throughout this call.
+///
+/// The buffer must not be in use or owned by another process or device for this function to
+/// succeed.
+///
+/// On success, 0 is returned, and the device owns the buffer. On failure, a negative error code is
+/// returned, and the buffer is not owned by the invoking device.
 unsafe extern "C" fn wrapfd_acquire_ownership(
     file: *mut bindings::file,
     dev: *mut bindings::device,
@@ -1248,6 +1258,15 @@ unsafe extern "C" fn wrapfd_acquire_ownership(
 }
 
 #[export]
+/// # Safety
+///
+/// - `file` is a pointer to a valid struct file and remains valid throughout this call.
+/// - `dev` is a pointer to a valid struct device and remains valid throughout this call.
+///
+/// The buffer must be owned by `dev` to succeed.
+///
+/// On success, 0 is returned, and the device no longer owns the buffer. On failure, a negative
+/// error code is returned, and the buffer's ownership state remains unchanged.
 unsafe extern "C" fn wrapfd_release_ownership(
     file: *mut bindings::file,
     dev: *mut bindings::device,
