@@ -4582,6 +4582,7 @@ static const struct of_device_id qcom_llcc_of_match[] = {
 	{ .compatible = "qcom,sc8280xp-llcc", .data = &sc8280xp_cfgs },
 	{ .compatible = "qcom,sdm845-llcc", .data = &sdm845_cfgs },
 	{ .compatible = "qcom,sm6350-llcc", .data = &sm6350_cfgs },
+	{ .compatible = "qcom,sdmmagpie-llcc", .data = &sm7150_cfgs },
 	{ .compatible = "qcom,sm7150-llcc", .data = &sm7150_cfgs },
 	{ .compatible = "qcom,sm8150-llcc", .data = &sm8150_cfgs },
 	{ .compatible = "qcom,sm8250-llcc", .data = &sm8250_cfgs },
