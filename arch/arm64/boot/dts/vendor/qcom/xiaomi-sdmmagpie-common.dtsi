@@ -21,10 +21,13 @@
 	};
 };
 
-&spmi_bus {
+&L6A {
+	regulator-min-microvolt = <1050000>;
+};
 
-	qcom,pm6150l@5 {
-	};
+&L16A {
+	regulator-min-microvolt = <1800000>;
+	qcom,init-voltage = <1800000>;
 };
 
 &pm6150_qg {
@@ -83,12 +86,6 @@
 
 &tlmm {
 	gpio-reserved-ranges = <0 4>, <59 4>;
-
-	pmx_ts_int_suspend {
-	};
-
-	pmx_ts_reset_suspend {
-	};
 
 	pri_i2s_sck_ws {
 
