@@ -406,6 +406,15 @@ static const struct llcc_slice_config sm6150_data[] =  {
 	{ LLCC_GPU,      12, 128, 1, 0, 0xF, 0x0, 0, 0, 0, 0, 1, 0 },
 };
 
+/* 4.14 llcc-sdmmagpie.c; mainline sm7150_data has the same slices */
+static const struct llcc_slice_config sdmmagpie_data[] =  {
+	{ LLCC_CPUSS,    1, 512, 1, 0, 0xF, 0x0, 0, 0, 0, 0, 1, 1 },
+	{ LLCC_MDM,      8, 128, 2, 0, 0xF, 0x0, 0, 0, 0, 0, 1, 0 },
+	{ LLCC_GPUHTW,   11, 256, 1, 1, 0xF, 0x0, 0, 0, 0, 0, 1, 0 },
+	{ LLCC_GPU,      12, 256, 1, 1, 0xF, 0x0, 0, 0, 0, 0, 1, 0 },
+	{ LLCC_NPU,      23, 512, 1, 0, 0xF, 0x0, 0, 0, 0, 0, 1, 0 },
+};
+
 static struct llcc_slice_config sdmshrike_data[] =  {
 	{ LLCC_CPUSS,    1,  6144, 1, 1, 0xFFF, 0x0,   0, 0, 0, 1, 1 },
 	{ LLCC_VIDSC0,   2,  512,  2, 1, 0xFFF, 0x0,   0, 0, 0, 1, 0 },
@@ -722,6 +731,11 @@ static const struct qcom_llcc_config sm8150_cfg = {
 static const struct qcom_llcc_config sm6150_cfg = {
 	.sct_data       = sm6150_data,
 	.size           = ARRAY_SIZE(sm6150_data),
+};
+
+static const struct qcom_llcc_config sdmmagpie_cfg = {
+	.sct_data       = sdmmagpie_data,
+	.size           = ARRAY_SIZE(sdmmagpie_data),
 };
 
 static const struct qcom_llcc_config sdmshrike_cfg = {
@@ -2049,6 +2063,7 @@ static const struct of_device_id qcom_llcc_of_match[] = {
 	{ .compatible = "qcom,sdm845-llcc", .data = &sdm845_cfg },
 	{ .compatible = "qcom,sm8150-llcc", .data = &sm8150_cfg },
 	{ .compatible = "qcom,sm6150-llcc", .data = &sm6150_cfg },
+	{ .compatible = "qcom,sdmmagpie-llcc", .data = &sdmmagpie_cfg },
 	{ .compatible = "qcom,sdmshrike-llcc", .data = &sdmshrike_cfg },
 	{ .compatible = "qcom,sm8350-llcc", .data = &sm8350_cfg },
 	{ .compatible = "qcom,sm8450-llcc", .data = &sm8450_cfg },
