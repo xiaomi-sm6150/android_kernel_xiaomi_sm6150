@@ -252,6 +252,91 @@
 		touch,name = "xiaomi-touch";
 	};
 
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-sensor.dtsi): target only, 4.14 bindings, check */
+	led_flash_rear: qcom,camera-flash@0 {
+		cell-index = <0>;
+		reg = <0x00 0x00>;
+		compatible = "qcom,camera-flash";
+		flash-source = <&pm6150l_flash0>;
+		torch-source = <&pm6150l_torch0>;
+		switch-source = <&pm6150l_switch2>;
+		status = "ok";
+	};
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-sensor.dtsi): target only, 4.14 bindings, check */
+	led_flash_rear_macro: qcom,camera-flash@1 {
+		cell-index = <1>;
+		reg = <0x01 0x00>;
+		compatible = "qcom,camera-flash";
+		flash-source = <&pm6150l_flash0>;
+		torch-source = <&pm6150l_torch0>;
+		switch-source = <&pm6150l_switch2>;
+		status = "ok";
+	};
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-sensor.dtsi): target only, 4.14 bindings, check */
+	led_flash_rear_ultra: qcom,camera-flash@2 {
+		cell-index = <2>;
+		reg = <0x02 0x00>;
+		compatible = "qcom,camera-flash";
+		flash-source = <&pm6150l_flash0>;
+		torch-source = <&pm6150l_torch0>;
+		switch-source = <&pm6150l_switch2>;
+		status = "ok";
+	};
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-sensor.dtsi): target only, 4.14 bindings, check */
+	camera_vddio_regulator: gpio-regulator@0 {
+		compatible = "regulator-fixed";
+		reg = <0x00 0x00>;
+		regulator-name = "camera_vddio_regulator";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-enable-ramp-delay = <100>;
+		enable-active-high;
+		gpio = <&pm6150l_gpios 4 0>;
+		vin-supply = <&S5A>;
+	};
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-sensor.dtsi): target only, 4.14 bindings, check */
+	camera_vddio_depth_regulator: gpio-regulator@1 {
+		compatible = "regulator-fixed";
+		reg = <0x01 0x00>;
+		regulator-name = "camera_vddio_depth_regulator";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-enable-ramp-delay = <100>;
+		enable-active-high;
+		gpio = <&pm6150l_gpios 8 0>;
+		vin-supply = <&S5A>;
+	};
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-sensor.dtsi): target only, 4.14 bindings, check */
+	camera_v_swio_depth_regulator: gpio-regulator@2 {
+		compatible = "regulator-fixed";
+		reg = <0x02 0x00>;
+		regulator-name = "camera_v_swio_depth_regulator";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-enable-ramp-delay = <100>;
+		enable-active-high;
+		gpio = <&pm6150l_gpios 4 0>;
+		vin-supply = <&S5A>;
+	};
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-sensor.dtsi): target only, 4.14 bindings, check */
+	camera_d_vdda_regulator: gpio-regulator@3 {
+		compatible = "regulator-fixed";
+		reg = <0x03 0x00>;
+		regulator-name = "camera_d_vdda_regulator";
+		regulator-min-microvolt = <2800000>;
+		regulator-max-microvolt = <2800000>;
+		regulator-enable-ramp-delay = <100>;
+		enable-active-high;
+		gpio = <&pm6150l_gpios 11 0>;
+		vin-supply = <&BOB>;
+	};
+
 	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie.dtsi): target only, 4.14 bindings, check */
 	fingerprint_fortsense {
 		compatible = "fs,fingerprint";
@@ -575,6 +660,78 @@
 			power-source = <1>;
 			qcom,pull-up-strength = <2>;
 		};
+	};
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-pinctrl.dtsi): target only, 4.14 bindings, check */
+	cam_sensor_w_vdda_vddd_enable: cam_sensor_w_vdda_vddd_enable {
+		pins = "gpio3";
+		function = "normal";
+		power-source = <0>;
+		output-low;
+	};
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-pinctrl.dtsi): target only, 4.14 bindings, check */
+	cam_sensor_w_vdda_vddd_disable: cam_sensor_w_vdda_vddd_disable {
+		pins = "gpio3";
+		function = "normal";
+		power-source = <0>;
+		output-low;
+	};
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-pinctrl.dtsi): target only, 4.14 bindings, check */
+	cam_sensor_d_vdda_vddd_enable: cam_sensor_d_vdda_vddd_enable {
+		pins = "gpio8";
+		function = "normal";
+		power-source = <1>;
+		output-low;
+	};
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-pinctrl.dtsi): target only, 4.14 bindings, check */
+	cam_sensor_d_vdda_vddd_disable: cam_sensor_d_vdda_vddd_disable {
+		pins = "gpio8";
+		function = "normal";
+		power-source = <1>;
+		output-low;
+	};
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-pinctrl.dtsi): target only, 4.14 bindings, check */
+	cam_sensor_u_vdda_vddd_enable: cam_sensor_u_vdda_vddd_enable {
+		pins = "gpio11";
+		function = "normal";
+		power-source = <1>;
+		output-low;
+	};
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-pinctrl.dtsi): target only, 4.14 bindings, check */
+	cam_sensor_u_vdda_vddd_disable: cam_sensor_u_vdda_vddd_disable {
+		pins = "gpio11";
+		function = "normal";
+		power-source = <1>;
+		output-low;
+	};
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-pinctrl.dtsi): target only, 4.14 bindings, check */
+	aw3644_led_hwen_active: aw3644_led_hwen_active {
+		pins = "gpio12";
+		function = "normal";
+		power-source = <0>;
+		output-low;
+	};
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-pinctrl.dtsi): target only, 4.14 bindings, check */
+	aw3644_led_hwen_suspend: aw3644_led_hwen_suspend {
+		pins = "gpio12";
+		function = "normal";
+		power-source = <0>;
+		output-low;
+	};
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-pinctrl.dtsi): target only, 4.14 bindings, check */
+	aw3644_pwm_default: aw3644_pwm_default {
+		pins = "gpio4";
+		function = "normal";
+		power-source = <0>;
+		output-low;
 	};
 };
 
@@ -1304,6 +1461,379 @@
 
 &qusb_phy0 {
 	qcom,qusb-phy-init-seq = <0x23 0x210 0x03 0x04 0x7c 0x18c 0x80 0x2c 0x0a 0x184 0x19 0xb4 0x40 0x194 0x16 0x198 0x21 0x214 0x08 0x220 0x58 0x224 0x07 0x240 0x29 0x244 0xca 0x248 0x07 0x24c 0x03 0x250 0x30 0x23c 0x22 0x210>;
+};
+
+&cam_cci {
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-sensor.dtsi): target only, 4.14 bindings, check */
+	qcom,cam-res-mgr {
+		compatible = "qcom,cam-res-mgr";
+		status = "ok";
+	};
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-sensor.dtsi): target only, 4.14 bindings, check */
+	actuator_rear_wide: qcom,actuator@0 {
+		cell-index = <0>;
+		reg = <0x0>;
+		compatible = "qcom,actuator";
+		cci-master = <0>;
+		cci-device = <0>;
+		cam_vaf-supply = <&L16A>;
+		regulator-names = "cam_vaf";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <2800000>;
+		rgltr-max-voltage = <2800000>;
+		rgltr-load-current = <220000>;
+	};
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-sensor.dtsi): target only, 4.14 bindings, check */
+	actuator_rear_macro: qcom,actuator@1 {
+		cell-index = <1>;
+		reg = <0x1>;
+		compatible = "qcom,actuator";
+		cci-master = <1>;
+		cci-device = <0>;
+		cam_vaf-supply = <&L16A>;
+		regulator-names = "cam_vaf";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <2800000>;
+		rgltr-max-voltage = <2800000>;
+		rgltr-load-current = <220000>;
+	};
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-sensor.dtsi): target only, 4.14 bindings, check */
+	eeprom_rear_wide: qcom,eeprom@0 {
+		cell-index = <0>;
+		compatible = "qcom,eeprom";
+		reg = <0x0>;
+		csiphy-sd-index = <0>;
+		cam_vio-supply = <&camera_vddio_regulator>;
+		cam_vdig-supply = <&L6A>;
+		cam_v_custom1-supply = <&L6A>;
+		cam_clk-supply = <&titan_top_gdsc>;
+		regulator-names = "cam_vio", "cam_vdig", "cam_v_custom1", "cam_clk";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <1800000 1100000 1100000 0>;
+		rgltr-max-voltage = <1800000 1100000 1100000 0>;
+		rgltr-load-current = <180000 120000 120000 0>;
+		gpio-no-mux = <0>;
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk2_active &cam_sensor_wide_active>;
+		pinctrl-1 = <&cam_sensor_mclk2_suspend &cam_sensor_wide_suspend>;
+		gpios = <&tlmm 15 0>, <&tlmm 26 0>;
+		gpio-reset = <1>;
+		gpio-req-tbl-num = <0 1>;
+		gpio-req-tbl-flags = <1 0>;
+		gpio-req-tbl-label = "CAMIF_MCLK0",
+					"CAMW_RESET";
+		sensor-mode = <0>;
+		cci-master = <0>;
+		cci-device = <0>;
+		status = "ok";
+		clocks = <&camcc CAM_CC_MCLK2_CLK>;
+		clock-names = "cam_clk";
+		clock-cntl-level = "turbo";
+		clock-rates = <19200000>;
+	};
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-sensor.dtsi): target only, 4.14 bindings, check */
+	eeprom_front: qcom,eeprom@2 {
+		cell-index = <2>;
+		reg = <2>;
+		compatible = "qcom,eeprom";
+		cam_vio-supply = <&camera_vddio_regulator>;
+		regulator-names = "cam_vio";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <1800000>;
+		rgltr-max-voltage = <1800000>;
+		rgltr-load-current = <180000>;
+		cci-master = <1>;
+		cci-device = <0>;
+		status = "ok";
+	};
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-sensor.dtsi): target only, 4.14 bindings, check */
+	eeprom_macro: qcom,eeprom@3 {
+		cell-index = <3>;
+		reg = <3>;
+		compatible = "qcom,eeprom";
+		cam_vio-supply = <&camera_vddio_regulator>;
+		regulator-names = "cam_vio";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <1800000>;
+		rgltr-max-voltage = <1800000>;
+		rgltr-load-current = <180000>;
+		cci-master = <1>;
+		cci-device = <0>;
+		status = "ok";
+	};
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-sensor.dtsi): target only, 4.14 bindings, check */
+	qcom,cam-sensor@0 {
+		cell-index = <0>;
+		compatible = "qcom,cam-sensor";
+		reg = <0x0>;
+		csiphy-sd-index = <0>;
+		sensor-position-roll = <90>;
+		sensor-position-pitch = <0>;
+		sensor-position-yaw = <180>;
+		led-flash-src = <&led_flash_rear_ultra>;
+		actuator-src = <&actuator_rear_wide>;
+		eeprom-src = <&eeprom_rear_wide>;
+		cam_vio-supply = <&camera_vddio_regulator>;
+		cam_vdig-supply = <&L6A>;
+		cam_v_custom1-supply = <&L6A>;
+		cam_clk-supply = <&titan_top_gdsc>;
+		regulator-names = "cam_vio", "cam_vdig", "cam_v_custom1", "cam_clk";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <1800000 1050000 1100000 0>;
+		rgltr-max-voltage = <1800000 1050000 1100000 0>;
+		rgltr-load-current = <180000 120000 120000 0>;
+		gpio-no-mux = <0>;
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk2_active &cam_sensor_wide_active>;
+		pinctrl-1 = <&cam_sensor_mclk2_suspend &cam_sensor_wide_suspend>;
+		gpios = <&tlmm 15 0>, <&tlmm 26 0>;
+		gpio-reset = <1>;
+		gpio-req-tbl-num = <0 1>;
+		gpio-req-tbl-flags = <1 0>;
+		gpio-req-tbl-label = "CAMIF_MCLK0",
+					"CAMW_RESET";
+		sensor-mode = <0>;
+		cci-master = <0>;
+		cci-device = <0>;
+		status = "ok";
+		clocks = <&camcc CAM_CC_MCLK2_CLK>;
+		clock-names = "cam_clk";
+		clock-cntl-level = "turbo";
+		clock-rates = <19200000>;
+	};
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-sensor.dtsi): target only, 4.14 bindings, check */
+	qcom,cam-sensor@2 {
+		cell-index = <2>;
+		compatible = "qcom,cam-sensor";
+		reg = <0x2>;
+		csiphy-sd-index = <1>;
+		sensor-position-roll = <270>;
+		sensor-position-pitch = <0>;
+		sensor-position-yaw = <0>;
+		eeprom-src = <&eeprom_front>;
+		cam_vio-supply = <&camera_vddio_regulator>;
+		cam_vana-supply = <&camera_d_vdda_regulator>;
+		cam_clk-supply = <&titan_top_gdsc>;
+		regulator-names = "cam_vio", "cam_vana","cam_clk";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <1800000 2800000 0>;
+		rgltr-max-voltage = <1800000 2800000 0>;
+		rgltr-load-current = <180000 120000 0>;
+		gpio-no-mux = <0>;
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk0_active &cam_sensor_front_active>;
+		pinctrl-1 = <&cam_sensor_mclk0_suspend &cam_sensor_front_suspend>;
+		gpios = <&tlmm 13 0>, <&tlmm 23 0>;
+		gpio-reset = <1>;
+		gpio-req-tbl-num = <0 1>;
+		gpio-req-tbl-flags = <1 0>;
+		gpio-req-tbl-label = "CAMIF_MCLK0",
+					"CAMF_RESET";
+		sensor-mode = <0>;
+		cci-master = <1>;
+		cci-device = <0>;
+		status = "ok";
+		clocks = <&camcc CAM_CC_MCLK0_CLK>;
+		clock-names = "cam_clk";
+		clock-cntl-level = "turbo";
+		clock-rates = <19200000>;
+	};
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-sensor.dtsi): target only, 4.14 bindings, check */
+	qcom,cam-sensor@3 {
+		cell-index = <3>;
+		compatible = "qcom,cam-sensor";
+		reg = <0x3>;
+		csiphy-sd-index = <3>;
+		sensor-position-roll = <90>;
+		sensor-position-pitch = <0>;
+		sensor-position-yaw = <180>;
+		led-flash-src = <&led_flash_rear_macro>;
+		eeprom-src = <&eeprom_macro>;
+		actuator-src = <&actuator_rear_macro>;
+		cam_vio-supply = <&camera_vddio_regulator>;
+		cam_vana-supply = <&camera_d_vdda_regulator>;
+		cam_clk-supply = <&titan_top_gdsc>;
+		regulator-names = "cam_vio", "cam_vana","cam_clk";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <1800000 2800000 0>;
+		rgltr-max-voltage = <1800000 2800000 0>;
+		rgltr-load-current = <180000 120000 0>;
+		gpio-no-mux = <0>;
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk3_active &cam_sensor_macro_active &cam_sensor_mipi_switch_sel_high>;
+		pinctrl-1 = <&cam_sensor_mclk3_suspend &cam_sensor_macro_suspend &cam_sensor_mipi_switch_sel_low>;
+		gpios = <&tlmm 16 0>, <&tlmm 24 0>, <&tlmm 88 0>;
+		gpio-reset = <1>;
+		gpio-custom1 = <2>;
+		gpio-req-tbl-num = <0 1 2>;
+		gpio-req-tbl-flags = <1 0 0>;
+		gpio-req-tbl-label = "CAMIF_MCLK1",
+					"CAMM_RESET",
+					"CAMD_CUSTOM1";
+		cci-master = <1>;
+		cci-device = <0>;
+		status = "ok";
+		clocks = <&camcc CAM_CC_MCLK3_CLK>;
+		clock-names = "cam_clk";
+		clock-cntl-level = "turbo";
+		clock-rates = <19200000>;
+	};
+};
+
+&i2c_freq_1Mhz_cci0 {
+	hw-thigh = <18>;
+	hw-tlow = <20>;
+	hw-thd-dat = <14>;
+};
+
+&cam_cci1 {
+	gpio-req-tbl-label = "CCI_I2C_DATA2",
+				"CCI_I2C_CLK2";
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-sensor.dtsi): target only, 4.14 bindings, check */
+	qcom,cam-res-mgr {
+		compatible = "qcom,cam-res-mgr";
+		status = "ok";
+	};
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-sensor.dtsi): target only, 4.14 bindings, check */
+	eeprom_rear_depth: qcom,eeprom@1 {
+		cell-index = <1>;
+		compatible = "qcom,eeprom";
+		reg = <0x1>;
+		csiphy-sd-index = <3>;
+		cam_vio-supply = <&camera_vddio_depth_regulator>;
+		cam_vana-supply = <&camera_d_vdda_regulator>;
+		cam_v_custom1-supply = <&camera_v_swio_depth_regulator>;
+		cam_clk-supply = <&titan_top_gdsc>;
+		regulator-names = "cam_vio", "cam_vana",  "cam_v_custom1", "cam_clk";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <1800000 2800000 1800000 0>;
+		rgltr-max-voltage = <1800000 2800000 1800000 0>;
+		rgltr-load-current = <180000 120000 1800000 0>;
+		gpio-no-mux = <0>;
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk0_active &cam_sensor_depth_active &cam_sensor_mipi_switch_sel_low>;
+		pinctrl-1 = <&cam_sensor_mclk0_suspend &cam_sensor_depth_suspend &cam_sensor_mipi_switch_sel_high>;
+		gpios = <&tlmm 13 0>, <&tlmm 21 0>, <&tlmm 88 0>;
+		gpio-reset = <1>;
+		gpio-custom1 = <2>;
+		gpio-req-tbl-num = <0 1 2>;
+		gpio-req-tbl-flags = <1 0 0>;
+		gpio-req-tbl-label = "CAMIF_MCLK0",
+					"CAMD_RESET",
+					"CAMD_CUSTOM1";
+		cci-master = <0>;
+		cci-device = <1>;
+		status = "ok";
+		clocks = <&camcc CAM_CC_MCLK0_CLK>;
+		clock-names = "cam_clk";
+		clock-cntl-level = "turbo";
+		clock-rates = <19200000>;
+	};
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-sensor.dtsi): target only, 4.14 bindings, check */
+	eeprom_rear_ultra: qcom,eeprom@4 {
+		cell-index = <4>;
+		reg = <4>;
+		compatible = "qcom,eeprom";
+		cam_vio-supply = <&camera_v_swio_depth_regulator>;
+		regulator-names = "cam_vio";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <1800000>;
+		rgltr-max-voltage = <1800000>;
+		rgltr-load-current = <180000>;
+		cci-master = <0>;
+		cci-device = <1>;
+		status = "ok";
+	};
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-sensor.dtsi): target only, 4.14 bindings, check */
+	qcom,cam-sensor@1 {
+		cell-index = <1>;
+		compatible = "qcom,cam-sensor";
+		reg = <0x1>;
+		csiphy-sd-index = <3>;
+		sensor-position-roll = <90>;
+		sensor-position-pitch = <0>;
+		sensor-position-yaw = <180>;
+		eeprom-src = <&eeprom_rear_depth>;
+		cam_vio-supply = <&camera_vddio_depth_regulator>;
+		cam_vana-supply = <&camera_d_vdda_regulator>;
+		cam_v_custom1-supply = <&camera_v_swio_depth_regulator>;
+		cam_clk-supply = <&titan_top_gdsc>;
+		regulator-names = "cam_vio", "cam_vana",  "cam_v_custom1", "cam_clk";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <1800000 2800000 1800000 0>;
+		rgltr-max-voltage = <1800000 2800000 1800000 0>;
+		rgltr-load-current = <180000 120000 1800000 0>;
+		gpio-no-mux = <0>;
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk0_active &cam_sensor_depth_active &cam_sensor_mipi_switch_sel_low>;
+		pinctrl-1 = <&cam_sensor_mclk0_suspend &cam_sensor_depth_suspend &cam_sensor_mipi_switch_sel_high>;
+		gpios = <&tlmm 13 0>, <&tlmm 21 0>, <&tlmm 88 0>;
+		gpio-reset = <1>;
+		gpio-custom1 = <2>;
+		gpio-req-tbl-num = <0 1 2>;
+		gpio-req-tbl-flags = <1 0 0>;
+		gpio-req-tbl-label = "CAMIF_MCLK0",
+					"CAMD_RESET",
+					"CAMD_CUSTOM1";
+		cci-master = <0>;
+		cci-device = <1>;
+		status = "ok";
+		clocks = <&camcc CAM_CC_MCLK0_CLK>;
+		clock-names = "cam_clk";
+		clock-cntl-level = "turbo";
+		clock-rates = <19200000>;
+	};
+
+	/* FROM-4.14 (dt/414/xiaomi/sweet/sweet-sdmmagpie-camera-sensor.dtsi): target only, 4.14 bindings, check */
+	qcom,cam-sensor@4 {
+		cell-index = <4>;
+		compatible = "qcom,cam-sensor";
+		reg = <0x4>;
+		csiphy-sd-index = <2>;
+		sensor-position-roll = <90>;
+		sensor-position-pitch = <0>;
+		sensor-position-yaw = <180>;
+		led-flash-src = <&led_flash_rear>;
+		eeprom-src = <&eeprom_rear_ultra>;
+		cam_vio-supply = <&camera_v_swio_depth_regulator>;
+		cam_clk-supply = <&titan_top_gdsc>;
+		regulator-names = "cam_vio","cam_clk";
+		rgltr-cntrl-support;
+		rgltr-min-voltage = <1800000 0>;
+		rgltr-max-voltage = <1800000 0>;
+		rgltr-load-current = <180000 0>;
+		gpio-no-mux = <0>;
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk1_active &cam_sensor_ultra_active>;
+		pinctrl-1 = <&cam_sensor_mclk1_suspend &cam_sensor_ultra_suspend>;
+		gpios = <&tlmm 14 0>, <&tlmm 25 0>;
+		gpio-reset = <1>;
+		gpio-req-tbl-num = <0 1>;
+		gpio-req-tbl-flags = <1 0>;
+		gpio-req-tbl-label = "CAMIF_MCLK1",
+					"CAMU_RESET";
+		sensor-mode = <0>;
+		cci-master = <0>;
+		cci-device = <1>;
+		status = "ok";
+		clocks = <&camcc CAM_CC_MCLK1_CLK>;
+		clock-names = "cam_clk";
+		clock-cntl-level = "turbo";
+		clock-rates = <19200000>;
+	};
 };
 
 &qupv3_se2_i2c {
