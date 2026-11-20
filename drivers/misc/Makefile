@@ -77,3 +77,4 @@ obj-$(CONFIG_CCI_UTIL)          += dpin_cci_util.o
 obj-$(CONFIG_LONTIUM_LT7911UXC) += lontium-lt7911uxc.o
 obj-$(CONFIG_WLAN_STATE_STUB)	+= wlan-state-stub.o
 obj-$(CONFIG_LDO_WL2866D)	+= wl2866d.o
+obj-$(CONFIG_TI_DRV8846)	+= drv8846.o
