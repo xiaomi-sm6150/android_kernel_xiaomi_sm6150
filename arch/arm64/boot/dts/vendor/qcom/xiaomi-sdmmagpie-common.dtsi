@@ -30,6 +30,30 @@
 	qcom,init-voltage = <1800000>;
 };
 
+&spmi_bus {
+
+	qcom,pm6150l@5 {
+
+		/* FROM-4.14 (dt/414/xiaomi/pm6150l.dtsi): target only, 4.14 bindings, check */
+		flash_led {
+
+			/* FROM-4.14 (dt/414/xiaomi/pm6150l.dtsi): target only, 4.14 bindings, check */
+			pm6150l_flashlight: qcom,flashlight {
+				label = "flash";
+				qcom,led-name = "flashlight";
+				qcom,max-current = <750>;
+				qcom,default-led-trigger = "flashlight_trigger";
+				qcom,id = <3>;
+				qcom,current-ma = <500>;
+				qcom,duration-ms = <1280>;
+				qcom,ires-ua = <12500>;
+				qcom,hdrm-voltage-mv = <325>;
+				qcom,hdrm-vol-hi-lo-win-mv = <100>;
+			};
+		};
+	};
+};
+
 &pm6150_qg {
 	qcom,vbatt-cutoff-mv = <3400>;
 	qcom,vbatt-empty-mv = <3100>;
@@ -302,6 +326,10 @@
 
 &wifi {
 	/delete-property/ vdd-3.3-ch1-supply;
+};
+
+&cam_fd {
+	clock-rates = <600000000 0 0>, <600000000 0 0>, <600000000 0 0>, <600000000 0 0>;
 };
 
 &qupv3_se3_4uart {
