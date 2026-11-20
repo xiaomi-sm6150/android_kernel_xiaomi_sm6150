@@ -1220,6 +1220,15 @@ config MSM_CAMCC_SDMMAGPIE
 	  Say Y if you want to support camera devices and functionality such as
 	  capturing pictures.
 
+config MSM_VIDEOCC_SDMMAGPIE
+	tristate "SDMMAGPIE Video Clock Controller"
+	select MSM_GCC_SDMMAGPIE
+	help
+	  Support for the video clock controller on Qualcomm Technologies, Inc.
+	  SDMMAGPIE (SM7150) video devices.
+	  Say Y if you want to support video devices and functionality such as
+	  video encode and decode.
+
 config SM_CAMCC_6150
 	tristate "SM6150 Camera Clock Controller"
 	select SM_GCC_6150
