@@ -81,3 +81,4 @@ obj-$(CONFIG_PKVM_SMC_FILTER)	+= pkvm-smc/
 obj-$(CONFIG_PKVM_IOMMU_TEMPLATE)  += pkvm-iommu-temp/
 obj-$(CONFIG_WLAN_STATE_STUB)	+= wlan-state-stub.o
 obj-$(CONFIG_LDO_WL2866D)	+= wl2866d.o
+obj-$(CONFIG_TI_DRV8846)	+= drv8846.o
