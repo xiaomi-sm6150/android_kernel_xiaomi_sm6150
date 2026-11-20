@@ -638,6 +638,14 @@ config TI_DRV8846
 	  front camera of the Xiaomi davinci. The step clock comes from a PWM
 	  channel; the camera HAL drives the motor through /dev/drv8846_dev.
 
+config AKM09970
+	tristate "AKM AK09970 Hall sensor"
+	depends on I2C && OF_GPIO
+	help
+	  The AK09970 3-axis Hall sensor that reports the position of the
+	  Xiaomi davinci pop-up front camera. The camera HAL reads it through
+	  /dev/akm09970.
+
 source "drivers/misc/uacce/Kconfig"
 source "drivers/misc/pvpanic/Kconfig"
 source "drivers/misc/mchp_pci1xxxx/Kconfig"
