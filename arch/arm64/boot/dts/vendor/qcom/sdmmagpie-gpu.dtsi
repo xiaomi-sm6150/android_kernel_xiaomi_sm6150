@@ -1,0 +1,714 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * sdmmagpie GPU (Adreno 618, legacy a6xx GMU) for the 6.1 kgsl.
+ *
+ * Values from the 4.14 sdmmagpie-gpu.dtsi; node layout and the 6.1
+ * conversions from the QTI 6.1 sm8150-gpu.dtsi (A640, same GMU
+ * generation), checked against the 4.14 sm8150-gpu.dtsi: msm-bus votes
+ * become an interconnect path with bus-table-ddr/-cnoc, the GPU takes the
+ * GMU-era clock list, the GMU loses its msm-bus vote and gets its SMMU
+ * stream directly, the speed bin comes from the nvmem cell.
+ *
+ * 4.14 got each level's voltage from the gpucc GX clock OPP table; 6.1
+ * needs qcom,level per level. The corners are those of the mainline sm7150
+ * gpu_opp_table, which match the 4.14 DT comments (the 4.14 gpucc table
+ * assigns VDD_GX_MIN three times and is not used). 140 MHz (bin 167 only,
+ * not in mainline) gets MIN_SVS, the lowest active corner.
+ */
+
+#include <dt-bindings/regulator/qcom,rpmh-regulator-levels.h>
+
+#define MHZ_TO_KBPS(mhz, w) ((mhz * 1000000 * w) / (1024))
+
+&soc {
+	msm_gpu: qcom,kgsl-3d0@5000000 {
+		label = "kgsl-3d0";
+		compatible = "qcom,kgsl-3d0", "qcom,kgsl-3d";
+		status = "ok";
+		reg = <0x5000000 0x40000>,
+		      <0x5061000 0x800>,
+		      <0x509e000 0x1000>,
+		      <0x780000 0x6300>;
+		reg-names = "kgsl_3d0_reg_memory", "cx_dbgc", "cx_misc",
+				"qfprom_memory";
+		interrupts = <GIC_SPI 300 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "kgsl_3d0_irq";
+		qcom,id = <0>;
+
+		qcom,chipid = <0x06010800>;
+
+		qcom,gpu-quirk-hfi-use-reg;
+		qcom,gpu-quirk-secvid-set-once;
+
+		qcom,idle-timeout = <58>; /* msecs */
+		qcom,highest-bank-bit = <14>;
+		qcom,min-access-length = <32>;
+		qcom,ubwc-mode = <2>;
+
+		qcom,gpu-qdss-stm = <0x161c0000 0x40000>; /* base addr, size */
+
+		#cooling-cells = <2>;
+
+		clocks = <&gcc GCC_GPU_CFG_AHB_CLK>,
+			<&gpucc GPU_CC_CXO_CLK>,
+			<&gcc GCC_DDRSS_GPU_AXI_CLK>,
+			<&gcc GCC_GPU_MEMNOC_GFX_CLK>,
+			<&gpucc GPU_CC_CX_GMU_CLK>,
+			<&gpucc GPU_CC_AHB_CLK>;
+		clock-names = "gcc_gpu_ahb", "rbbmtimer_clk",
+				"gcc_gpu_axi_clk", "gcc_gpu_memnoc_gfx",
+				"gmu_clk", "gpu_cc_ahb";
+
+		/* 4.14: context aware frequency jump, 12 ms busy penalty */
+		qcom,enable-ca-jump;
+		qcom,ca-busy-penalty = <12000>;
+
+		interconnects = <&gem_noc MASTER_GFX3D &mc_virt SLAVE_EBI1>;
+		interconnect-names = "gpu_icc_path";
+
+		/* the 4.14 grp3d vote steps (DDR MHz), bus-freq indexes these */
+		qcom,bus-table-ddr =
+			<MHZ_TO_KBPS(0, 4)>,    /* index=0  */
+			<MHZ_TO_KBPS(100, 4)>,  /* index=1  */
+			<MHZ_TO_KBPS(200, 4)>,  /* index=2  */
+			<MHZ_TO_KBPS(300, 4)>,  /* index=3  */
+			<MHZ_TO_KBPS(451, 4)>,  /* index=4  */
+			<MHZ_TO_KBPS(547, 4)>,  /* index=5  */
+			<MHZ_TO_KBPS(681, 4)>,  /* index=6  */
+			<MHZ_TO_KBPS(825, 4)>,  /* index=7  */
+			<MHZ_TO_KBPS(1017, 4)>, /* index=8  */
+			<MHZ_TO_KBPS(1353, 4)>, /* index=9  */
+			<MHZ_TO_KBPS(1555, 4)>, /* index=10 */
+			<MHZ_TO_KBPS(1804, 4)>; /* index=11 */
+
+		/* the 4.14 GMU cnoc vote */
+		qcom,bus-table-cnoc =
+			<0>,   /* Off */
+			<100>; /* On */
+
+		/* GDSC regulator names */
+		regulator-names = "vddcx", "vdd";
+		/* GDSC oxili regulators */
+		vddcx-supply = <&gpu_cx_gdsc>;
+		vdd-supply = <&gpu_gx_gdsc>;
+
+		/* 4.14 qcom,gpu-speed-bin = <0x41a0 0x1fe00000 21> */
+		nvmem-cells = <&gpu_speed_bin>;
+		nvmem-cell-names = "speed_bin";
+
+		zap-shader {
+			memory-region = <&pil_gpu_mem>;
+		};
+
+		/* GPU Mempools */
+		qcom,gpu-mempools {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "qcom,gpu-mempools";
+
+			/* 4K Page Pool configuration */
+			qcom,gpu-mempool@0 {
+				reg = <0>;
+				qcom,mempool-page-size = <4096>;
+				qcom,mempool-allocate;
+			};
+			/* 8K Page Pool configuration */
+			qcom,gpu-mempool@1 {
+				reg = <1>;
+				qcom,mempool-page-size = <8192>;
+				qcom,mempool-allocate;
+			};
+			/* 64K Page Pool configuration */
+			qcom,gpu-mempool@2 {
+				reg = <2>;
+				qcom,mempool-page-size = <65536>;
+				qcom,mempool-reserved = <256>;
+			};
+			/* 1M Page Pool configuration */
+			qcom,gpu-mempool@3 {
+				reg = <3>;
+				qcom,mempool-page-size = <1048576>;
+				qcom,mempool-reserved = <32>;
+			};
+		};
+
+		/*
+		 * Speed bin = FMAX / 4.8 MHz, rounded (4.14); bin 0 is the
+		 * default.
+		 */
+		qcom,gpu-pwrlevel-bins {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			compatible = "qcom,gpu-pwrlevel-bins";
+
+			qcom,gpu-pwrlevels-0 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				qcom,speed-bin = <0>;
+				qcom,initial-pwrlevel = <7>;
+				qcom,ca-target-pwrlevel = <5>;
+
+				/* 825 MHz */
+				qcom,gpu-pwrlevel@0 {
+					reg = <0>;
+					qcom,gpu-freq = <825000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_TURBO_L1>;
+					qcom,bus-freq = <11>;
+					qcom,bus-min = <10>;
+					qcom,bus-max = <11>;
+				};
+
+				/* 800 MHz */
+				qcom,gpu-pwrlevel@1 {
+					reg = <1>;
+					qcom,gpu-freq = <800000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_TURBO>;
+					qcom,bus-freq = <11>;
+					qcom,bus-min = <10>;
+					qcom,bus-max = <11>;
+				};
+
+				/* 650 MHz */
+				qcom,gpu-pwrlevel@2 {
+					reg = <2>;
+					qcom,gpu-freq = <650000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_NOM_L1>;
+					qcom,bus-freq = <10>;
+					qcom,bus-min = <8>;
+					qcom,bus-max = <11>;
+				};
+
+				/* 565 MHz */
+				qcom,gpu-pwrlevel@3 {
+					reg = <3>;
+					qcom,gpu-freq = <565000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_NOM>;
+					qcom,bus-freq = <9>;
+					qcom,bus-min = <8>;
+					qcom,bus-max = <10>;
+				};
+
+				/* 430 MHz */
+				qcom,gpu-pwrlevel@4 {
+					reg = <4>;
+					qcom,gpu-freq = <430000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_SVS_L1>;
+					qcom,bus-freq = <8>;
+					qcom,bus-min = <7>;
+					qcom,bus-max = <10>;
+				};
+
+				/* 355 MHz */
+				qcom,gpu-pwrlevel@5 {
+					reg = <5>;
+					qcom,gpu-freq = <355000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_SVS>;
+					qcom,bus-freq = <7>;
+					qcom,bus-min = <5>;
+					qcom,bus-max = <8>;
+				};
+
+				/* 267 MHz */
+				qcom,gpu-pwrlevel@6 {
+					reg = <6>;
+					qcom,gpu-freq = <267000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_LOW_SVS>;
+					qcom,bus-freq = <6>;
+					qcom,bus-min = <4>;
+					qcom,bus-max = <7>;
+				};
+
+				/* 180 MHz */
+				qcom,gpu-pwrlevel@7 {
+					reg = <7>;
+					qcom,gpu-freq = <180000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_MIN_SVS>;
+					qcom,bus-freq = <4>;
+					qcom,bus-min = <3>;
+					qcom,bus-max = <4>;
+				};
+
+				/* XO */
+				qcom,gpu-pwrlevel@8 {
+					reg = <8>;
+					qcom,gpu-freq = <0>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_RETENTION>;
+					qcom,bus-freq = <0>;
+					qcom,bus-min = <0>;
+					qcom,bus-max = <0>;
+				};
+			};
+
+			qcom,gpu-pwrlevels-1 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				qcom,speed-bin = <172>;
+				qcom,initial-pwrlevel = <7>;
+				qcom,ca-target-pwrlevel = <5>;
+
+				/* 825 MHz */
+				qcom,gpu-pwrlevel@0 {
+					reg = <0>;
+					qcom,gpu-freq = <825000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_TURBO_L1>;
+					qcom,bus-freq = <11>;
+					qcom,bus-min = <10>;
+					qcom,bus-max = <11>;
+				};
+
+				/* 800 MHz */
+				qcom,gpu-pwrlevel@1 {
+					reg = <1>;
+					qcom,gpu-freq = <800000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_TURBO>;
+					qcom,bus-freq = <11>;
+					qcom,bus-min = <10>;
+					qcom,bus-max = <11>;
+				};
+
+				/* 650 MHz */
+				qcom,gpu-pwrlevel@2 {
+					reg = <2>;
+					qcom,gpu-freq = <650000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_NOM_L1>;
+					qcom,bus-freq = <10>;
+					qcom,bus-min = <8>;
+					qcom,bus-max = <11>;
+				};
+
+				/* 565 MHz */
+				qcom,gpu-pwrlevel@3 {
+					reg = <3>;
+					qcom,gpu-freq = <565000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_NOM>;
+					qcom,bus-freq = <9>;
+					qcom,bus-min = <8>;
+					qcom,bus-max = <10>;
+				};
+
+				/* 430 MHz */
+				qcom,gpu-pwrlevel@4 {
+					reg = <4>;
+					qcom,gpu-freq = <430000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_SVS_L1>;
+					qcom,bus-freq = <8>;
+					qcom,bus-min = <7>;
+					qcom,bus-max = <10>;
+				};
+
+				/* 355 MHz */
+				qcom,gpu-pwrlevel@5 {
+					reg = <5>;
+					qcom,gpu-freq = <355000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_SVS>;
+					qcom,bus-freq = <7>;
+					qcom,bus-min = <5>;
+					qcom,bus-max = <8>;
+				};
+
+				/* 267 MHz */
+				qcom,gpu-pwrlevel@6 {
+					reg = <6>;
+					qcom,gpu-freq = <267000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_LOW_SVS>;
+					qcom,bus-freq = <6>;
+					qcom,bus-min = <4>;
+					qcom,bus-max = <7>;
+				};
+
+				/* 180 MHz */
+				qcom,gpu-pwrlevel@7 {
+					reg = <7>;
+					qcom,gpu-freq = <180000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_MIN_SVS>;
+					qcom,bus-freq = <4>;
+					qcom,bus-min = <3>;
+					qcom,bus-max = <4>;
+				};
+
+				/* XO */
+				qcom,gpu-pwrlevel@8 {
+					reg = <8>;
+					qcom,gpu-freq = <0>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_RETENTION>;
+					qcom,bus-freq = <0>;
+					qcom,bus-min = <0>;
+					qcom,bus-max = <0>;
+				};
+			};
+
+			qcom,gpu-pwrlevels-2 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				qcom,speed-bin = <146>;
+				qcom,initial-pwrlevel = <6>;
+				qcom,ca-target-pwrlevel = <4>;
+
+				/* 700 MHz */
+				qcom,gpu-pwrlevel@0 {
+					reg = <0>;
+					qcom,gpu-freq = <700000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_TURBO>;
+					qcom,bus-freq = <11>;
+					qcom,bus-min = <10>;
+					qcom,bus-max = <11>;
+				};
+
+				/* 650 MHz */
+				qcom,gpu-pwrlevel@1 {
+					reg = <1>;
+					qcom,gpu-freq = <650000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_NOM_L1>;
+					qcom,bus-freq = <10>;
+					qcom,bus-min = <8>;
+					qcom,bus-max = <11>;
+				};
+
+				/* 565 MHz */
+				qcom,gpu-pwrlevel@2 {
+					reg = <2>;
+					qcom,gpu-freq = <565000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_NOM>;
+					qcom,bus-freq = <9>;
+					qcom,bus-min = <8>;
+					qcom,bus-max = <10>;
+				};
+
+				/* 430 MHz */
+				qcom,gpu-pwrlevel@3 {
+					reg = <3>;
+					qcom,gpu-freq = <430000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_SVS_L1>;
+					qcom,bus-freq = <8>;
+					qcom,bus-min = <7>;
+					qcom,bus-max = <10>;
+				};
+
+				/* 355 MHz */
+				qcom,gpu-pwrlevel@4 {
+					reg = <4>;
+					qcom,gpu-freq = <355000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_SVS>;
+					qcom,bus-freq = <7>;
+					qcom,bus-min = <5>;
+					qcom,bus-max = <8>;
+				};
+
+				/* 267 MHz */
+				qcom,gpu-pwrlevel@5 {
+					reg = <5>;
+					qcom,gpu-freq = <267000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_LOW_SVS>;
+					qcom,bus-freq = <6>;
+					qcom,bus-min = <4>;
+					qcom,bus-max = <7>;
+				};
+
+				/* 180 MHz */
+				qcom,gpu-pwrlevel@6 {
+					reg = <6>;
+					qcom,gpu-freq = <180000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_MIN_SVS>;
+					qcom,bus-freq = <4>;
+					qcom,bus-min = <3>;
+					qcom,bus-max = <4>;
+				};
+
+				/* XO */
+				qcom,gpu-pwrlevel@7 {
+					reg = <7>;
+					qcom,gpu-freq = <0>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_RETENTION>;
+					qcom,bus-freq = <0>;
+					qcom,bus-min = <0>;
+					qcom,bus-max = <0>;
+				};
+			};
+
+			qcom,gpu-pwrlevels-3 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				qcom,speed-bin = <128>;
+				qcom,initial-pwrlevel = <5>;
+				qcom,ca-target-pwrlevel = <3>;
+
+				/* 610 MHz */
+				qcom,gpu-pwrlevel@0 {
+					reg = <0>;
+					qcom,gpu-freq = <610000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_NOM_L1>;
+					qcom,bus-freq = <11>;
+					qcom,bus-min = <10>;
+					qcom,bus-max = <11>;
+				};
+
+				/* 565 MHz */
+				qcom,gpu-pwrlevel@1 {
+					reg = <1>;
+					qcom,gpu-freq = <565000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_NOM>;
+					qcom,bus-freq = <9>;
+					qcom,bus-min = <8>;
+					qcom,bus-max = <10>;
+				};
+
+				/* 430 MHz */
+				qcom,gpu-pwrlevel@2 {
+					reg = <2>;
+					qcom,gpu-freq = <430000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_SVS_L1>;
+					qcom,bus-freq = <8>;
+					qcom,bus-min = <7>;
+					qcom,bus-max = <10>;
+				};
+
+				/* 355 MHz */
+				qcom,gpu-pwrlevel@3 {
+					reg = <3>;
+					qcom,gpu-freq = <355000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_SVS>;
+					qcom,bus-freq = <7>;
+					qcom,bus-min = <5>;
+					qcom,bus-max = <8>;
+				};
+
+				/* 267 MHz */
+				qcom,gpu-pwrlevel@4 {
+					reg = <4>;
+					qcom,gpu-freq = <267000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_LOW_SVS>;
+					qcom,bus-freq = <6>;
+					qcom,bus-min = <4>;
+					qcom,bus-max = <7>;
+				};
+
+				/* 180 MHz */
+				qcom,gpu-pwrlevel@5 {
+					reg = <5>;
+					qcom,gpu-freq = <180000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_MIN_SVS>;
+					qcom,bus-freq = <4>;
+					qcom,bus-min = <3>;
+					qcom,bus-max = <4>;
+				};
+
+				/* XO */
+				qcom,gpu-pwrlevel@6 {
+					reg = <6>;
+					qcom,gpu-freq = <0>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_RETENTION>;
+					qcom,bus-freq = <0>;
+					qcom,bus-min = <0>;
+					qcom,bus-max = <0>;
+				};
+			};
+
+			qcom,gpu-pwrlevels-4 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				qcom,speed-bin = <167>;
+				qcom,initial-pwrlevel = <7>;
+				qcom,ca-target-pwrlevel = <4>;
+
+				/* 800 MHz */
+				qcom,gpu-pwrlevel@0 {
+					reg = <0>;
+					qcom,gpu-freq = <800000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_TURBO>;
+					qcom,bus-freq = <11>;
+					qcom,bus-min = <10>;
+					qcom,bus-max = <11>;
+				};
+
+				/* 650 MHz */
+				qcom,gpu-pwrlevel@1 {
+					reg = <1>;
+					qcom,gpu-freq = <650000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_NOM_L1>;
+					qcom,bus-freq = <10>;
+					qcom,bus-min = <8>;
+					qcom,bus-max = <11>;
+				};
+
+				/* 565 MHz */
+				qcom,gpu-pwrlevel@2 {
+					reg = <2>;
+					qcom,gpu-freq = <565000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_NOM>;
+					qcom,bus-freq = <9>;
+					qcom,bus-min = <8>;
+					qcom,bus-max = <10>;
+				};
+
+				/* 430 MHz */
+				qcom,gpu-pwrlevel@3 {
+					reg = <3>;
+					qcom,gpu-freq = <430000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_SVS_L1>;
+					qcom,bus-freq = <8>;
+					qcom,bus-min = <7>;
+					qcom,bus-max = <10>;
+				};
+
+				/* 355 MHz */
+				qcom,gpu-pwrlevel@4 {
+					reg = <4>;
+					qcom,gpu-freq = <355000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_SVS>;
+					qcom,bus-freq = <7>;
+					qcom,bus-min = <5>;
+					qcom,bus-max = <8>;
+				};
+
+				/* 267 MHz */
+				qcom,gpu-pwrlevel@5 {
+					reg = <5>;
+					qcom,gpu-freq = <267000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_LOW_SVS>;
+					qcom,bus-freq = <6>;
+					qcom,bus-min = <4>;
+					qcom,bus-max = <7>;
+				};
+
+				/* 180 MHz */
+				qcom,gpu-pwrlevel@6 {
+					reg = <6>;
+					qcom,gpu-freq = <180000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_MIN_SVS>;
+					qcom,bus-freq = <4>;
+					qcom,bus-min = <3>;
+					qcom,bus-max = <4>;
+				};
+
+				/* 140 MHz */
+				qcom,gpu-pwrlevel@7 {
+					reg = <7>;
+					qcom,gpu-freq = <140000000>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_MIN_SVS>;
+					qcom,bus-freq = <2>;
+					qcom,bus-min = <1>;
+					qcom,bus-max = <2>;
+				};
+
+				/* XO */
+				qcom,gpu-pwrlevel@8 {
+					reg = <8>;
+					qcom,gpu-freq = <0>;
+					qcom,level = <RPMH_REGULATOR_LEVEL_RETENTION>;
+					qcom,bus-freq = <0>;
+					qcom,bus-min = <0>;
+					qcom,bus-max = <0>;
+				};
+			};
+		};
+	};
+
+	/* the A618 SMMU is SMMU v2 with one-cell stream IDs (kgsl_smmu) */
+	kgsl_msm_iommu: qcom,kgsl-iommu@5040000 {
+		compatible = "qcom,kgsl-smmu-v2";
+
+		reg = <0x5040000 0x10000>;
+
+		gfx3d_user: gfx3d_user {
+			compatible = "qcom,smmu-kgsl-cb";
+			label = "gfx3d_user";
+			iommus = <&kgsl_smmu 0>;
+			qcom,iommu-dma = "disabled";
+		};
+
+		gfx3d_secure: gfx3d_secure {
+			compatible = "qcom,smmu-kgsl-cb";
+			label = "gfx3d_secure";
+			iommus = <&kgsl_smmu 2>;
+			qcom,iommu-dma = "disabled";
+		};
+	};
+
+	gmu: qcom,gmu@506a000 {
+		compatible = "qcom,gpu-gmu";
+
+		reg = <0x506a000 0x31000>,
+			<0xb290000 0x10000>,
+			<0xb490000 0x10000>;
+		reg-names = "kgsl_gmu_reg",
+			"kgsl_gmu_pdc_cfg",
+			"kgsl_gmu_pdc_seq";
+
+		interrupts = <GIC_SPI 304 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 305 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "kgsl_hfi_irq", "kgsl_gmu_irq";
+
+		regulator-names = "vddcx", "vdd";
+
+		/* 4.14 gmu_kernel context bank (stream 5) */
+		iommus = <&kgsl_smmu 5>;
+		qcom,iommu-dma = "disabled";
+
+		vddcx-supply = <&gpu_cx_gdsc>;
+		vdd-supply = <&gpu_gx_gdsc>;
+
+		clocks = <&gpucc GPU_CC_CX_GMU_CLK>,
+			<&gpucc GPU_CC_CXO_CLK>,
+			<&gcc GCC_DDRSS_GPU_AXI_CLK>,
+			<&gcc GCC_GPU_MEMNOC_GFX_CLK>,
+			<&gpucc GPU_CC_AHB_CLK>;
+		clock-names = "gmu_clk", "cxo_clk", "axi_clk",
+				"gcc_gpu_memnoc_gfx_clk", "gpu_cc_ahb";
+
+		/*
+		 * 4.14 qcom,gmu-pwrlevels: 0 and 200 MHz. The gpucc GMU clock
+		 * tops out at 200 MHz; without a table kgsl would ask for 500.
+		 */
+		qcom,gmu-freq-table = <200000000 RPMH_REGULATOR_LEVEL_MIN_SVS>,
+				<200000000 RPMH_REGULATOR_LEVEL_MIN_SVS>;
+
+		/* AOP mailbox for sending ACD enable and disable messages */
+		mboxes = <&qmp_aop 0>;
+		mbox-names = "aop";
+	};
+};
+
+/* 4.14 gpuss-max-step: the GPU is throttled from 95 C on either sensor */
+&thermal_zones {
+	gpuss-0 {
+		trips {
+			gpu_trip0: gpu-trip {
+				temperature = <95000>;
+				hysteresis = <0>;
+				type = "passive";
+			};
+		};
+
+		cooling-maps {
+			gpu-cdev {
+				trip = <&gpu_trip0>;
+				cooling-device = <&msm_gpu THERMAL_NO_LIMIT
+						THERMAL_NO_LIMIT>;
+			};
+		};
+	};
+
+	gpuss-1 {
+		trips {
+			gpu_trip1: gpu-trip {
+				temperature = <95000>;
+				hysteresis = <0>;
+				type = "passive";
+			};
+		};
+
+		cooling-maps {
+			gpu-cdev {
+				trip = <&gpu_trip1>;
+				cooling-device = <&msm_gpu THERMAL_NO_LIMIT
+						THERMAL_NO_LIMIT>;
+			};
+		};
+	};
+};
