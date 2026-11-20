@@ -1,0 +1,98 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * sweet display: the k6 AMOLED panels (two vendors, picked by the
+ * bootloader through msm_drm.dsi_display0=; 0c_0a is the default when no
+ * name is passed, as on a kexec boot), on sdmmagpie-sde.dtsi.
+ *
+ * Values from 4.14 xiaomi/sweet/sweet-sdmmagpie.dtsi (supplies, backlight,
+ * GPIOs) and xiaomi/sdmmagpie-sde-display.dtsi (PHY timings, topology).
+ * The AMOLED bias (ELVDD/ELVSS) is driven by the panel over SWIRE: no
+ * lab/ibb supplies, the pm6150l LCDB and WLED stay off (4.14 sweet).
+ */
+
+#include "dsi-panel-k6-38-0c-0a-fhd-dsc-video.dtsi"
+#include "dsi-panel-k6-38-0e-0b-fhd-dsc-video.dtsi"
+
+&soc {
+	dsi_panel_pwr_supply_amoled: dsi_panel_pwr_supply_amoled {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		qcom,panel-supply-entry@0 {
+			reg = <0>;
+			qcom,supply-name = "vddio";
+			qcom,supply-min-voltage = <1900000>;
+			qcom,supply-max-voltage = <1900000>;
+			qcom,supply-enable-load = <32000>;
+			qcom,supply-disable-load = <80>;
+			qcom,supply-pre-off-sleep = <20>;
+		};
+
+		qcom,panel-supply-entry@1 {
+			reg = <1>;
+			qcom,supply-name = "vdda-3p3";
+			qcom,supply-min-voltage = <3000000>;
+			qcom,supply-max-voltage = <3000000>;
+			qcom,supply-enable-load = <13200>;
+			qcom,supply-disable-load = <80>;
+			qcom,supply-pre-off-sleep = <10>;
+		};
+	};
+};
+
+&sde_dsi {
+	vddio-supply = <&pm6150_l13>;
+	vdda-3p3-supply = <&pm6150_l18>;
+	qcom,dsi-default-panel = <&dsi_k6_38_0c_0a_fhd_dsc_video>;
+};
+
+&dsi_k6_38_0c_0a_fhd_dsc_video {
+	qcom,panel-supply-entries = <&dsi_panel_pwr_supply_amoled>;
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+	qcom,mdss-dsi-bl-min-level = <8>;
+	qcom,mdss-dsi-bl-max-level = <2047>;
+	qcom,mdss-brightness-max-level = <2047>;
+	qcom,mdss-dsi-mode-sel-gpio-state = "single_port";
+	qcom,platform-te-gpio = <&tlmm 10 0>;
+	qcom,platform-reset-gpio = <&pm6150l_gpios 9 0>;
+	qcom,mdss-dsi-t-clk-post = <0x0f>;
+	qcom,mdss-dsi-t-clk-pre = <0x37>;
+	qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0";
+	/* 6.1 reads the controller and PHY index from the panel node */
+	qcom,dsi-ctrl-num = <0>;
+	qcom,dsi-phy-num = <0>;
+
+	qcom,mdss-dsi-display-timings {
+		timing@0 {
+			qcom,mdss-dsi-panel-phy-timings = [00 24 0a 0a 26 25 09
+					0a 06 02 04 00];
+			qcom,display-topology = <1 1 1>;
+			qcom,default-topology-index = <0>;
+		};
+	};
+};
+
+&dsi_k6_38_0e_0b_fhd_dsc_video {
+	qcom,panel-supply-entries = <&dsi_panel_pwr_supply_amoled>;
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+	qcom,mdss-dsi-bl-min-level = <8>;
+	qcom,mdss-dsi-bl-max-level = <2047>;
+	qcom,mdss-brightness-max-level = <2047>;
+	qcom,mdss-dsi-mode-sel-gpio-state = "single_port";
+	qcom,platform-te-gpio = <&tlmm 10 0>;
+	qcom,platform-reset-gpio = <&pm6150l_gpios 9 0>;
+	qcom,mdss-dsi-t-clk-post = <0x0f>;
+	qcom,mdss-dsi-t-clk-pre = <0x37>;
+	qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0";
+	qcom,dsi-ctrl-num = <0>;
+	qcom,dsi-phy-num = <0>;
+
+	qcom,mdss-dsi-display-timings {
+		timing@0 {
+			qcom,mdss-dsi-panel-phy-timings = [00 24 0a 0a 26 25 09
+					0a 06 02 04 00];
+			qcom,display-topology = <1 1 1>;
+			qcom,default-topology-index = <0>;
+		};
+	};
+};

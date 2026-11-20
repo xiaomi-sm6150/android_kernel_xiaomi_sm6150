@@ -1610,6 +1610,9 @@
 	reg = <0 0x86200000 0 0x4900000>;
 };
 
+#include "sdmmagpie-sde.dtsi"
+#include "sweet-display.dtsi"
+
 / {
 	k61,dtbo-target = <&soc>;
 
