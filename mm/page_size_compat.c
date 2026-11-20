@@ -12,6 +12,8 @@
 #include <linux/mm.h>
 #include <linux/pagemap.h>
 #include <linux/page_size_compat.h>
+#include <linux/sched/signal.h>
+#include <linux/slab.h>
 #include <linux/swap.h>
 #include <linux/perf_event.h>
 
@@ -80,57 +82,150 @@ bool bpf_is_ringbuf_file(struct file *file)
 }
 #endif
 
+#define SWAP_MAGIC	"SWAPSPACE2"
+#define SWAP_MAGIC_LEN	10
+
 /*
- * The swap header is usually in the first page, with the magic in the last 10 bytes.
- * of the page. In the emulated mode, mkswap tools might place the magic on the last
- * 10 bytes of __PAGE_SIZE-ed page. Check if this is the case and place the magic on
- * the first page and clear the magic from the original page in which it was found.
+ * Rewrite a swap header laid out in pages of (PAGE_SIZE << shift) in the
+ * layout of PAGE_SIZE pages: the magic moves to the end of the first
+ * PAGE_SIZE page, and last_page counts PAGE_SIZE pages. The rest of the old
+ * header page becomes swap space.
  *
+ * Headers that swapon() would refuse anyway are left alone. Bad pages are
+ * refused too: nothing on Android writes them, and each one would become
+ * several PAGE_SIZE entries, which swapon() can't read while badpages[] is
+ * declared with one entry (that traps with CONFIG_UBSAN_BOUNDS).
+ */
+static int __convert_swap_header(union swap_header *hdr, unsigned int shift,
+				 u64 nr_pages)
+{
+	unsigned int last_page = hdr->info.last_page;
+
+	if (hdr->info.version != 1) {
+		pgcompat_err("Unsupported swap header version %u", hdr->info.version);
+		return -EINVAL;
+	}
+	if (!last_page) {
+		pgcompat_err("Empty swap area");
+		return -EINVAL;
+	}
+	if (hdr->info.nr_badpages) {
+		pgcompat_err("Swap header with bad pages not supported");
+		return -EINVAL;
+	}
+	if (last_page >= U32_MAX >> shift) {
+		pgcompat_err("Swap area too large to convert");
+		return -EINVAL;
+	}
+	/* Also refuses a header that a failed conversion left half written */
+	if (((u64)last_page + 1) << shift > nr_pages) {
+		pgcompat_err("Swap area larger than its file or device");
+		return -EINVAL;
+	}
+
+	hdr->info.last_page = ((last_page + 1) << shift) - 1;
+	memcpy(hdr->magic.magic, SWAP_MAGIC, SWAP_MAGIC_LEN);
+
+	return 0;
+}
+
+/*
+ * mkswap lays a swap area out in pages of the page size that userspace sees.
+ * In the emulated mode, that puts the magic in the last 10 bytes of the first
+ * __PAGE_SIZE page, and makes last_page and badpages[] count __PAGE_SIZE
+ * pages. swapon() reads the header in the layout of PAGE_SIZE pages, so it
+ * would find no magic, or with the magic moved alone, use only a fraction of
+ * the area.
+ *
+ * Convert such a header to the PAGE_SIZE layout and write it back through
+ * the filesystem, before swapon() takes the inode lock, so that the
+ * filesystem sees an ordinary write. Sync it before swapon() goes on, as
+ * swapping and discard can overwrite the old magic. The next swapon() then
+ * finds a PAGE_SIZE header, which needs no conversion. A header or file that
+ * swapon() refuses is left as it is.
  */
 int __fixup_swap_header(struct file *swap_file, struct address_space *mapping)
 {
-	union swap_header *swap_header;
-	struct page *header_page = NULL;
-	struct page *magic_page = NULL;
-	int index;
+	unsigned int shift = __PAGE_SHIFT - PAGE_SHIFT;
+	struct dentry *dentry = swap_file->f_path.dentry;
+	struct inode *inode = mapping->host;
+	loff_t magic_pos = __PAGE_SIZE - SWAP_MAGIC_LEN;
+	char magic[SWAP_MAGIC_LEN];
+	union swap_header *hdr;
+	struct folio *folio;
+	loff_t pos = 0;
+	ssize_t written;
 	int error = 0;
-	const char* magic = "SWAPSPACE2";
 
-	if (__PAGE_SHIFT == PAGE_SHIFT)
+	/* swapon() fails these itself; leave them as they are */
+	if (!shift || !mapping->a_ops->read_folio || IS_SWAPFILE(inode) ||
+	    d_unlinked(dentry) || cant_mount(dentry) ||
+	    mapping_min_folio_order(mapping) > 0 ||
+	    i_size_read(inode) < __PAGE_SIZE)
 		return 0;
 
-	index = (1 << (__PAGE_SHIFT  - PAGE_SHIFT)) - 1;
-	magic_page = read_mapping_page(mapping, index, swap_file);
-	if (IS_ERR(magic_page)) {
+	folio = read_mapping_folio(mapping, magic_pos >> PAGE_SHIFT, swap_file);
+	if (IS_ERR(folio)) {
 		pgcompat_err("Failed reading swap magic page");
-		return PTR_ERR(magic_page);
+		return PTR_ERR(folio);
 	}
-	swap_header = kmap(magic_page);
+	memcpy_from_folio(magic, folio, offset_in_folio(folio, magic_pos),
+			  SWAP_MAGIC_LEN);
+	folio_put(folio);
 
 	/* Nothing to do; mkswap tool may have hardcoded a 4096 page size */
-	if (memcmp(magic, swap_header->magic.magic, 10))
-		goto free_magic;
+	if (memcmp(magic, SWAP_MAGIC, SWAP_MAGIC_LEN))
+		return 0;
 
-	memset(swap_header->magic.magic, 0, 10);
+	hdr = kmalloc(PAGE_SIZE, GFP_KERNEL);
+	if (!hdr)
+		return -ENOMEM;
 
-	index = 0;
-	header_page = read_mapping_page(mapping, index, swap_file);
-	if (IS_ERR(header_page)) {
+	folio = read_mapping_folio(mapping, 0, swap_file);
+	if (IS_ERR(folio)) {
 		pgcompat_err("Failed reading swap header page");
-		error = PTR_ERR(header_page);
-		goto free_magic;
+		error = PTR_ERR(folio);
+		goto out;
 	}
-	swap_header = kmap(header_page);
+	memcpy_from_folio((char *)hdr, folio, 0, PAGE_SIZE);
+	folio_put(folio);
 
-	memcpy(swap_header->magic.magic, magic, 10);
+	/* A PAGE_SIZE header, such as one converted by an earlier swapon() */
+	if (!memcmp(hdr->magic.magic, SWAP_MAGIC, SWAP_MAGIC_LEN))
+		goto out;
 
-	kunmap(header_page);
-	put_page(header_page);
+	error = __convert_swap_header(hdr, shift, i_size_read(inode) >> PAGE_SHIFT);
+	if (error)
+		goto out;
 
-free_magic:
-	kunmap(magic_page);
-	put_page(magic_page);
+	/*
+	 * RLIMIT_FSIZE would cut the write short, and leave last_page scaled
+	 * without the magic that marks the header converted.
+	 */
+	if (S_ISREG(inode->i_mode) && rlimit(RLIMIT_FSIZE) < PAGE_SIZE) {
+		pgcompat_err("RLIMIT_FSIZE too low to convert swap header");
+		error = -EFBIG;
+		goto out;
+	}
 
+	written = kernel_write(swap_file, hdr, PAGE_SIZE, &pos);
+	/* A concurrent swapon() of the file won, and swapon() returns -EBUSY */
+	if (written == -ETXTBSY)
+		goto out;
+	if (written != PAGE_SIZE) {
+		error = written < 0 ? written : -EIO;
+		pgcompat_err("Failed writing swap header: %d", error);
+		goto out;
+	}
+	error = vfs_fsync_range(swap_file, 0, PAGE_SIZE - 1, 1);
+	if (error) {
+		pgcompat_err("Failed syncing swap header: %d", error);
+		goto out;
+	}
+	pr_info("pgcompat: %pD: converted swap header from %luK to %luK pages\n",
+		swap_file, __PAGE_SIZE >> 10, PAGE_SIZE >> 10);
+out:
+	kfree(hdr);
 	return error;
 }
 
