@@ -51,6 +51,10 @@
 				qcom,hdrm-vol-hi-lo-win-mv = <100>;
 			};
 		};
+
+		pm6150l_pwm: qcom,pwms@bc00 {
+			qcom,num-lpg-channels = <2>;
+		};
 	};
 };
 
