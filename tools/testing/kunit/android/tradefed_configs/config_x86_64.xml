@@ -23,6 +23,7 @@
 
     <!-- Modules that leave the OS in an unstable state have been temporarily commented out. -->
     <test class="com.android.tradefed.testtype.binary.KUnitModuleTest" >
+        <option name="per-binary-timeout" value="15m" />
         <option name="skip-binary-check" value="true" />
         <option name="ktap-result-parser-resolution" value="INDIVIDUAL_LEAVES" />
         <option name='binary' key='drivers/android/tests/binder_alloc_kunit' value='/data/kunit/x86_64/binder_alloc_kunit.ko' />
