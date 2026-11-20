@@ -2642,6 +2642,7 @@
   __traceiter_android_vh_ufs_send_tm_command
   __traceiter_android_vh_ufs_send_uic_command
   __traceiter_android_vh_ufs_update_sysfs
+  __traceiter_android_vh_update_thermal_trip_flag
   __traceiter_android_vh_vmscan_kswapd_done
   __traceiter_device_pm_callback_end
   __traceiter_device_pm_callback_start
@@ -2730,6 +2731,7 @@
   __tracepoint_android_vh_ufs_send_tm_command
   __tracepoint_android_vh_ufs_send_uic_command
   __tracepoint_android_vh_ufs_update_sysfs
+  __tracepoint_android_vh_update_thermal_trip_flag
   __tracepoint_android_vh_vmscan_kswapd_done
   __tracepoint_device_pm_callback_end
   __tracepoint_device_pm_callback_start
