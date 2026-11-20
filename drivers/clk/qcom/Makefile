@@ -144,6 +144,7 @@ obj-$(CONFIG_SXR_EVACC_SERAPH) += evacc-seraph.o
 obj-$(CONFIG_SM_GCC_6115) += gcc-sm6115.o
 obj-$(CONFIG_SM_GCC_6125) += gcc-sm6125.o
 obj-$(CONFIG_MSM_GCC_SDMMAGPIE) += gcc-sdmmagpie.o
+obj-$(CONFIG_MSM_CAMCC_SDMMAGPIE) += camcc-sdmmagpie.o
 obj-$(CONFIG_MSM_DISPCC_SDMMAGPIE) += dispcc-sdmmagpie.o
 obj-$(CONFIG_MSM_GPUCC_SDMMAGPIE) += gpucc-sdmmagpie.o
 obj-$(CONFIG_SM_GCC_6150) += gcc-sm6150.o
