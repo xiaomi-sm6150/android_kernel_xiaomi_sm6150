@@ -211,6 +211,10 @@ int dsi_pll_clock_register_14nm(struct platform_device *pdev,
 				struct dsi_pll_resource *pll_res);
 int dsi_pll_14nm_configure(void *pll, bool commit);
 int dsi_pll_14nm_toggle(void *pll, bool prepare);
+int dsi_pll_clock_register_10nm(struct platform_device *pdev,
+				struct dsi_pll_resource *pll_res);
+int dsi_pll_10nm_configure(void *pll, bool commit);
+int dsi_pll_10nm_toggle(void *pll, bool prepare);
 
 int dsi_pll_init(struct platform_device *pdev,
 				struct dsi_pll_resource **pll_res);
