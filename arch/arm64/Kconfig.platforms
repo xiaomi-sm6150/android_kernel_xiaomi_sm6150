@@ -248,8 +248,23 @@ menu "Xiaomi sm6150 family devices"
 
 comment "Select the device the kernel is built for; device specific code depends on it"
 
+config MACH_XIAOMI_SM6150
+	bool
+	select ARCH_SA6155
+	help
+	  Selected by the sm6150 devices. Code shared by the Xiaomi sm6150
+	  phones, but not by the sdmmagpie ones, depends on it.
+
+config MACH_XIAOMI_SDMMAGPIE
+	bool
+	select ARCH_SDMMAGPIE
+	help
+	  Selected by the sdmmagpie (sm7150) devices. Code shared by the
+	  Xiaomi sdmmagpie phones depends on it.
+
 config MACH_XIAOMI_VIOLET
 	bool "Xiaomi violet (Redmi Note 7 Pro)"
+	select MACH_XIAOMI_SM6150
 	help
 	  Build for the Xiaomi violet (sm6150). Also selects the Spectra
 	  camera UAPI its CamX blobs expect (cam_cmd_probe carries a sensor
@@ -257,26 +272,31 @@ config MACH_XIAOMI_VIOLET
 
 config MACH_XIAOMI_SWEET
 	bool "Xiaomi sweet (Redmi Note 10 Pro)"
+	select MACH_XIAOMI_SDMMAGPIE
 	help
 	  Build for the Xiaomi sweet (sm7150).
 
 config MACH_XIAOMI_DAVINCI
 	bool "Xiaomi davinci (Redmi K20 / Mi 9T)"
+	select MACH_XIAOMI_SDMMAGPIE
 	help
 	  Build for the Xiaomi davinci (sm7150).
 
 config MACH_XIAOMI_PHOENIX
 	bool "Xiaomi phoenix (Redmi K30 / Poco X2)"
+	select MACH_XIAOMI_SDMMAGPIE
 	help
 	  Build for the Xiaomi phoenix (sm7150).
 
 config MACH_XIAOMI_TOCO
 	bool "Xiaomi toco (Mi Note 10 Lite)"
+	select MACH_XIAOMI_SDMMAGPIE
 	help
 	  Build for the Xiaomi toco (sm7150).
 
 config MACH_XIAOMI_TUCANA
 	bool "Xiaomi tucana (Mi Note 10 / CC9 Pro)"
+	select MACH_XIAOMI_SDMMAGPIE
 	help
 	  Build for the Xiaomi tucana (sm7150).
 
@@ -347,6 +367,14 @@ config ARCH_SA6155
 	  This enables support for the Qualcomm Technologies, Inc.'s
 	  SA6155 chipset. If you do not wish to build a kernel that
 	  runs on this chipset or if you are unsure, say 'N' here.
+
+config ARCH_SDMMAGPIE
+	bool "Enable Support for Qualcomm Technologies, Inc. SDMMAGPIE"
+	depends on ARCH_QCOM
+	help
+	  This enables support for the Qualcomm Technologies, Inc.'s
+	  SDMMAGPIE (SM7150) chipset. If you do not wish to build a kernel
+	  that runs on this chipset or if you are unsure, say 'N' here.
 
 config ARCH_CLIFFS
 	bool "Enable support for Qualcomm Technologies, Inc. Cliffs"
