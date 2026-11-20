@@ -267,6 +267,14 @@ static int a6xx_rgmu_ifpc_store(struct kgsl_device *device,
 	if (!ADRENO_FEATURE(adreno_dev, ADRENO_IFPC))
 		return -EINVAL;
 
+	/*
+	 * The A612 RGMU firmware does not finish booting with IFPC off
+	 * (PCC_DEBUG stays 0x04101010): the GPU never comes back and the
+	 * screen stays black until IFPC is turned on again. Keep it on.
+	 */
+	if (!val)
+		return -EINVAL;
+
 	if (val)
 		requested_idle_level = GPU_HW_IFPC;
 	else
