@@ -12,3 +12,10 @@ config SPECTRA_CAMERA
 	  and postprocessing drivers) forward-ported from the 4.14 sm6150
 	  kernel. It keeps the 4.14 UAPI the CamX blobs are built against.
 
+config SPECTRA_CAMERA_UPGRADE
+	bool "Spectra camera request manager and ISP changes for sdmmagpie"
+	depends on SPECTRA_CAMERA
+	help
+	  The 4.14 option of the same name (set for sweet, not for violet):
+	  the request manager and ISP context changes the sdmmagpie CamX
+	  stack expects. The code is in the driver under this symbol.
