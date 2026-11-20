@@ -1820,6 +1820,16 @@
 					  "flash-irq";
 					qcom,auto-calibration;
 				};
+
+				/* FIXUP: written for the target */
+				pm6150l_pwm_1: qcom,pwms@bc00 {
+					status = "disabled";
+					compatible = "qcom,pwm-lpg";
+					reg = <0xbc00>;
+					reg-names = "lpg-base";
+					qcom,num-lpg-channels = <1>;
+					#pwm-cells = <2>;
+				};
 			};
 
 			qcom,pm6150l@4 {
