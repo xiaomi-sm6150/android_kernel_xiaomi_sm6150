@@ -1,15 +1,33 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
-config QTI_DISPLAY_SM6150
-	bool "Qualcomm SDE/DSI display driver (techpack/display) for sm6150"
+config QTI_DISPLAY
+	bool
 	depends on DRM && ARCH_QCOM && !DRM_MSM
 	select DRM_KMS_HELPER
 	select DRM_MIPI_DSI
 	select SYNC_FILE
 	select QCOM_PANEL_EVENT_NOTIFIER
 	help
+	  Builds the Qualcomm display-drivers techpack (msm_drm: SDE, DSI,
+	  MDSS PLLs, RSC, writeback) into the kernel with the feature set
+	  from config/sm6150disp.conf. Selected by the SoC options below.
+
+config QTI_DISPLAY_SM6150
+	bool "Qualcomm SDE/DSI display driver (techpack/display) for sm6150"
+	depends on DRM && ARCH_QCOM && !DRM_MSM
+	select QTI_DISPLAY
+	help
 	  Build the Qualcomm display-drivers techpack (msm_drm: SDE, DSI,
 	  MDSS PLLs, RSC, writeback) into the kernel with the sm6150 feature
 	  set from config/sm6150disp.conf. The driver keeps the msm_drm module
 	  name, so the msm_drm.dsi_display0= panel selection from the
 	  bootloader still applies.
+
+config QTI_DISPLAY_SDMMAGPIE
+	bool "Qualcomm SDE/DSI display driver (techpack/display) for sdmmagpie"
+	depends on DRM && ARCH_QCOM && !DRM_MSM
+	select QTI_DISPLAY
+	help
+	  The same techpack for sdmmagpie (sm7150): MDSS 5.2, DSI PHY v3.0
+	  with its 10nm PLL. The sm6150 feature set (sm6150disp.conf) applies
+	  unchanged; the SoC differences come from the device tree.
