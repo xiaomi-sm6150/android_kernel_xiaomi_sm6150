@@ -86,6 +86,10 @@
 /* For vma exec functions. */
 #include "../mm/internal.h"
 
+#include <linux/android_kabi.h>
+/* Keep KMI CRCs stable after adding the <linux/futex.h> include */
+ANDROID_KABI_DECLONLY(robust_list_head);
+
 static int bprm_creds_from_file(struct linux_binprm *bprm);
 
 int suid_dumpable = 0;
