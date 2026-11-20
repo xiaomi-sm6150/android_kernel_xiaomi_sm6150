@@ -6541,6 +6541,17 @@
 			qcom,skip-qos;
 		};
 
+		/* FIXUP: written for the target */
+		ipe_1_gdsc: qcom,gdsc@ad09004 {
+			compatible = "qcom,gdsc";
+			reg = <0xad09004 0x4>;
+			regulator-name = "ipe_1_gdsc";
+			status = "ok";
+			qcom,support-hw-trigger;
+			clock-names = "ahb_clk";
+			clocks = <&gcc GCC_CAMERA_AHB_CLK>;
+		};
+
 		/* sdmmagpie QUP wrapper 0 (4.14 reg/SID), 6.1 sm6150-qupv3.dtsi form */
 		qupv3_0: qcom,qupv3_0_geni_se@8c0000 {
 			compatible = "qcom,geni-se-qup";
