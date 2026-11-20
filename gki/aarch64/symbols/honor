@@ -159,6 +159,8 @@
   __tracepoint_android_vh_tune_swappiness
   __traceiter_android_vh_async_psi_bypass
   __tracepoint_android_vh_async_psi_bypass
+  __tracepoint_android_vh_psi_group
+  __traceiter_android_vh_psi_group
   __traceiter_android_rvh_vmalloc_node_bypass
   __tracepoint_android_rvh_vmalloc_node_bypass
   __traceiter_android_rvh_vfree_bypass

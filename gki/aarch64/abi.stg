@@ -370019,6 +370019,12 @@ function {
   parameter_id: 0x295c7202
 }
 function {
+  id: 0x9b0b30ec
+  return_type_id: 0x6720d32f
+  parameter_id: 0x18bd6530
+  parameter_id: 0x2922a3d0
+}
+function {
   id: 0x9b0b9af5
   return_type_id: 0x6720d32f
   parameter_id: 0x18bd6530
@@ -398952,6 +398958,15 @@ elf_symbol {
   full_name: "__traceiter_android_vh_psi_event"
 }
 elf_symbol {
+  id: 0xf2c39651
+  name: "__traceiter_android_vh_psi_group"
+  is_defined: true
+  symbol_type: FUNCTION
+  crc: 0xc0c63e72
+  type_id: 0x9b0b30ec
+  full_name: "__traceiter_android_vh_psi_group"
+}
+elf_symbol {
   id: 0x358b7cff
   name: "__traceiter_android_vh_put_super"
   is_defined: true
@@ -407140,6 +407155,15 @@ elf_symbol {
   crc: 0x57962c48
   type_id: 0x18ccbd2c
   full_name: "__tracepoint_android_vh_psi_event"
+}
+elf_symbol {
+  id: 0x0e92ee53
+  name: "__tracepoint_android_vh_psi_group"
+  is_defined: true
+  symbol_type: OBJECT
+  crc: 0x57962c48
+  type_id: 0x18ccbd2c
+  full_name: "__tracepoint_android_vh_psi_group"
 }
 elf_symbol {
   id: 0x428834b1
@@ -479197,6 +479221,7 @@ interface {
   symbol_id: 0xb30b32e6
   symbol_id: 0x0954df44
   symbol_id: 0x574e7b58
+  symbol_id: 0xf2c39651
   symbol_id: 0x358b7cff
   symbol_id: 0x354db2e1
   symbol_id: 0x86490c74
@@ -480107,6 +480132,7 @@ interface {
   symbol_id: 0x5f208298
   symbol_id: 0x8d3808ce
   symbol_id: 0x61f8c8ae
+  symbol_id: 0x0e92ee53
   symbol_id: 0x428834b1
   symbol_id: 0x3ac6daa7
   symbol_id: 0x972d060a
