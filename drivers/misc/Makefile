@@ -80,3 +80,4 @@ obj-$(CONFIG_MISC_RP1)		+= rp1/
 obj-$(CONFIG_PKVM_SMC_FILTER)	+= pkvm-smc/
 obj-$(CONFIG_PKVM_IOMMU_TEMPLATE)  += pkvm-iommu-temp/
 obj-$(CONFIG_WLAN_STATE_STUB)	+= wlan-state-stub.o
+obj-$(CONFIG_LDO_WL2866D)	+= wl2866d.o
