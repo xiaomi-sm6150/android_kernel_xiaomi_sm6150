@@ -95,7 +95,12 @@ extern int aw_send_afe_rx_module_enable(uint32_t rx_port_id, void *buf,
 extern int aw_send_afe_tx_module_enable(uint32_t tx_port_id, void *buf,
 	int cmd_size);
 
-int aw_adm_param_enable(int port_id, int enable)
+/*
+ * The copp enable is a no-op on sweet (compiled out on 4.14 too). Static and
+ * renamed: 6.1 q6adm.c exports an aw_adm_param_enable() with another
+ * signature for the other Awinic drivers.
+ */
+static int aw_dsp_adm_param_enable(int port_id, int enable)
 {
 #if 0
 	/*for v3*/
@@ -157,7 +162,7 @@ static int aw_send_afe_tx_module_enable(void *buf, int size)
 {
 	return 0;
 }
-int aw_adm_param_enable(int port_id, int enable)
+static int aw_dsp_adm_param_enable(int port_id, int enable)
 {
 	return 0;
 }
@@ -824,7 +829,7 @@ int aw_dsp_set_copp_module_en(bool enable)
 {
 	int ret;
 
-	ret = aw_adm_param_enable(AFE_PORT_ID_AWDSP_RX, enable);
+	ret = aw_dsp_adm_param_enable(AFE_PORT_ID_AWDSP_RX, enable);
 	if (ret) {
 		return -EINVAL;
 	}
