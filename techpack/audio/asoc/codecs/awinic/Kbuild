@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Awinic AW882xx smart PA (sweet), from the 4.14 Xiaomi techpack
+# asoc/codecs/awinic. Enabled by config/sweetauto.conf.
+
+ccflags-y += -I$(srctree)/$(src)/inc
+
+aw882xx_dlkm-y := src/aw_dsp.o \
+		  src/aw882xx.o \
+		  src/aw_init.o \
+		  src/aw_calib.o \
+		  src/aw_device.o \
+		  src/aw_monitor.o \
+		  src/aw_bin_parse.o
+
+obj-$(CONFIG_SND_SMARTPA_AW882XX) += aw882xx_dlkm.o
