@@ -1,0 +1,146 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * sdmmagpie audio, SoC layer: APR/q6core, the bolero TX/RX/VA/WSA macros
+ * and their soundwire masters, LPI pinctrl and the sound card skeleton.
+ *
+ * LPASS is the sm6150 one, so this is the 6.1 sm6150 audio DT (as used by
+ * violet) with the sdmmagpie differences from 4.14 sdmmagpie-audio*.dtsi
+ * (ion SID, soundwire interrupts), plus the 6.1 binding fixups the techpack
+ * needs on this LPASS, carried over from violet-sm6150-audio.dtsi. Boards add
+ * routing, codecs and amps on top.
+ */
+
+#include "sm6150-audio.dtsi"
+#include "sm6150-audio-overlay.dtsi"
+
+/* sdmmagpie: 4.14 sdmmagpie-audio.dtsi (sm6150 uses 0x1721) */
+&msm_audio_ion {
+	iommus = <&apps_smmu 0x1b21 0x0>;
+};
+
+/* sdmmagpie: 4.14 sdmmagpie-audio-overlay.dtsi */
+&swr0 {
+	interrupts = <0 295 0>;
+};
+
+&swr1 {
+	interrupts = <0 297 0>;
+};
+
+&swr2 {
+	qcom,swr-wakeup-required = <0>;
+	interrupts = <0 296 0>, <0 500 0>;
+	interrupt-names = "swr_master_irq", "swr_wake_irq";
+};
+
+/* the APR driver takes the ADSP remoteproc from here (the 5.4 PIL lookup is gone) */
+&audio_apr {
+	qcom,rproc-handle = <&adsp_pas>;
+};
+
+/* the audio notifier takes the ADSP rproc from this node */
+&soc {
+	adsp_notify: qcom,msm-adsp-notify {
+		status = "ok";
+		compatible = "qcom,adsp-notify";
+		qcom,rproc-handle = <&adsp_pas>;
+	};
+};
+
+/*
+ * The 6.1 bolero/swr drivers ask for a LPASS audio hw vote clock, but this
+ * ADSP firmware only knows the core hw vote (the AFE answers
+ * ADSP_EUNSUPPORTED to the audio one) and audio-ref-clk cannot register the
+ * same source twice: hand them the core vote clock under that name.
+ */
+&bolero {
+	clock-names = "lpass_core_hw_vote", "lpass_audio_hw_vote";
+	clocks = <&lpass_core_hw_vote 0>, <&lpass_core_hw_vote 0>;
+};
+
+/*
+ * 6.1 bolero (bengal-style bindings): a clock resource manager child, a
+ * default clock id per macro, and the audio hw vote clock on the soundwire
+ * masters. Clock ids: TX_CORE_CLK 0, RX_CORE_CLK 1, VA_CORE_CLK 3.
+ */
+&soc {
+	clock_audio_va_2: va_npl_clk {
+		compatible = "qcom,audio-ref-clk";
+		qcom,codec-ext-clk-src = <AUDIO_LPASS_MCLK_8>;
+		qcom,codec-lpass-ext-clk-freq = <19200000>;
+		qcom,codec-lpass-clk-id = <0x310>;
+		#clock-cells = <1>;
+	};
+};
+
+&bolero {
+	bolero-clk-rsc-mngr {
+		compatible = "qcom,bolero-clk-rsc-mngr";
+		qcom,fs-gen-sequence = <0x3000 0x1 0x1>, <0x3004 0x3 0x3>,
+					<0x3004 0x3 0x1>, <0x3080 0x2 0x2>;
+		qcom,rx_mclk_mode_muxsel = <0x62c25020>;
+		clock-names = "tx_core_clk", "tx_npl_clk", "rx_core_clk",
+			"rx_npl_clk", "va_core_clk", "va_npl_clk";
+		clocks = <&clock_audio_tx_1 0>, <&clock_audio_tx_2 0>,
+			<&clock_audio_rx_1 0>, <&clock_audio_rx_2 0>,
+			<&clock_audio_va 0>, <&clock_audio_va_2 0>;
+	};
+};
+
+&tx_macro {
+	qcom,default-clk-id = <0>;
+};
+
+&rx_macro {
+	qcom,default-clk-id = <0>;
+};
+
+&va_macro {
+	qcom,default-clk-id = <0>;
+	qcom,va-clk-mux-select = <1>;
+	qcom,is-used-swr-gpio = <0>;
+};
+
+&swr0 {
+	clock-names = "lpass_audio_hw_vote";
+	clocks = <&lpass_core_hw_vote 0>;
+};
+
+&swr1 {
+	clock-names = "lpass_audio_hw_vote";
+	clocks = <&lpass_core_hw_vote 0>;
+};
+
+&swr2 {
+	clock-names = "lpass_audio_hw_vote";
+	clocks = <&lpass_core_hw_vote 0>;
+};
+
+/* swr_register_master takes its bus number from these aliases */
+&{/aliases} {
+	swr0 = &swr0;
+	swr1 = &swr1;
+	swr2 = &swr2;
+};
+
+/* LPASS soundwire v1.5, as read back on violet (same LPASS) */
+&swr1 {
+	qcom,swr-master-version = <0x01050000>;
+};
+
+&swr2 {
+	qcom,swr-master-version = <0x01050000>;
+};
+
+/*
+ * The 6.1 bengal machine driver builds its DAI link list from these: the
+ * bolero RX/TX and VA CDC-DMA links, no WCN BT/FM slimbus links (that codec
+ * does not exist here and would keep the card deferred) and no AUX PCM (the
+ * 6.1 auxpcm DAI driver does not bind these nodes).
+ */
+&sm6150_snd {
+	qcom,rxtx-bolero-codec = <1>;
+	qcom,va-bolero-codec = <1>;
+	qcom,wcn-btfm = <0>;
+	qcom,auxpcm-audio-intf = <0>;
+};
