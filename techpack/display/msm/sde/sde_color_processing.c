@@ -1858,9 +1858,6 @@ static void _sde_cp_crtc_commit_feature(struct sde_cp_node *prop_node,
 		hw_cfg.dspp[i] = hw_dspp;
 	}
 
-	if (prop_node->feature == SDE_CP_CRTC_DSPP_PCC)
-		return;
-
 	if ((prop_node->feature >= SDE_CP_CRTC_MAX_FEATURES) ||
 			set_crtc_feature_wrappers[prop_node->feature] == NULL) {
 		ret = -EINVAL;
