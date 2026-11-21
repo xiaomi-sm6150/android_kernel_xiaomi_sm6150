@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Goodix GT9896 touchscreen (sweet)
+#
+config TOUCHSCREEN_GOODIX_GTX9896_I2C
+	bool "Goodix GT9896 touchscreen (sweet)"
+	depends on I2C && OF && GPIOLIB
+	help
+	  Say Y here if you have the Goodix GT9896 touch controller found
+	  on some sweet units (the others use a Focaltech FT3658U). The
+	  driver confirms the chip at probe and steps aside when it is
+	  absent.
+
+	  If unsure, say N.
+
+if TOUCHSCREEN_GOODIX_GTX9896_I2C
+
+config TOUCHSCREEN_GOODIX_GTX9896_UPDATE
+	tristate "Goodix GT9896 firmware update module"
+	default y
+	help
+	  Say Y here to enable support for doing firmware update.
+
+	  If unsure, say N.
+
+config TOUCHSCREEN_GOODIX_GTX9896_GESTURE
+	tristate "Goodix GT9896 gesture wakeup feature"
+	default y
+	help
+	  Say Y here to enable support for gesture wakeup feature.
+
+	  If unsure, say N.
+
+config TOUCHSCREEN_GOODIX_GTX9896_TOOLS
+	tristate "Goodix GT9896 debug tools and self-test"
+	default y
+	help
+	  Say Y here to enable the debug tools and the self-test.
+
+	  If unsure, say N.
+
+endif
