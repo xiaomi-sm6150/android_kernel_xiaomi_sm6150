@@ -215,6 +215,7 @@ struct smb_dt_props {
 	int			wd_bark_time;
 	int			wd_snarl_time_cfg;
 	int			batt_profile_fcc_ua;
+	int			batt_unverify_fcc_ua;
 	int			batt_profile_fv_uv;
 	int			term_current_src;
 	int			term_current_thresh_hi_ma;
@@ -665,6 +666,15 @@ static int smb5_parse_dt_currents(struct smb5 *chip, struct device_node *node)
 			"qcom,fcc-max-ua", &chip->dt.batt_profile_fcc_ua);
 	if (rc < 0)
 		chip->dt.batt_profile_fcc_ua = -EINVAL;
+
+	/*
+	 * Xiaomi: FCC limit until the battery is authenticated (ds28e16).
+	 * Only boards that set the property get the vote.
+	 */
+	rc = of_property_read_u32(node,
+			"mi,fcc-batt-unverify-ua", &chip->dt.batt_unverify_fcc_ua);
+	if (rc < 0)
+		chip->dt.batt_unverify_fcc_ua = -EINVAL;
 
 	rc = of_property_read_u32(node,
 				"qcom,usb-icl-ua", &chip->dt.usb_icl_ua);
@@ -2232,6 +2242,8 @@ static int smb5_init_hw(struct smb5 *chip)
 		chip->dt.batt_profile_fcc_ua > 0, chip->dt.batt_profile_fcc_ua);
 	vote(chg->fv_votable, HW_LIMIT_VOTER,
 		chip->dt.batt_profile_fv_uv > 0, chip->dt.batt_profile_fv_uv);
+	vote(chg->fcc_votable, BATT_VERIFY_VOTER,
+		chip->dt.batt_unverify_fcc_ua > 0, chip->dt.batt_unverify_fcc_ua);
 	vote(chg->fcc_votable,
 		BATT_PROFILE_VOTER, chg->batt_profile_fcc_ua > 0,
 		chg->batt_profile_fcc_ua);
