@@ -2138,6 +2138,7 @@
 #include "sweet-display.dtsi"
 #include "sdmmagpie-audio.dtsi"
 #include "sweet-audio.dtsi"
+#include "sdmmagpie-vidc.dtsi"
 
 / {
 	k61,dtbo-target = <&soc>;
