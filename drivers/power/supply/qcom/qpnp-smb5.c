@@ -21,6 +21,7 @@
 #include <linux/iio/consumer.h>
 #include <linux/pmic-voter.h>
 #include <linux/usb/typec.h>
+#include <linux/power/xiaomi_batt_verify.h>
 #include "smb5-reg.h"
 #include "smb5-lib.h"
 #include "smb5-iio.h"
@@ -229,6 +230,7 @@ struct smb5 {
 	unsigned int		nchannels;
 	struct iio_channel	*iio_chans;
 	struct iio_chan_spec	*iio_chan_ids;
+	struct notifier_block	batt_verify_nb;
 };
 
 static int __debug_mask;
@@ -3130,6 +3132,34 @@ int smb5_extcon_init(struct smb_charger *chg)
 	return rc;
 }
 
+static int smb5_batt_verify_notify(struct notifier_block *nb,
+				   unsigned long authentic, void *data)
+{
+	struct smb5 *chip = container_of(nb, struct smb5, batt_verify_nb);
+
+	pr_info("battery %s\n", authentic ? "authenticated, FCC limit removed" :
+		"not authenticated, FCC stays limited");
+	if (authentic)
+		vote(chip->chg.fcc_votable, BATT_VERIFY_VOTER, false, 0);
+
+	return NOTIFY_OK;
+}
+
+/*
+ * Drop the unverified-battery FCC vote once the battery authentication
+ * driver reports a genuine battery. Its result may already be final.
+ */
+static void smb5_batt_verify_init(struct smb5 *chip)
+{
+	if (chip->dt.batt_unverify_fcc_ua <= 0)
+		return;
+
+	chip->batt_verify_nb.notifier_call = smb5_batt_verify_notify;
+	xm_batt_verify_register_notifier(&chip->batt_verify_nb);
+	if (xm_batt_verify_authentic() == 1)
+		smb5_batt_verify_notify(&chip->batt_verify_nb, 1, NULL);
+}
+
 static int smb5_probe(struct platform_device *pdev)
 {
 	struct smb5 *chip;
@@ -3320,6 +3350,8 @@ static int smb5_probe(struct platform_device *pdev)
 
 	device_init_wakeup(chg->dev, true);
 
+	smb5_batt_verify_init(chip);
+
 	pr_info("QPNP SMB5 probed successfully\n");
 
 	return rc;
@@ -3337,6 +3369,9 @@ static int smb5_remove(struct platform_device *pdev)
 {
 	struct smb5 *chip = platform_get_drvdata(pdev);
 	struct smb_charger *chg = &chip->chg;
+
+	if (chip->dt.batt_unverify_fcc_ua > 0)
+		xm_batt_verify_unregister_notifier(&chip->batt_verify_nb);
 
 	/* force enable APSD */
 	smblib_masked_write(chg, USBIN_OPTIONS_1_CFG_REG,
