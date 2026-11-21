@@ -3038,6 +3038,46 @@ static int get_batt_id_ohm(struct qpnp_qg *chip, u32 *batt_id_ohm)
 	return 0;
 }
 
+/*
+ * Xiaomi ABL passes the battery cell vendor it read from the battery's
+ * authentication IC (androidboot.profile_vendor_id, e.g. "0A" Sunwoda,
+ * "0B" NVT on sweet). Boards with several profiles for the same batt-id
+ * resistor tag each with mi,profile-vendor-id; the matching one wins over
+ * the batt-id lookup, which would always pick the first.
+ */
+static char qg_profile_vendor_id[8];
+
+static int __init __maybe_unused qg_parse_profile_vendor_id(char *p)
+{
+	if (p)
+		strscpy(qg_profile_vendor_id, p, sizeof(qg_profile_vendor_id));
+	return 0;
+}
+early_param("androidboot.profile_vendor_id", qg_parse_profile_vendor_id);
+
+static struct device_node *qg_vendor_profile(struct device_node *batt_node)
+{
+	struct device_node *node;
+	const char *id, *type;
+
+	if (!qg_profile_vendor_id[0])
+		return NULL;
+
+	for_each_child_of_node(batt_node, node) {
+		if (of_property_read_string(node, "mi,profile-vendor-id", &id) ||
+		    strcmp(id, qg_profile_vendor_id))
+			continue;
+		if (of_property_read_string(node, "qcom,battery-type", &type))
+			type = node->name;
+		pr_info("vendor id %s: %s found\n", qg_profile_vendor_id, type);
+		return node;
+	}
+
+	pr_info("no profile for vendor id %s, using batt-id\n",
+		qg_profile_vendor_id);
+	return NULL;
+}
+
 static int qg_load_battery_profile(struct qpnp_qg *chip)
 {
 	struct device_node *node = chip->dev->of_node;
@@ -3070,8 +3110,11 @@ static int qg_load_battery_profile(struct qpnp_qg *chip)
 			chip->batt_age_level = avail_age_level;
 		}
 	} else {
-		profile_node = of_batterydata_get_best_profile(chip->batt_node,
-				chip->batt_id_ohm / 1000, NULL);
+		profile_node = qg_vendor_profile(chip->batt_node);
+		if (!profile_node)
+			profile_node = of_batterydata_get_best_profile(
+					chip->batt_node,
+					chip->batt_id_ohm / 1000, NULL);
 	}
 
 	if (IS_ERR_OR_NULL(profile_node)) {
