@@ -1,0 +1,187 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Iris1 (VPU 5) video codec of sdmmagpie for the forward-ported 4.14
+ * msm_vidc driver (techpack/video). Values from 4.14 sdmmagpie-vidc.dtsi,
+ * in the 6.1 bindings of sm6150-vidc.dtsi:
+ *  - memory-region + qcom,pas-id: the driver loads the firmware itself
+ *    (qcom_mdt_load + PAS 9); there is no separate Venus PIL node.
+ *  - interconnects instead of the msm_bus master/slave pairs.
+ *  - qcom,iommu-dma-addr-pool for the IOMMU core next to virtual-addr-pool.
+ *  - no secure context banks yet (a secure VMID goes through TZ), so
+ *    qcom,cp-nonpixel carries the venus_sec_non_pixel range for memprot.
+ *
+ * Two nodes, as on 4.14: the driver reads the SKU from the efuse
+ * (0x786018 bit 10) and only the node whose sku-index matches probes;
+ * the other fails in msm_decide_dt_node() before registering anything.
+ * The SKUs differ in the codec clock plan (sku 1: 200 MHz only).
+ *
+ * The common data of sdmmagpie sets qcom,domain-cvp: the driver allocates
+ * the CVP DSP queues from the mem_cdsp child, so it has to be there even
+ * though the CDSP side (fastcvpd) is not in 6.1.
+ */
+
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/interconnect/qcom,icc.h>
+#include <dt-bindings/interconnect/qcom,sdmmagpie.h>
+#include <dt-bindings/clock/qcom,videocc-sdmmagpie.h>
+
+&soc {
+	msm_vidc0: qcom,vidc0 {
+		compatible = "qcom,msm-vidc", "qcom,sdmmagpie-vidc";
+		status = "okay";
+		sku-index = <0>;
+		reg = <0xaa00000 0x200000>;
+		interrupts = <GIC_SPI 174 IRQ_TYPE_LEVEL_HIGH>;
+		memory-region = <&pil_video_mem>;
+		qcom,pas-id = <9>;
+		/* venus_sec_non_pixel IOVA range of 4.14, for the TZ memprot */
+		qcom,cp-nonpixel = <0x01000000 0x24800000>;
+
+		/* Supply */
+		iris-ctl-supply = <&mvsc_gdsc>;
+		vcodec-supply = <&mvs0_gdsc>;
+		cvp-supply = <&mvs1_gdsc>;
+
+		/* Clocks */
+		clock-names = "video_cc_mvsc_ctl_axi", "video_cc_mvs0_ctl_axi",
+			"video_cc_mvs1_ctl_axi", "core_clk", "vcodec_clk",
+			"cvp_clk", "iface_clk";
+		clocks = <&videocc VIDEO_CC_MVSC_CTL_AXI_CLK>,
+			<&videocc VIDEO_CC_MVS0_AXI_CLK>,
+			<&videocc VIDEO_CC_MVS1_AXI_CLK>,
+			<&videocc VIDEO_CC_MVSC_CORE_CLK>,
+			<&videocc VIDEO_CC_MVS0_CORE_CLK>,
+			<&videocc VIDEO_CC_MVS1_CORE_CLK>,
+			<&videocc VIDEO_CC_VENUS_AHB_CLK>;
+		qcom,proxy-clock-names = "video_cc_mvsc_ctl_axi",
+			"video_cc_mvs0_ctl_axi", "video_cc_mvs1_ctl_axi",
+			"core_clk", "vcodec_clk", "cvp_clk", "iface_clk";
+		qcom,clock-configs = <0x0 0x0 0x0 0x1 0x1 0x1 0x0>;
+		qcom,allowed-clock-rates = <240000000 338000000 365000000>;
+
+		/* Buses */
+		bus_cnoc {
+			compatible = "qcom,msm-vidc,bus";
+			label = "cnoc";
+			interconnects = <&gem_noc MASTER_APPSS_PROC
+					 &config_noc SLAVE_VENUS_CFG>;
+			qcom,bus-governor = "performance";
+			qcom,bus-range-kbps = <1000 1000>;
+		};
+
+		venus_bus_ddr {
+			compatible = "qcom,msm-vidc,bus";
+			label = "venus-ddr";
+			interconnects = <&mmss_noc MASTER_VIDEO_P0
+					 &mc_virt SLAVE_EBI1>;
+			qcom,bus-governor = "msm-vidc-ddr";
+			qcom,bus-range-kbps = <1000 6533000>;
+		};
+
+		arm9_bus_ddr {
+			compatible = "qcom,msm-vidc,bus";
+			label = "venus-arm9-ddr";
+			interconnects = <&mmss_noc MASTER_VIDEO_P0
+					 &mc_virt SLAVE_EBI1>;
+			qcom,bus-governor = "performance";
+			qcom,bus-range-kbps = <1000 1000>;
+		};
+
+		/* MMUs */
+		non_secure_cb {
+			compatible = "qcom,msm-vidc,context-bank";
+			label = "venus_ns";
+			iommus = <&apps_smmu 0x1080 0x60>;
+			buffer-types = <0xfff>;
+			virtual-addr-pool = <0x25800000 0xba800000>;
+			qcom,iommu-dma-addr-pool = <0x25800000 0xba800000>;
+			qcom,iommu-faults = "non-fatal";
+			qcom,iova-best-fit;
+		};
+
+		/* Memory Heaps */
+		qcom,msm-vidc,mem_cdsp {
+			compatible = "qcom,msm-vidc,mem-cdsp";
+			memory-region = <&cdsp_mem>;
+		};
+	};
+
+	msm_vidc1: qcom,vidc1 {
+		compatible = "qcom,msm-vidc", "qcom,sdmmagpie-vidc";
+		status = "okay";
+		sku-index = <1>;
+		reg = <0xaa00000 0x200000>;
+		interrupts = <GIC_SPI 174 IRQ_TYPE_LEVEL_HIGH>;
+		memory-region = <&pil_video_mem>;
+		qcom,pas-id = <9>;
+		qcom,cp-nonpixel = <0x01000000 0x24800000>;
+
+		/* Supply */
+		iris-ctl-supply = <&mvsc_gdsc>;
+		vcodec-supply = <&mvs0_gdsc>;
+		cvp-supply = <&mvs1_gdsc>;
+
+		/* Clocks */
+		clock-names = "video_cc_mvsc_ctl_axi", "video_cc_mvs0_ctl_axi",
+			"video_cc_mvs1_ctl_axi", "core_clk", "vcodec_clk",
+			"cvp_clk", "iface_clk";
+		clocks = <&videocc VIDEO_CC_MVSC_CTL_AXI_CLK>,
+			<&videocc VIDEO_CC_MVS0_AXI_CLK>,
+			<&videocc VIDEO_CC_MVS1_AXI_CLK>,
+			<&videocc VIDEO_CC_MVSC_CORE_CLK>,
+			<&videocc VIDEO_CC_MVS0_CORE_CLK>,
+			<&videocc VIDEO_CC_MVS1_CORE_CLK>,
+			<&videocc VIDEO_CC_VENUS_AHB_CLK>;
+		qcom,proxy-clock-names = "video_cc_mvsc_ctl_axi",
+			"video_cc_mvs0_ctl_axi", "video_cc_mvs1_ctl_axi",
+			"core_clk", "vcodec_clk", "cvp_clk", "iface_clk";
+		qcom,clock-configs = <0x0 0x0 0x0 0x1 0x1 0x1 0x0>;
+		qcom,allowed-clock-rates = <200000000>;
+
+		/* Buses */
+		bus_cnoc {
+			compatible = "qcom,msm-vidc,bus";
+			label = "cnoc";
+			interconnects = <&gem_noc MASTER_APPSS_PROC
+					 &config_noc SLAVE_VENUS_CFG>;
+			qcom,bus-governor = "performance";
+			qcom,bus-range-kbps = <1000 1000>;
+		};
+
+		venus_bus_ddr {
+			compatible = "qcom,msm-vidc,bus";
+			label = "venus-ddr";
+			interconnects = <&mmss_noc MASTER_VIDEO_P0
+					 &mc_virt SLAVE_EBI1>;
+			qcom,bus-governor = "msm-vidc-ddr";
+			qcom,bus-range-kbps = <1000 6533000>;
+		};
+
+		arm9_bus_ddr {
+			compatible = "qcom,msm-vidc,bus";
+			label = "venus-arm9-ddr";
+			interconnects = <&mmss_noc MASTER_VIDEO_P0
+					 &mc_virt SLAVE_EBI1>;
+			qcom,bus-governor = "performance";
+			qcom,bus-range-kbps = <1000 1000>;
+		};
+
+		/* MMUs */
+		non_secure_cb {
+			compatible = "qcom,msm-vidc,context-bank";
+			label = "venus_ns";
+			iommus = <&apps_smmu 0x1080 0x60>;
+			buffer-types = <0xfff>;
+			virtual-addr-pool = <0x25800000 0xba800000>;
+			qcom,iommu-dma-addr-pool = <0x25800000 0xba800000>;
+			qcom,iommu-faults = "non-fatal";
+			qcom,iova-best-fit;
+		};
+
+		/* Memory Heaps */
+		qcom,msm-vidc,mem_cdsp {
+			compatible = "qcom,msm-vidc,mem-cdsp";
+			memory-region = <&cdsp_mem>;
+		};
+	};
+};
