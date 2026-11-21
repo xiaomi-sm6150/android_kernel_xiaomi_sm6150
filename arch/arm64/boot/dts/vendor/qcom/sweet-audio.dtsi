@@ -37,6 +37,15 @@
 	qcom,cdc-micbias3-mv = <2750>;
 };
 
+/*
+ * The AW882xx DAI names carry the I2C bus number ("aw882xx-aif-<bus>-<addr>")
+ * and the machine driver links them by name. Pin the bus to 3, as it came out
+ * on 4.14 (where only i2c0-2 had aliases).
+ */
+&{/aliases} {
+	i2c3 = &qupv3_se4_i2c;
+};
+
 /* the two smart PAs, already in the board DT from 4.14: label them for the card */
 &qupv3_se4_i2c {
 	aw882xx_top: aw882xx_smartpa@34 {
