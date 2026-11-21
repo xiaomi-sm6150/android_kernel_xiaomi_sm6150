@@ -3624,9 +3624,15 @@ static inline void _sde_plane_set_csc_pcc(struct sde_plane *psde,
 					  struct sde_plane_state *pstate,
 					  struct drm_crtc *crtc)
 {
-	const struct drm_msm_pcc *pcc_cfg = sde_cp_crtc_get_pcc_cfg(crtc);
+	/*
+	 * The CRTC PCC (night light, colour calibration) is programmed in the
+	 * DSPP, which covers every pipe. Folding it into the plane CSC only
+	 * reaches VIG pipes (DMA pipes have no CSC), so keep the plane CSC for
+	 * the FOD dim only.
+	 */
+	const struct drm_msm_pcc *pcc_cfg = NULL;
 
-	if (!pcc_cfg && psde->fod_dim_alpha)
+	if (psde->fod_dim_alpha)
 		pcc_cfg = &sde_identity_pcc_cfg;
 
 	if (pcc_cfg == psde->pcc_cfg)
