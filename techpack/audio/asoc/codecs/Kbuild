@@ -283,6 +283,9 @@ ifeq ($(KERNEL_BUILD), 1)
 	obj-y	+= rouleur/
 endif
 
+# sweet: Awinic AW882xx smart PAs (config/sweetauto.conf)
+obj-$(CONFIG_SND_SMARTPA_AW882XX) += awinic/
+
 # Moto smart amps: only the lahaina (tundra) build has them
 ifeq ($(CONFIG_QTI_AUDIO_LAHAINA), y)
 ifeq ($(CONFIG_AW882XX_DRIVER_V1), y)
