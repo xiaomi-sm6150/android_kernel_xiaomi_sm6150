@@ -966,5 +966,6 @@ config BATTERY_UG3105
 
 source "drivers/power/supply/qcom/Kconfig"
 source "drivers/power/supply/xiaomi/Kconfig"
+source "drivers/power/supply/ti/Kconfig"
 
 endif # POWER_SUPPLY
