@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: GPL-2.0-only
+config FINGERPRINT_FS_TEE
+	tristate "FortSense fingerprint sensor (TEE)"
+	depends on INPUT_FINGERPRINT && OF && GPIOLIB
+	help
+	  Power, reset and IRQ control for the FortSense sensor on sweet.
+	  The sensor is driven over SPI by the TEE; this driver gives the
+	  HAL /dev/fortsense_fp and IRQ uevents. GPIOs and the supply come
+	  from the "fs,fingerprint" node and are claimed only when the HAL
+	  asks, so it can share pins with the FPC driver.
+
+	  To compile it as a module, choose M here: the module will be
+	  called fortsense_fp.
