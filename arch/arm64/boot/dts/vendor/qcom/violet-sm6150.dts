@@ -428,6 +428,27 @@
 };
 
 /* eMMC (4.14 atoll-idp.dtsi settings) */
+/* microSD (4.14 sm6150-idp.dtsi + violet card detect, active high) */
+&sdhc_2 {
+	/delete-property/ interconnects;
+	/delete-property/ interconnect-names;
+	vdd-supply = <&pm6150l_l9>;
+	qcom,vdd-voltage-level = <2950000 2950000>;
+	qcom,vdd-current-level = <0 800000>;
+
+	vdd-io-supply = <&pm6150l_l6>;
+	qcom,vdd-io-voltage-level = <1800000 3100000>;
+	qcom,vdd-io-current-level = <0 22000>;
+
+	pinctrl-names = "active", "sleep";
+	pinctrl-0 = <&sdc2_clk_on &sdc2_cmd_on &sdc2_data_on &sdc2_cd_on>;
+	pinctrl-1 = <&sdc2_clk_off &sdc2_cmd_off &sdc2_data_off &sdc2_cd_off>;
+
+	cd-gpios = <&tlmm 99 0>;
+
+	status = "okay";
+};
+
 &sdhc_1 {
 	/*
 	 * sdhci-msm bails out with "not boot dev" when the boot_conf fuse
