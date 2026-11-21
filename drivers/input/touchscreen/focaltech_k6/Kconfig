@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Focaltech FT3658U touchscreen (sweet)
+#
+config TOUCHSCREEN_FTS_K6
+	bool "Focaltech FT3658U touchscreen (sweet)"
+	depends on I2C && OF && GPIOLIB
+	depends on TOUCHSCREEN_XIAOMI_TOUCHFEATURE
+	select NEW_TOUCH_GAMEMODE
+	help
+	  Say Y here if you have the Focaltech FT3658U touch panel found
+	  on some sweet units (the others use a Goodix GT9896). The driver
+	  identifies the chip at probe and steps aside when it is absent.
+
+	  If unsure, say N.
