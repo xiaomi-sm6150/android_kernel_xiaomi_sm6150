@@ -96,3 +96,25 @@
 		};
 	};
 };
+
+/*
+ * Panel event consumers. On 6.1 the touch and FortSense drivers get
+ * blank/unblank from the panel event notifier, which matches by panel: list
+ * both k6 panels, the drivers use the one that registered. The touch drivers
+ * defer their probe until it has.
+ */
+&qupv3_se7_i2c {
+	gt9896@5d {
+		panel = <&dsi_k6_38_0c_0a_fhd_dsc_video &dsi_k6_38_0e_0b_fhd_dsc_video>;
+	};
+
+	focaltech@38 {
+		panel = <&dsi_k6_38_0c_0a_fhd_dsc_video &dsi_k6_38_0e_0b_fhd_dsc_video>;
+	};
+};
+
+&soc {
+	fingerprint_fortsense {
+		panel = <&dsi_k6_38_0c_0a_fhd_dsc_video &dsi_k6_38_0e_0b_fhd_dsc_video>;
+	};
+};
