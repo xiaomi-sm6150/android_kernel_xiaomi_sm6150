@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config BQ2597X_CHARGE_PUMP
+	bool "TI BQ2597x / SC8551 charge pump (Xiaomi)"
+	depends on I2C && OF
+	help
+	  Div-2 switched-capacitor charge pump used for PD/QC3 fast charging
+	  on Xiaomi sdmmagpie phones (sweet, toco, tucana). This port only
+	  binds the chip, programs its protections and ADC and keeps the
+	  switcher off; the PD policy manager that drives it is separate.

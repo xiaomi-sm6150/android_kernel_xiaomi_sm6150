@@ -19,7 +19,6 @@
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/module.h>
-#include <linux/power_supply.h>
 #include <linux/slab.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -35,14 +34,11 @@
 #include <linux/debugfs.h>
 #include <linux/bitops.h>
 #include <linux/math64.h>
-#include <asm/neon.h>
+#include <linux/seq_file.h>
 
 #include "bq25970_reg.h"
 /*#include "bq2597x.h"*/
 
-#include <soc/qcom/socinfo.h>
-
-extern char *saved_command_line;
 
 enum {
 	VBUS_ERROR_NONE,
@@ -346,9 +342,6 @@ struct bq2597x {
 
 	struct dentry *debug_root;
 
-	struct power_supply_desc psy_desc;
-	struct power_supply_config psy_cfg;
-	struct power_supply *fc2_psy;
 	int bypass_mode_enable;
 };
 
@@ -1140,7 +1133,8 @@ static int bq2597x_set_fault_int_mask(struct bq2597x *bq, u8 mask)
 	return ret;
 }
 
-static int sc8551_set_bypass_mode_en(struct bq2597x *bq, int enable)
+/* __maybe_unused: pump controls for the PD policy manager (not ported yet) */
+static int __maybe_unused sc8551_set_bypass_mode_en(struct bq2597x *bq, int enable)
 {
 	if (bq->chip_vendor != SC8551)
 		return -EPERM;
@@ -1149,7 +1143,7 @@ static int sc8551_set_bypass_mode_en(struct bq2597x *bq, int enable)
 	return 0;
 }
 
-static int sc8551_get_bypass_mode_en(struct bq2597x *bq)
+static int __maybe_unused sc8551_get_bypass_mode_en(struct bq2597x *bq)
 {
 	if (bq->chip_vendor != SC8551)
 		return 0;
@@ -1157,7 +1151,7 @@ static int sc8551_get_bypass_mode_en(struct bq2597x *bq)
 	return bq->bypass_mode_enable;
 }
 
-static int sc8551_set_charge_mode(struct bq2597x *bq, int mode)
+static int __maybe_unused sc8551_set_charge_mode(struct bq2597x *bq, int mode)
 {
 	int ret;
 	u8 val;
@@ -1185,7 +1179,7 @@ static int sc8551_set_charge_mode(struct bq2597x *bq, int mode)
 	return ret;
 }
 
-static int sc8551_get_charge_mode(struct bq2597x *bq)
+static int __maybe_unused sc8551_get_charge_mode(struct bq2597x *bq)
 {
 	int ret = 0;
 	u8 val = 0;
@@ -1351,7 +1345,7 @@ static int bq2597x_set_vbat_reg_th(struct bq2597x *bq, int th_mv)
 }
 
 
-static int bq2597x_check_reg_status(struct bq2597x *bq)
+static int __maybe_unused bq2597x_check_reg_status(struct bq2597x *bq)
 {
 	int ret;
 	u8 val;
@@ -1446,7 +1440,7 @@ static void bq2597x_parse_cmdline(struct bq2597x *bq)
 		bq->mass_production = false;
 	}
 
-	bq->hw_version = get_hw_version_platform();
+	bq->hw_version = 0;
 
 	pr_info("hw_version = %d, mass_production = %d\n", bq->hw_version, bq->mass_production);
 }
@@ -1702,7 +1696,7 @@ static int bq2597x_init_protection(struct bq2597x *bq)
 	return 0;
 }
 
-static int bq2597x_set_bus_protection(struct bq2597x *bq, int hvdcp3_type)
+static int __maybe_unused bq2597x_set_bus_protection(struct bq2597x *bq, int hvdcp3_type)
 {
 	/* just return now, to do later */
 	//return 0;
@@ -1818,7 +1812,7 @@ static int bq2597x_init_device(struct bq2597x *bq)
 	return 0;
 }
 
-static int bq2597x_set_present(struct bq2597x *bq, bool present)
+static int __maybe_unused bq2597x_set_present(struct bq2597x *bq, bool present)
 {
 	bq->usb_present = present;
 
@@ -1829,323 +1823,9 @@ static int bq2597x_set_present(struct bq2597x *bq, bool present)
 
 #define SC8551_MAX_SHOW_REG_ADDR 0x36
 #define BQ25970_MAX_SHOW_REG_ADDR 0x2A
-static ssize_t bq2597x_show_registers(struct device *dev,
-				struct device_attribute *attr, char *buf)
-{
-	struct bq2597x *bq = dev_get_drvdata(dev);
-	u8 addr, max_addr;
-	u8 val;
-	u8 tmpbuf[300];
-	int len;
-	int idx = 0;
-	int ret;
-
-	if (bq->chip_vendor == SC8551) {
-		max_addr = SC8551_MAX_SHOW_REG_ADDR;
-		idx = snprintf(buf, PAGE_SIZE, "%s:\n", "sc8551");
-	} else {
-		max_addr = BQ25970_MAX_SHOW_REG_ADDR;
-		idx = snprintf(buf, PAGE_SIZE, "%s:\n", "bq25970");
-	}
-
-	for (addr = 0x0; addr <= max_addr; addr++) {
-		ret = bq2597x_read_byte(bq, addr, &val);
-		if (ret == 0) {
-			len = snprintf(tmpbuf, PAGE_SIZE - idx,
-					"Reg[%.2X] = 0x%.2x\n", addr, val);
-			memcpy(&buf[idx], tmpbuf, len);
-			idx += len;
-		}
-	}
-
-	return idx;
-}
-
-static ssize_t bq2597x_store_register(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
-{
-	struct bq2597x *bq = dev_get_drvdata(dev);
-	int ret;
-	unsigned int reg;
-	unsigned int val;
-
-	ret = sscanf(buf, "%x %x", &reg, &val);
-	if (ret == 2 && reg <= 0x2A)
-		bq2597x_write_byte(bq, (unsigned char)reg, (unsigned char)val);
-
-	return count;
-}
-
-
-static DEVICE_ATTR(registers, 0660, bq2597x_show_registers, bq2597x_store_register);
-
-static struct attribute *bq2597x_attributes[] = {
-	&dev_attr_registers.attr,
-	NULL,
-};
-
-static const struct attribute_group bq2597x_attr_group = {
-	.attrs = bq2597x_attributes,
-};
-
-static enum power_supply_property bq2597x_charger_props[] = {
-	POWER_SUPPLY_PROP_PRESENT,
-	POWER_SUPPLY_PROP_CHARGING_ENABLED,
-	POWER_SUPPLY_PROP_STATUS,
-	POWER_SUPPLY_PROP_TI_BATTERY_PRESENT,
-	POWER_SUPPLY_PROP_TI_VBUS_PRESENT,
-	POWER_SUPPLY_PROP_TI_BATTERY_VOLTAGE,
-	POWER_SUPPLY_PROP_TI_BATTERY_CURRENT,
-	POWER_SUPPLY_PROP_TI_BATTERY_TEMPERATURE,
-	POWER_SUPPLY_PROP_TI_BUS_VOLTAGE,
-	POWER_SUPPLY_PROP_TI_BUS_CURRENT,
-	POWER_SUPPLY_PROP_TI_BUS_TEMPERATURE,
-	POWER_SUPPLY_PROP_TI_DIE_TEMPERATURE,
-	POWER_SUPPLY_PROP_TI_ALARM_STATUS,
-	POWER_SUPPLY_PROP_TI_FAULT_STATUS,
-	POWER_SUPPLY_PROP_TI_REG_STATUS,
-	POWER_SUPPLY_PROP_TI_SET_BUS_PROTECTION_FOR_QC3,
-	POWER_SUPPLY_PROP_TI_BUS_ERROR_STATUS,
-	POWER_SUPPLY_PROP_TI_CHARGE_MODE,
-	POWER_SUPPLY_PROP_TI_BYPASS_MODE_ENABLED,
-	POWER_SUPPLY_PROP_MODEL_NAME,
-	POWER_SUPPLY_PROP_CP_VBAT_CALIBRATE,
-};
 
 static void bq2597x_check_alarm_status(struct bq2597x *bq);
 static void bq2597x_check_fault_status(struct bq2597x *bq);
-static int bq2597x_check_vbus_error_status(struct bq2597x *bq);
-
-static int bq2597x_charger_get_property(struct power_supply *psy,
-				enum power_supply_property psp,
-				union power_supply_propval *val)
-{
-	struct bq2597x *bq = power_supply_get_drvdata(psy);
-	int result;
-	int ret;
-	u8 reg_val;
-
-	switch (psp) {
-	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
-		bq2597x_check_charge_enabled(bq, &bq->charge_enabled);
-		val->intval = bq->charge_enabled;
-		break;
-	case POWER_SUPPLY_PROP_STATUS:
-		val->intval = 0;
-		break;
-	case POWER_SUPPLY_PROP_PRESENT:
-		val->intval = bq->usb_present;
-		break;
-	case POWER_SUPPLY_PROP_TI_BATTERY_PRESENT:
-		ret = bq2597x_read_byte(bq, BQ2597X_REG_0D, &reg_val);
-		if (!ret)
-			bq->batt_present  = !!(reg_val & VBAT_INSERT);
-		val->intval = bq->batt_present;
-		break;
-	case POWER_SUPPLY_PROP_TI_VBUS_PRESENT:
-		ret = bq2597x_read_byte(bq, BQ2597X_REG_0D, &reg_val);
-		if (!ret)
-			bq->vbus_present  = !!(reg_val & VBUS_INSERT);
-		val->intval = bq->vbus_present;
-		break;
-	case POWER_SUPPLY_PROP_TI_BATTERY_VOLTAGE:
-		ret = bq2597x_get_adc_data(bq, ADC_VBAT, &result);
-		if (!ret)
-			bq->vbat_volt = result;
-
-		val->intval = bq->vbat_volt;
-		break;
-	case POWER_SUPPLY_PROP_TI_BATTERY_CURRENT:
-		ret = bq2597x_get_adc_data(bq, ADC_IBAT, &result);
-		if (!ret)
-			bq->ibat_curr = result;
-
-		val->intval = bq->ibat_curr;
-		break;
-	case POWER_SUPPLY_PROP_TI_BATTERY_TEMPERATURE:
-		ret = bq2597x_get_adc_data(bq, ADC_TBAT, &result);
-		if (!ret)
-			bq->bat_temp = result;
-
-		val->intval = bq->bat_temp;
-		break;
-	case POWER_SUPPLY_PROP_TI_BUS_VOLTAGE:
-		ret = bq2597x_get_adc_data(bq, ADC_VBUS, &result);
-		if (!ret)
-			bq->vbus_volt = result;
-
-		val->intval = bq->vbus_volt;
-		break;
-	case POWER_SUPPLY_PROP_TI_BUS_CURRENT:
-		ret = bq2597x_get_adc_data(bq, ADC_IBUS, &result);
-		if (!ret)
-			bq->ibus_curr = result;
-
-		val->intval = bq->ibus_curr;
-		break;
-	case POWER_SUPPLY_PROP_TI_BUS_TEMPERATURE:
-		ret = bq2597x_get_adc_data(bq, ADC_TBUS, &result);
-		if (!ret)
-			bq->bus_temp = result;
-
-		val->intval = bq->bus_temp;
-		break;
-	case POWER_SUPPLY_PROP_TI_DIE_TEMPERATURE:
-		ret = bq2597x_get_adc_data(bq, ADC_TDIE, &result);
-		if (!ret)
-			bq->die_temp = result;
-
-		val->intval = bq->die_temp;
-		break;
-	case POWER_SUPPLY_PROP_TI_ALARM_STATUS:
-
-		bq2597x_check_alarm_status(bq);
-
-		val->intval = ((bq->bat_ovp_alarm << BAT_OVP_ALARM_SHIFT)
-			| (bq->bat_ocp_alarm << BAT_OCP_ALARM_SHIFT)
-			| (bq->bat_ucp_alarm << BAT_UCP_ALARM_SHIFT)
-			| (bq->bus_ovp_alarm << BUS_OVP_ALARM_SHIFT)
-			| (bq->bus_ocp_alarm << BUS_OCP_ALARM_SHIFT)
-			| (bq->bat_therm_alarm << BAT_THERM_ALARM_SHIFT)
-			| (bq->bus_therm_alarm << BUS_THERM_ALARM_SHIFT)
-			| (bq->die_therm_alarm << DIE_THERM_ALARM_SHIFT));
-		break;
-
-	case POWER_SUPPLY_PROP_TI_FAULT_STATUS:
-		bq2597x_check_fault_status(bq);
-
-		val->intval = ((bq->bat_ovp_fault << BAT_OVP_FAULT_SHIFT)
-			| (bq->bat_ocp_fault << BAT_OCP_FAULT_SHIFT)
-			| (bq->bus_ovp_fault << BUS_OVP_FAULT_SHIFT)
-			| (bq->bus_ocp_fault << BUS_OCP_FAULT_SHIFT)
-			| (bq->bat_therm_fault << BAT_THERM_FAULT_SHIFT)
-			| (bq->bus_therm_fault << BUS_THERM_FAULT_SHIFT)
-			| (bq->die_therm_fault << DIE_THERM_FAULT_SHIFT));
-		break;
-
-	case POWER_SUPPLY_PROP_TI_REG_STATUS:
-		bq2597x_check_reg_status(bq);
-		val->intval = (bq->vbat_reg << VBAT_REG_STATUS_SHIFT) |
-				(bq->ibat_reg << IBAT_REG_STATUS_SHIFT);
-		break;
-	case POWER_SUPPLY_PROP_TI_SET_BUS_PROTECTION_FOR_QC3:
-		val->intval = 0;
-		break;
-	case POWER_SUPPLY_PROP_MODEL_NAME:
-		ret = bq2597x_get_work_mode(bq, &bq->mode);
-		if (ret) {
-			val->strval = "unknown";
-		} else {
-			if (bq->mode == BQ25970_ROLE_MASTER)
-				val->strval = "bq2597x-master";
-			else if (bq->mode == BQ25970_ROLE_SLAVE)
-				val->strval = "bq2597x-slave";
-			else
-				val->strval = "bq2597x-standalone";
-		}
-		break;
-	case POWER_SUPPLY_PROP_TI_BUS_ERROR_STATUS:
-		val->intval = bq2597x_check_vbus_error_status(bq);
-		break;
-	case POWER_SUPPLY_PROP_TI_CHARGE_MODE:
-		val->intval = sc8551_get_charge_mode(bq);
-		break;
-	case POWER_SUPPLY_PROP_TI_BYPASS_MODE_ENABLED:
-		val->intval = sc8551_get_bypass_mode_en(bq);
-		break;
-	case POWER_SUPPLY_PROP_CP_VBAT_CALIBRATE:
-		val->intval = bq->vbat_calibrate;
-	default:
-		return -EINVAL;
-
-	}
-
-	return 0;
-}
-
-static int bq2597x_charger_set_property(struct power_supply *psy,
-				       enum power_supply_property prop,
-				       const union power_supply_propval *val)
-{
-	struct bq2597x *bq = power_supply_get_drvdata(psy);
-
-	switch (prop) {
-	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
-		bq2597x_enable_charge(bq, val->intval);
-		bq2597x_check_charge_enabled(bq, &bq->charge_enabled);
-		bq_info("POWER_SUPPLY_PROP_CHARGING_ENABLED: %s\n",
-				val->intval ? "enable" : "disable");
-		break;
-	case POWER_SUPPLY_PROP_PRESENT:
-		bq2597x_set_present(bq, !!val->intval);
-		break;
-	case POWER_SUPPLY_PROP_TI_SET_BUS_PROTECTION_FOR_QC3:
-		bq2597x_set_bus_protection(bq, val->intval);
-		break;
-	case POWER_SUPPLY_PROP_TI_CHARGE_MODE:
-		sc8551_set_charge_mode(bq, val->intval);
-		break;
-	case POWER_SUPPLY_PROP_TI_BYPASS_MODE_ENABLED:
-		sc8551_set_bypass_mode_en(bq, val->intval);
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
-static int bq2597x_charger_is_writeable(struct power_supply *psy,
-				       enum power_supply_property prop)
-{
-	int ret;
-
-	switch (prop) {
-	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
-	case POWER_SUPPLY_PROP_TI_SET_BUS_PROTECTION_FOR_QC3:
-	case POWER_SUPPLY_PROP_TI_CHARGE_MODE:
-	case POWER_SUPPLY_PROP_TI_BYPASS_MODE_ENABLED:
-		ret = 1;
-		break;
-	default:
-		ret = 0;
-		break;
-	}
-	return ret;
-}
-
-
-static int bq2597x_psy_register(struct bq2597x *bq)
-{
-	bq->psy_cfg.drv_data = bq;
-	bq->psy_cfg.of_node = bq->dev->of_node;
-
-	if (bq->mode == BQ25970_ROLE_MASTER)
-		bq->psy_desc.name = "bq2597x-master";
-	else if (bq->mode == BQ25970_ROLE_SLAVE)
-		bq->psy_desc.name = "bq2597x-slave";
-	else
-		bq->psy_desc.name = "bq2597x-standalone";
-
-	bq->psy_desc.type = POWER_SUPPLY_TYPE_MAINS;
-	bq->psy_desc.properties = bq2597x_charger_props;
-	bq->psy_desc.num_properties = ARRAY_SIZE(bq2597x_charger_props);
-	bq->psy_desc.get_property = bq2597x_charger_get_property;
-	bq->psy_desc.set_property = bq2597x_charger_set_property;
-	bq->psy_desc.property_is_writeable = bq2597x_charger_is_writeable;
-
-
-	bq->fc2_psy = devm_power_supply_register(bq->dev,
-			&bq->psy_desc, &bq->psy_cfg);
-	if (IS_ERR(bq->fc2_psy)) {
-		bq_err("failed to register fc2_psy:%d\n", PTR_ERR(bq->fc2_psy));
-		return PTR_ERR(bq->fc2_psy);
-	}
-
-	bq_info("%s power supply register successfully\n", bq->psy_desc.name);
-
-	return 0;
-}
 
 static void bq2597x_dump_reg(struct bq2597x *bq)
 {
@@ -2244,7 +1924,7 @@ static void bq2597x_check_fault_status(struct bq2597x *bq)
 	mutex_unlock(&bq->data_lock);
 }
 
-static int bq2597x_check_vbus_error_status(struct bq2597x *bq)
+static int __maybe_unused bq2597x_check_vbus_error_status(struct bq2597x *bq)
 {
 	int ret;
 	u8 stat = 0;
@@ -2301,7 +1981,6 @@ static irqreturn_t bq2597x_charger_interrupt(int irq, void *dev_id)
 	bq2597x_charger_info(bq);
 	bq2597x_dump_reg(bq);
 	mutex_unlock(&bq->irq_complete);
-	power_supply_changed(bq->fc2_psy);
 
 	return IRQ_HANDLED;
 }
@@ -2377,7 +2056,69 @@ static void create_debugfs_entry(struct bq2597x *bq)
 	}
 }
 
-static struct of_device_id bq2597x_charger_match_table[] = {
+/*
+ * 6.1 glue. 4.14 registered a "bq2597x-<role>" power supply with
+ * Xiaomi-only POWER_SUPPLY_PROP_TI_* properties for pd_policy_manager
+ * and cp_qc30. 6.1 has no such properties; until the policy manager is
+ * ported the driver only binds, programs the protections and ADC,
+ * keeps the switcher OFF and reports readings in sysfs:
+ *   registers  register dump
+ *   adc        vbus/ibus/vbat/vac and the alarm/fault state
+ */
+static ssize_t registers_show(struct device *dev,
+			      struct device_attribute *attr, char *buf)
+{
+	struct bq2597x *bq = dev_get_drvdata(dev);
+	u8 addr, max_addr, val;
+	int idx;
+
+	if (bq->chip_vendor == SC8551) {
+		max_addr = SC8551_MAX_SHOW_REG_ADDR;
+		idx = sysfs_emit(buf, "sc8551:\n");
+	} else {
+		max_addr = BQ25970_MAX_SHOW_REG_ADDR;
+		idx = sysfs_emit(buf, "bq25970:\n");
+	}
+
+	for (addr = 0x0; addr <= max_addr; addr++)
+		if (!bq2597x_read_byte(bq, addr, &val))
+			idx += sysfs_emit_at(buf, idx, "Reg[%.2X] = 0x%.2x\n",
+					     addr, val);
+
+	return idx;
+}
+static DEVICE_ATTR_RO(registers);
+
+static ssize_t adc_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct bq2597x *bq = dev_get_drvdata(dev);
+	int vbus = 0, ibus = 0, vbat = 0, vac = 0;
+	bool en = false;
+
+	bq2597x_get_adc_data(bq, ADC_VBUS, &vbus);
+	bq2597x_get_adc_data(bq, ADC_IBUS, &ibus);
+	bq2597x_get_adc_data(bq, ADC_VBAT, &vbat);
+	bq2597x_get_adc_data(bq, ADC_VAC, &vac);
+	bq2597x_check_charge_enabled(bq, &en);
+	bq2597x_check_alarm_status(bq);
+	bq2597x_check_fault_status(bq);
+
+	return sysfs_emit(buf,
+		"vbus_mv=%d ibus_ma=%d vbat_mv=%d vac_mv=%d switching=%d vbus_present=%d batt_present=%d alarm=0x%02x fault=0x%02x\n",
+		vbus, ibus, vbat, vac, en, bq->vbus_present, bq->batt_present,
+		bq->prev_alarm, bq->prev_fault);
+}
+static DEVICE_ATTR_RO(adc);
+
+static struct attribute *bq2597x_attrs[] = {
+	&dev_attr_registers.attr,
+	&dev_attr_adc.attr,
+	NULL,
+};
+ATTRIBUTE_GROUPS(bq2597x);
+
+static const struct of_device_id bq2597x_charger_match_table[] = {
 	{
 		.compatible = "ti,bq2597x-standalone",
 		.data = &bq2597x_mode_data[BQ25970_STDALONE],
@@ -2386,18 +2127,15 @@ static struct of_device_id bq2597x_charger_match_table[] = {
 		.compatible = "ti,bq2597x-master",
 		.data = &bq2597x_mode_data[BQ25970_MASTER],
 	},
-
 	{
 		.compatible = "ti,bq2597x-slave",
 		.data = &bq2597x_mode_data[BQ25970_SLAVE],
 	},
 	{},
 };
-//MODULE_DEVICE_TABLE(of, bq2597x_charger_match_table);
+MODULE_DEVICE_TABLE(of, bq2597x_charger_match_table);
 
-
-static int bq2597x_charger_probe(struct i2c_client *client,
-					const struct i2c_device_id *id)
+static int bq2597x_charger_probe(struct i2c_client *client)
 {
 	struct bq2597x *bq;
 	const struct of_device_id *match;
@@ -2406,10 +2144,11 @@ static int bq2597x_charger_probe(struct i2c_client *client,
 
 	ret = i2c_smbus_read_byte_data(client, BQ2597X_REG_13);
 	if (ret < 0) {
+		/* some boards strap the pump to 0x65 (4.14 did the same) */
 		client->addr = 0x65;
 		ret = i2c_smbus_read_byte_data(client, BQ2597X_REG_13);
 		if (ret < 0) {
-			bq_err("failed to communicate with chip\n")
+			dev_err(&client->dev, "failed to communicate with chip\n");
 			return -ENODEV;
 		}
 		parallel_mode_wa = true;
@@ -2420,7 +2159,6 @@ static int bq2597x_charger_probe(struct i2c_client *client,
 		return -ENOMEM;
 
 	bq->dev = &client->dev;
-
 	bq->client = client;
 	i2c_set_clientdata(client, bq);
 
@@ -2434,7 +2172,7 @@ static int bq2597x_charger_probe(struct i2c_client *client,
 
 	ret = bq2597x_detect_device(bq);
 	if (ret) {
-		bq_err("No bq2597x device found!\n");
+		dev_err(bq->dev, "No bq2597x device found!\n");
 		return -ENODEV;
 	}
 
@@ -2442,13 +2180,13 @@ static int bq2597x_charger_probe(struct i2c_client *client,
 
 	match = of_match_node(bq2597x_charger_match_table, node);
 	if (match == NULL) {
-		bq_err("device tree match not found!\n");
+		dev_err(bq->dev, "device tree match not found!\n");
 		return -ENODEV;
 	}
 
 	bq2597x_get_work_mode(bq, &bq->mode);
 
-	if (bq->mode !=  *(int *)match->data) {
+	if (bq->mode != *(int *)match->data) {
 		bq_err("device operation mode mismatch with dts configuration\n");
 		return -EINVAL;
 	}
@@ -2465,9 +2203,8 @@ static int bq2597x_charger_probe(struct i2c_client *client,
 		return ret;
 	}
 
-	ret = bq2597x_psy_register(bq);
-	if (ret)
-		return ret;
+	/* nothing drives the pump yet: make sure the switcher is off */
+	bq2597x_enable_charge(bq, false);
 
 	if (client->irq) {
 		ret = devm_request_threaded_irq(&client->dev, client->irq,
@@ -2477,7 +2214,7 @@ static int bq2597x_charger_probe(struct i2c_client *client,
 		if (ret < 0) {
 			bq_err("request irq for irq=%d failed, ret =%d\n",
 							client->irq, ret);
-			goto err_1;
+			return ret;
 		}
 		enable_irq_wake(client->irq);
 	}
@@ -2486,27 +2223,12 @@ static int bq2597x_charger_probe(struct i2c_client *client,
 	device_init_wakeup(bq->dev, 1);
 	create_debugfs_entry(bq);
 
-	ret = sysfs_create_group(&bq->dev->kobj, &bq2597x_attr_group);
-	if (ret) {
-		bq_err("failed to register sysfs. err: %d\n", ret);
-		goto err_1;
-	}
-
 	determine_initial_status(bq);
-	/* schedule_delayed_work(&bq->monitor_work, 60 * HZ); */
-	bq_info("bq2597x probe successfully, Part Num = %d, chip_vendor = %d\n!", bq->part_no, bq->chip_vendor);
+	bq2597x_charger_info(bq);
+	bq_info("bq2597x probe successfully, Part Num = %d, chip_vendor = %d, addr 0x%02x\n",
+		bq->part_no, bq->chip_vendor, client->addr);
 
 	return 0;
-
-err_1:
-	power_supply_unregister(bq->fc2_psy);
-	return ret;
-}
-
-
-static inline bool is_device_suspended(struct bq2597x *bq)
-{
-	return !bq->resume_completed;
 }
 
 static int bq2597x_suspend(struct device *dev)
@@ -2519,7 +2241,6 @@ static int bq2597x_suspend(struct device *dev)
 	mutex_unlock(&bq->irq_complete);
 	bq2597x_enable_adc(bq, false);
 	cancel_delayed_work_sync(&bq->monitor_work);
-	bq_err("Suspend successfully!");
 
 	return 0;
 }
@@ -2553,42 +2274,31 @@ static int bq2597x_resume(struct device *dev)
 	}
 
 	bq2597x_enable_adc(bq, true);
-	power_supply_changed(bq->fc2_psy);
-	bq_err("Resume successfully!");
 
 	return 0;
 }
-static int bq2597x_charger_remove(struct i2c_client *client)
+
+static void bq2597x_charger_remove(struct i2c_client *client)
 {
 	struct bq2597x *bq = i2c_get_clientdata(client);
 
+	bq2597x_enable_charge(bq, false);
 	bq2597x_enable_adc(bq, false);
-
-	power_supply_unregister(bq->fc2_psy);
-
-	mutex_destroy(&bq->charging_disable_lock);
-	mutex_destroy(&bq->data_lock);
-	mutex_destroy(&bq->i2c_rw_lock);
-	mutex_destroy(&bq->irq_complete);
-
+	cancel_delayed_work_sync(&bq->monitor_work);
 	debugfs_remove_recursive(bq->debug_root);
-
-	sysfs_remove_group(&bq->dev->kobj, &bq2597x_attr_group);
-
-	return 0;
 }
-
 
 static void bq2597x_charger_shutdown(struct i2c_client *client)
 {
 	struct bq2597x *bq = i2c_get_clientdata(client);
 
+	bq2597x_enable_charge(bq, false);
 	bq2597x_enable_adc(bq, false);
 }
 
 static const struct dev_pm_ops bq2597x_pm_ops = {
 	.resume		= bq2597x_resume,
-	.suspend_noirq = bq2597x_suspend_noirq,
+	.suspend_noirq	= bq2597x_suspend_noirq,
 	.suspend	= bq2597x_suspend,
 };
 
@@ -2598,17 +2308,17 @@ static const struct i2c_device_id bq2597x_charger_id[] = {
 	{"bq2597x-slave", BQ25970_ROLE_SLAVE},
 	{},
 };
+MODULE_DEVICE_TABLE(i2c, bq2597x_charger_id);
 
 static struct i2c_driver bq2597x_charger_driver = {
 	.driver		= {
 		.name	= "bq2597x-charger",
-		.owner	= THIS_MODULE,
 		.of_match_table = bq2597x_charger_match_table,
 		.pm	= &bq2597x_pm_ops,
+		.dev_groups = bq2597x_groups,
 	},
 	.id_table	= bq2597x_charger_id,
-
-	.probe		= bq2597x_charger_probe,
+	.probe_new	= bq2597x_charger_probe,
 	.remove		= bq2597x_charger_remove,
 	.shutdown	= bq2597x_charger_shutdown,
 };
@@ -2618,4 +2328,3 @@ module_i2c_driver(bq2597x_charger_driver);
 MODULE_DESCRIPTION("TI BQ2597x Charger Driver");
 MODULE_LICENSE("GPL v2");
 MODULE_AUTHOR("Texas Instruments");
-
