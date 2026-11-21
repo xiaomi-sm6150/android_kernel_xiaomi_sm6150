@@ -44,6 +44,9 @@ endif
 ifeq ($(CONFIG_ARCH_BENGAL), y)
 include $(LEGACY_PATH)/config/violetauto.conf
 endif
+ifeq ($(CONFIG_MACH_XIAOMI_SWEET), y)
+include $(LEGACY_PATH)/config/sweetauto.conf
+endif
 ifeq ($(CONFIG_ARCH_HOLI):$(CONFIG_QTI_AUDIO_SM6150), y:)
 include $(LEGACY_PATH)/config/holiauto.conf
 endif
@@ -100,6 +103,10 @@ endif
 ifeq ($(CONFIG_ARCH_BENGAL), y)
 LINUXINCLUDE    += \
                 -include $(LEGACY_PATH)/config/violetautoconf.h
+endif
+ifeq ($(CONFIG_MACH_XIAOMI_SWEET), y)
+LINUXINCLUDE    += \
+                -include $(LEGACY_PATH)/config/sweetautoconf.h
 endif
 ifeq ($(CONFIG_ARCH_HOLI):$(CONFIG_QTI_AUDIO_SM6150), y:)
 LINUXINCLUDE    += \
