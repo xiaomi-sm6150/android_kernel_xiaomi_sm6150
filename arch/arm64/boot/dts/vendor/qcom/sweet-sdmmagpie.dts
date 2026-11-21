@@ -28,6 +28,7 @@
 			qcom,battery-beta = <4250>;
 			qcom,battery-therm-kohm = <100>;
 			qcom,battery-type = "K6_sunwoda_5020mah";
+			mi,profile-vendor-id = "0A";
 			qcom,qg-batt-profile-ver = <100>;
 			mi,six-pin-battery;
 			mi,use-bq-pump;
@@ -141,6 +142,7 @@
 			qcom,battery-beta = <4250>;
 			qcom,battery-therm-kohm = <100>;
 			qcom,battery-type = "K6_nvt_5020mah";
+			mi,profile-vendor-id = "0B";
 			qcom,qg-batt-profile-ver = <100>;
 			mi,six-pin-battery;
 			mi,use-bq-pump;
