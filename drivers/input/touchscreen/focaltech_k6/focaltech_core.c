@@ -1341,18 +1341,24 @@ static int fts_gpio_configure(struct fts_ts_data *data)
 	int ret = 0;
 	FTS_FUNC_ENTER();
 
+	/*
+	 * The Goodix GT9896 driver uses the same three GPIOs on the other
+	 * sweet panel: on failure free only what was requested here, or the
+	 * other driver's GPIOs get released under it.
+	 */
+
 	/*request vcc_i2c gpio */
 	if (gpio_is_valid(data->pdata->vcc_i2c)) {
 		ret = gpio_request(data->pdata->vcc_i2c, "fts_vcc_i2c_gpio");
 		if (ret) {
-			FTS_ERROR("[GPIO]reset gpio request failed");
-			goto err_irq_gpio_dir;
+			FTS_ERROR("[GPIO]vcc_i2c gpio request failed");
+			goto err_out;
 		}
                 msleep(2);
 		ret = gpio_direction_output(data->pdata->vcc_i2c, 1);
 		if (ret) {
-			FTS_ERROR("[GPIO]set_direction for reset gpio failed");
-			goto err_vcc_i2c_dir;
+			FTS_ERROR("[GPIO]set_direction for vcc_i2c gpio failed");
+			goto err_vcc_i2c;
 		}
 	}
 
@@ -1361,12 +1367,12 @@ static int fts_gpio_configure(struct fts_ts_data *data)
 		ret = gpio_request(data->pdata->irq_gpio, "fts_irq_gpio");
 		if (ret) {
 			FTS_ERROR("[GPIO]irq gpio request failed");
-			goto err_irq_gpio_req;
+			goto err_vcc_i2c;
 		}
 		ret = gpio_direction_input(data->pdata->irq_gpio);
 		if (ret) {
 			FTS_ERROR("[GPIO]set_direction for irq gpio failed");
-			goto err_irq_gpio_dir;
+			goto err_irq_gpio;
 		}
 	}
 
@@ -1375,24 +1381,17 @@ static int fts_gpio_configure(struct fts_ts_data *data)
 		ret = gpio_request(data->pdata->reset_gpio, "fts_reset_gpio");
 		if (ret) {
 			FTS_ERROR("[GPIO]reset gpio request failed");
-			goto err_irq_gpio_dir;
-		}
-		/*ret = gpio_direction_output(data->pdata->reset_gpio, 0);*/
-		if (ret) {
-			FTS_ERROR("[GPIO]set_direction for reset gpio failed");
-			goto err_reset_gpio_dir;
+			goto err_irq_gpio;
 		}
 	}
 
 	FTS_FUNC_EXIT();
 	return 0;
-err_vcc_i2c_dir:if (gpio_is_valid(data->pdata->vcc_i2c))
-		gpio_free(data->pdata->vcc_i2c);
-err_reset_gpio_dir:if (gpio_is_valid(data->pdata->reset_gpio))
-		gpio_free(data->pdata->reset_gpio);
-err_irq_gpio_dir:if (gpio_is_valid(data->pdata->irq_gpio))
+err_irq_gpio:if (gpio_is_valid(data->pdata->irq_gpio))
 		gpio_free(data->pdata->irq_gpio);
-err_irq_gpio_req:FTS_FUNC_EXIT();
+err_vcc_i2c:if (gpio_is_valid(data->pdata->vcc_i2c))
+		gpio_free(data->pdata->vcc_i2c);
+err_out:FTS_FUNC_EXIT();
 	return ret;
 }
 
