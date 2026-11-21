@@ -646,6 +646,13 @@ config AKM09970
 	  Xiaomi davinci pop-up front camera. The camera HAL reads it through
 	  /dev/akm09970.
 
+
+config SIMTRAY_STATUS
+	tristate "Xiaomi SIM tray status"
+	depends on OF && GPIOLIB
+	help
+	  Exposes the SIM tray detect GPIO as the "status" attribute of the
+	  simtray device (sweet), read by the vendor RIL.
 source "drivers/misc/uacce/Kconfig"
 source "drivers/misc/pvpanic/Kconfig"
 source "drivers/misc/mchp_pci1xxxx/Kconfig"
