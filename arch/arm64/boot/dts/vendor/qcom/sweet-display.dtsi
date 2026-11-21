@@ -118,3 +118,20 @@
 		panel = <&dsi_k6_38_0c_0a_fhd_dsc_video &dsi_k6_38_0e_0b_fhd_dsc_video>;
 	};
 };
+
+/*
+ * DEBUG: bring-up console on the panel. ABL leaves the video-mode panel
+ * scanning out the splash buffer (cont_splash_region), so fbcon can draw the
+ * kernel log there before any userspace commit (the SDE driver does not take
+ * the splash over here). 1080x2400, 32 bpp, as on violet.
+ */
+/ {
+	framebuffer@9c000000 {
+		compatible = "simple-framebuffer";
+		reg = <0x0 0x9c000000 0x0 0x9e3400>;
+		width = <1080>;
+		height = <2400>;
+		stride = <4320>;
+		format = "a8r8g8b8";
+	};
+};
