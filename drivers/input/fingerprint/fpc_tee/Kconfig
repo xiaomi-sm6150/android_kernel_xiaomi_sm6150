@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: GPL-2.0-only
+config FINGERPRINT_FPC_TEE
+	tristate "FPC1020 fingerprint sensor (sweet TEE variant)"
+	depends on INPUT_FINGERPRINT && OF && GPIOLIB
+	depends on !FINGERPRINT_FPC1020
+	help
+	  Platform driver for the FPC1020 sensor as wired on sweet: it only
+	  powers, resets and forwards the IRQ of the sensor; the TEE talks to
+	  it over SPI. The GPIOs and the IRQ are requested on demand through
+	  sysfs, so it coexists with the FortSense driver on the same pins.
+
+	  It binds "fpc,fpc1020" like FINGERPRINT_FPC1020 (violet), so only
+	  one of the two can be enabled.
