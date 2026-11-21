@@ -71,3 +71,14 @@ source "drivers/nfc/nxp-nci/Kconfig"
 source "drivers/nfc/s3fwrn5/Kconfig"
 source "drivers/nfc/st95hf/Kconfig"
 endmenu
+
+# Outside the menu above: NQ is a character device for the userspace NCI
+# stack and does not use the kernel NFC subsystem.
+config NFC_NQ_PN80T
+	tristate "QTI NCI based NFC Controller Driver for NQ PN80T"
+	depends on I2C && OF && GPIOLIB
+	help
+	  The /dev/nq-nci driver for NQ/PN5xx NFC controllers on I2C (sweet).
+	  The NCI protocol is handled by the userspace NFC HAL; this driver
+	  only moves data and controls the enable, firmware-download and
+	  clock-request lines.
