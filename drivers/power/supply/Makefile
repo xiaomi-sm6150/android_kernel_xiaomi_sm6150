@@ -115,3 +115,4 @@ obj-$(CONFIG_QTI_TYPEC_CLASS)		+= qti_typec_class.o
 obj-$(CONFIG_BATTERY_UG3105)	+= ug3105_battery.o
 obj-$(CONFIG_QCOM_POWER_SUPPLY)	+= qcom/
 obj-$(CONFIG_XIAOMI_BATT_VERIFY_DS28E16)	+= xiaomi/
+obj-$(CONFIG_BQ2597X_CHARGE_PUMP)	+= ti/
