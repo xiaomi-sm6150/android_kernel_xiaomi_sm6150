@@ -1392,5 +1392,6 @@ config TOUCHSCREEN_ZINITIX
 source "drivers/input/touchscreen/nt36xxx/Kconfig"
 source "drivers/input/touchscreen/xiaomi/Kconfig"
 source "drivers/input/touchscreen/focaltech_k6/Kconfig"
+source "drivers/input/touchscreen/goodix_gt9896/Kconfig"
 
 endif
