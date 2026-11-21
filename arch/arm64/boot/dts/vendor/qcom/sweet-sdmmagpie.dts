@@ -487,7 +487,8 @@
 	qcom,usb-icl-ua = <3000000>;
 	qcom,fcc-max-ua = <6000000>;
 	mi,fcc-batt-unverify-ua = <2000000>;
-	qcom,fv-max-uv = <4470000>;
+	/* 4.47 V was the 4.14 FFC float; 6.1 has no FFC termination */
+	qcom,fv-max-uv = <4450000>;
 	qcom,reg-dump-enable;
 	qcom,distinguish-qc-class-ab;
 	qcom,lpd-disable;
