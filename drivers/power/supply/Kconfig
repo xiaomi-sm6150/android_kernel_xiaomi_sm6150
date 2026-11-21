@@ -1096,5 +1096,6 @@ config FUEL_GAUGE_MM8013
 	  It enables the monitoring of many battery parameters, including
 	  the state of charge, temperature, cycle count, actual and design
 	  capacity, etc.
+source "drivers/power/supply/xiaomi/Kconfig"
 
 endif # POWER_SUPPLY
