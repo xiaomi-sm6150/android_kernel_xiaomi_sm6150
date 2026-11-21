@@ -1,0 +1,25 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * sweet 6.1 dtbo. The whole board is in sweet-sdmmagpie.dtb; this overlay
+ * only exists because ABL picks a dtbo entry by msm-id/board-id (the IDs of
+ * 4.14 sweet-sdmmagpie-overlay.dts) and applies it to the DTB before it
+ * boots. It marks /soc and changes nothing else, like violet's dtbo.
+ *
+ * &soc is resolved through the one __symbols__ entry sweet-sdmmagpie.dts
+ * carries (this directory builds without -@ because of the ABL DTB size
+ * limit). ABL hangs on an overlay that uses target-path, so keep the
+ * phandle fixup form.
+ */
+/dts-v1/;
+/plugin/;
+
+/ {
+	model = "SWEET";
+	compatible = "qcom,sdmmagpie-qrd", "qcom,sdmmagpie", "qcom,qrd";
+	qcom,msm-id = <365 0x0>;
+	qcom,board-id = <46 0>;
+};
+
+&soc {
+	k61,recovery-dtbo;
+};
