@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config XIAOMI_BATT_VERIFY_DS28E16
+	bool "Xiaomi ds28e16 battery authentication"
+	depends on ARCH_QCOM && OF && GPIOLIB
+	help
+	  Maxim ds28e16 battery authentication IC on a bit-banged 1-Wire
+	  TLMM pin (xiaomi,onewire_gpio + maxim,ds28e16 DT nodes), as used
+	  by Xiaomi sm6150/sdmmagpie phones. The result lifts the charger's
+	  unverified-battery FCC limit (mi,fcc-batt-unverify-ua).

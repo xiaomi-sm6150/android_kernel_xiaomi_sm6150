@@ -62,10 +62,14 @@
 int sha3_256_hmac(unsigned char *key, int key_len, unsigned char *message, int msg_len, unsigned char *mac)
 {
 	int i;
-	unsigned char thash[256];
-	unsigned char tmac[256];
-	unsigned char cat_input_thash[1024];
-	unsigned char cat_input_final[1024];
+	/*
+	 * static: 2.5 KB is too much stack. The only caller (ds28e16's
+	 * AuthenticateDS28E16) runs under the driver mutex.
+	 */
+	static unsigned char thash[256];
+	static unsigned char tmac[256];
+	static unsigned char cat_input_thash[1024];
+	static unsigned char cat_input_final[1024];
 
 	int blocksize = 136;
 	int hashsize = 32;

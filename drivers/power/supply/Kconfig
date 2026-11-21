@@ -965,5 +965,6 @@ config BATTERY_UG3105
 	  limited to reporting capacity only.
 
 source "drivers/power/supply/qcom/Kconfig"
+source "drivers/power/supply/xiaomi/Kconfig"
 
 endif # POWER_SUPPLY
