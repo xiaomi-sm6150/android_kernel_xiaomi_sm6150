@@ -2136,6 +2136,7 @@
 #include "sdmmagpie-sde.dtsi"
 #include "sdmmagpie-gpu.dtsi"
 #include "sweet-display.dtsi"
+#include "sdmmagpie-audio.dtsi"
 
 / {
 	k61,dtbo-target = <&soc>;
