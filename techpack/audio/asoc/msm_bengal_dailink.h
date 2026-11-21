@@ -306,6 +306,26 @@ SND_SOC_DAILINK_DEFS(slimbus_8_tx,
 			"btfm_fm_slim_tx")),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("msm-pcm-routing")));
 
+#ifdef CONFIG_SND_SOC_AWINIC_AW882XX
+/*
+ * sweet: two AW882xx smart PAs (top and bottom speaker) on the primary MI2S,
+ * both on playback and on the feedback capture, as the 4.14 sm6150 machine.
+ * "aw882xx_top"/"aw882xx_bot" are resolved through asoc-codec-names; the DAI
+ * names carry the I2C bus (pinned to 3 in the DT) and address.
+ */
+SND_SOC_DAILINK_DEFS(pri_mi2s_rx,
+	DAILINK_COMP_ARRAY(COMP_CPU("msm-dai-q6-mi2s.0")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("aw882xx_top", "aw882xx-aif-3-34"),
+			   COMP_CODEC("aw882xx_bot", "aw882xx-aif-3-35")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("msm-pcm-routing")));
+
+SND_SOC_DAILINK_DEFS(pri_mi2s_tx,
+	/* each MI2S DT node registers one DAI, indexed by dev-id; dev-id 1 is "Primary MI2S_TX" */
+	DAILINK_COMP_ARRAY(COMP_CPU("msm-dai-q6-mi2s.1")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("aw882xx_top", "aw882xx-aif-3-34"),
+			   COMP_CODEC("aw882xx_bot", "aw882xx-aif-3-35")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("msm-pcm-routing")));
+#else
 SND_SOC_DAILINK_DEFS(pri_mi2s_rx,
 	DAILINK_COMP_ARRAY(COMP_CPU("msm-dai-q6-mi2s.0")),
 	/* violet: the speaker amp (TAS2563) sits on the primary MI2S; "tas2563" is resolved through asoc-codec-names */
@@ -318,6 +338,7 @@ SND_SOC_DAILINK_DEFS(pri_mi2s_tx,
 	/* violet: the TAS2563 IV-sense data comes back on the primary MI2S */
 	DAILINK_COMP_ARRAY(COMP_CODEC("tas2563", "tas2562-amplifier")),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("msm-pcm-routing")));
+#endif
 
 SND_SOC_DAILINK_DEFS(sec_mi2s_rx,
 	DAILINK_COMP_ARRAY(COMP_CPU("msm-dai-q6-mi2s.1")),
