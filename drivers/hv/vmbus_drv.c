@@ -34,6 +34,7 @@
 #include <linux/efi.h>
 #include <linux/random.h>
 #include <linux/kernel.h>
+#include <linux/kexec.h>
 #include <linux/syscore_ops.h>
 #include <linux/dma-map-ops.h>
 #include <linux/pci.h>
@@ -2882,6 +2883,12 @@ static void hv_kexec_handler(void)
 	cpuhp_remove_state(hyperv_cpuhp_online);
 };
 
+static void hv_vmbus_syscore_shutdown(void)
+{
+	if (kexec_is_in_progress())
+		hv_kexec_handler();
+}
+
 static void hv_crash_handler(struct pt_regs *regs)
 {
 	int cpu;
@@ -2936,10 +2943,11 @@ static void hv_synic_resume(void)
 	 */
 }
 
-/* The callbacks run only on CPU0, with irqs_disabled. */
-static struct syscore_ops hv_synic_syscore_ops = {
+/* The suspend and resume callbacks run only on CPU0, with irqs_disabled. */
+static struct syscore_ops hv_vmbus_syscore_ops = {
 	.suspend = hv_synic_suspend,
 	.resume = hv_synic_resume,
+	.shutdown = hv_vmbus_syscore_shutdown,
 };
 
 static int __init hv_acpi_init(void)
@@ -2988,10 +2996,9 @@ static int __init hv_acpi_init(void)
 	if (ret)
 		goto cleanup;
 
-	hv_setup_kexec_handler(hv_kexec_handler);
 	hv_setup_crash_handler(hv_crash_handler);
 
-	register_syscore_ops(&hv_synic_syscore_ops);
+	register_syscore_ops(&hv_vmbus_syscore_ops);
 
 	return 0;
 
@@ -3013,9 +3020,8 @@ static void __exit vmbus_exit(void)
 		 */
 		return;
 
-	unregister_syscore_ops(&hv_synic_syscore_ops);
+	unregister_syscore_ops(&hv_vmbus_syscore_ops);
 
-	hv_remove_kexec_handler();
 	hv_remove_crash_handler();
 	hv_stimer_global_cleanup();
 	vmbus_disconnect();
