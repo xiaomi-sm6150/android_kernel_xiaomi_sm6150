@@ -678,7 +678,9 @@ void __l2cap_chan_add(struct l2cap_conn *conn, struct l2cap_chan *chan)
 void l2cap_chan_add(struct l2cap_conn *conn, struct l2cap_chan *chan)
 {
 	mutex_lock(&conn->lock);
+	l2cap_chan_lock(chan);
 	__l2cap_chan_add(conn, chan);
+	l2cap_chan_unlock(chan);
 	mutex_unlock(&conn->lock);
 }
 
@@ -4160,7 +4162,9 @@ static void l2cap_connect(struct l2cap_conn *conn, struct l2cap_cmd_hdr *cmd,
 	chan->psm  = psm;
 	chan->dcid = scid;
 
+	l2cap_chan_lock(chan);
 	__l2cap_chan_add(conn, chan);
+	l2cap_chan_unlock(chan);
 
 	dcid = chan->scid;
 
@@ -5085,6 +5089,8 @@ static int l2cap_le_connect_req(struct l2cap_conn *conn,
 		goto response_unlock;
 	}
 
+	l2cap_chan_lock(chan);
+
 	bacpy(&chan->src, &conn->hcon->src);
 	bacpy(&chan->dst, &conn->hcon->dst);
 	chan->src_type = bdaddr_src_type(conn->hcon);
@@ -5119,6 +5125,8 @@ static int l2cap_le_connect_req(struct l2cap_conn *conn,
 		l2cap_chan_ready(chan);
 		result = L2CAP_CR_LE_SUCCESS;
 	}
+
+	l2cap_chan_unlock(chan);
 
 response_unlock:
 	l2cap_chan_unlock(pchan);
@@ -5310,6 +5318,8 @@ static inline int l2cap_ecred_conn_req(struct l2cap_conn *conn,
 			continue;
 		}
 
+		l2cap_chan_lock(chan);
+
 		bacpy(&chan->src, &conn->hcon->src);
 		bacpy(&chan->dst, &conn->hcon->dst);
 		chan->src_type = bdaddr_src_type(conn->hcon);
@@ -5344,6 +5354,8 @@ static inline int l2cap_ecred_conn_req(struct l2cap_conn *conn,
 		} else {
 			l2cap_chan_ready(chan);
 		}
+
+		l2cap_chan_unlock(chan);
 	}
 
 unlock:
@@ -7623,7 +7635,9 @@ static void l2cap_connect_cfm(struct hci_conn *hcon, u8 status)
 			chan->src_type = bdaddr_src_type(hcon);
 			chan->dst_type = dst_type;
 
+			l2cap_chan_lock(chan);
 			__l2cap_chan_add(conn, chan);
+			l2cap_chan_unlock(chan);
 		}
 
 		l2cap_chan_unlock(pchan);
