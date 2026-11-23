@@ -5,37 +5,27 @@ optimize kernel builds, improving performance for specific architectures and ker
 
 ## Profile Availability
 
-kernel.afdo is an AArch64 kernel profile collected on kernel version 6.18.32 (
-SHA 34cb3812e87a5b125ebc50a3ff7414948af70d80, build server ID 16114748). It is updated
-regularly in [kernel.afdo](https://android.googlesource.com/kernel/common/+/refs/heads/android17-6.18/gki/aarch64/afdo/).
+kernel.afdo is an AArch64 kernel profile collected on kernel version 6.18.33 (
+SHA 7c083a341351db9ca54c7d972208de38a5a62488, build server ID ab/P145701339, ab/P145304628) using
+Pixel 11. It is updated regularly in
+[kernel.afdo](https://android.googlesource.com/kernel/common/+/refs/heads/android17-6.18/gki/aarch64/afdo/).
 
 
 ## Performance improvements
 
-The benchmark results for the `android17-6.18` kernel are currently preliminary. Pixel devices
-have not yet been fully optimized for this kernel version regarding power management, CPU
-frequency scaling, and scheduling. Consequently, these numbers can't accurately reflect the
-expected performance of a fully tuned system. We anticipate improved results as the platform
-matures.
+The metrics below reflect the latest benchmark evaluations gathered using the 6.18.33 profile
+(boot time and cold app launch time tested on Pixel 11; binder benchmarks tested on Pixel 8). While
+a successful profile is defined by positive improvements across most benchmarks, results may
+fluctuate between updates. These variances can be driven by kernel and userspace code changes, the
+sampled nature of AutoFDO profiles, testing hardware differences, and inherent benchmark noise.
 
-Benchmark results were tested on Pixel 8.
-
-| Benchmark             | Improvement (Best-case)*        |
-| --------------------- | ------------------------------- |
-| Boot time             | 1.6%**                          |
-| Cold App launch time  | 3.3%**                          |
-| Binder-rpc            | 13.5%*                          |
-| Binder-addints        | 4.7%*                           |
-| Hwbinder              | 16.6%*                          |
-
-\* For binder benchmarks, the reported values represent the best observed improvement (min_diff)
-across multiple runs to account for variance. The benchmark results currently exhibit variance
-because the 6.18 kernel is in an early bringup stage on Pixel test devices (where power management,
-CPU frequency scaling, and scheduler tuning are still maturing), which introduces scheduling jitter
-and tail latency spikes that affect the mean improvement despite substantial peak and median gains.
-
-\** Right now we are not able to run the art benchmarks due to the tests are currently broken,
-will run them later.
+| Benchmark            | Improvement |
+| -------------------- | ----------- |
+| Boot time            | 1.1%        |
+| Cold App launch time | 4.1%        |
+| Binder-rpc           | 21.3%       |
+| Binder-addints       | 18.6%       |
+| Hwbinder             | 15.1%       |
 
 ## Steps to reproduce the profile
 

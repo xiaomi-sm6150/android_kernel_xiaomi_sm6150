@@ -7,15 +7,17 @@ use crate::wrap::{create_wrap_file, Wrap};
 
 use kernel::{
     bindings, c_str,
-    dma_buf::{DmaBuf, DmaBufVmap},
+    dma_buf::{CpuAccess, DmaBuf, DmaBufVmap},
     ffi,
     fs::{file::mode, file::FileDescriptorReservation, file::Offset, LocalFile},
+    new_condvar, new_mutex,
     prelude::*,
-    sync::Arc,
+    sync::{Arc, CondVar, Mutex},
     types::ARef,
 };
 
-struct Listener {
+pub(crate) struct Listener {
+    id: u64,
     ops: *const bindings::wrapfd_listener_operations,
     param: *mut ffi::c_void,
 }
@@ -26,10 +28,44 @@ unsafe impl Send for Listener {}
 // SAFETY: `Listener` can be shared across threads.
 unsafe impl Sync for Listener {}
 
+enum ContentListenersState {
+    Idle,
+    NotifyingListener(bindings::pid_t, u64),
+}
+
+struct ContentListenersInner {
+    next_listener_id: u64,
+    listeners: KVec<Pin<KBox<Listener>>>,
+    state: ContentListenersState,
+}
+
+#[pin_data]
+pub(crate) struct ContentListeners {
+    #[pin]
+    inner: Mutex<ContentListenersInner>,
+
+    #[pin]
+    condvar: CondVar,
+}
+
+impl ContentListeners {
+    fn new() -> impl PinInit<Self> {
+        pin_init!(Self {
+            inner <- new_mutex!(ContentListenersInner {
+                next_listener_id: 0,
+                listeners: KVec::default(),
+                state: ContentListenersState::Idle,
+            }),
+            condvar <- new_condvar!(),
+        })
+    }
+}
+
 pub(crate) struct DmaBufContent {
     pub(crate) dmabuf: ARef<DmaBuf>,
     writable: bool,
-    listeners: KVec<Pin<KBox<Listener>>>,
+
+    pub(crate) listeners: Arc<ContentListeners>,
 }
 
 impl DmaBufContent {
@@ -47,9 +83,12 @@ impl DmaBufContent {
         Ok(())
     }
 
-    fn clear(&mut self) -> Result {
+    fn with_content_mapped_for_writing<F>(&mut self, f: F) -> Result
+    where
+        F: FnOnce(&mut Self, CpuAccess<'_, false, true>) -> Result,
+    {
         let map = self.dmabuf.vmap()?;
-        map.begin_cpu_access_to(|mut access| access.memset(0, 0, self.dmabuf.size()))
+        map.begin_cpu_access_to_fallible(|access| f(self, access))
     }
 
     pub(crate) fn is_writable(&self) -> bool {
@@ -58,8 +97,8 @@ impl DmaBufContent {
 
     pub(crate) fn new(fd: u32, prot: u32) -> Result<Self> {
         // Userspace relies on this error to be EBADF if the u32 were to overflow an i32.
-        // `i32::try_from()` results in `TryFromIntError` in that case, which `Error` converts
-        // to EINVAL by default.
+        // `i32::try_from()` results in `TryFromIntError` in that case, which `Error`
+        // converts to EINVAL by default.
         let fd = i32::try_from(fd).map_err(|_| EBADF)?;
         let dmabuf = DmaBuf::get(fd)?;
         let writable = (prot & bindings::PROT_WRITE) != 0;
@@ -68,12 +107,10 @@ impl DmaBufContent {
             return Err(EACCES);
         }
 
-        let listeners = KVec::new();
-
         Ok(Self {
             dmabuf,
             writable,
-            listeners,
+            listeners: Arc::pin_init(ContentListeners::new(), GFP_KERNEL)?,
         })
     }
 
@@ -118,8 +155,20 @@ impl DmaBufContent {
         };
 
         if clear_content {
-            content.notify_listeners();
-            _ = content.clear();
+            let mut closure_ran = false;
+            if let Err(err) = content.with_content_mapped_for_writing(|content, mut access| {
+                content.listeners.notify_listeners();
+                access.memset(0, 0, content.dmabuf.size());
+                closure_ran = true;
+                Ok(())
+            }) {
+                if !closure_ran {
+                    // If we already ran the closure, i.e. the underlying `begin_cpu_access` was
+                    // successful, this error resulted from `end_cpu_access` and we'll ignore it -
+                    // this is consistent with the c-driver's approach.
+                    return Err((err, content));
+                }
+            }
         }
 
         inner_clone.lock().content = Some(content);
@@ -245,39 +294,120 @@ impl DmaBufContent {
 
         Ok(0)
     }
+}
 
+impl ContentListeners {
     pub(crate) fn add_listener(
-        &mut self,
+        &self,
         ops: *const bindings::wrapfd_listener_operations,
         param: *mut ffi::c_void,
-    ) -> Result<*const ffi::c_void> {
-        let listener = KBox::pin(Listener { ops, param }, GFP_KERNEL)?;
-        let handle = listener.as_ref().get_ref() as *const Listener as _;
-        self.listeners.push(listener, GFP_KERNEL)?;
-        Ok(handle)
+    ) -> Result<u64> {
+        let mut guard = self.inner.lock();
+
+        if !matches!(guard.state, ContentListenersState::Idle) {
+            // This should never happen because the content has been detached from any wrap and
+            // therefore `wrapfd_add_listener` would fail early and never call through to this
+            // method.
+            return Err(EINVAL);
+        }
+
+        let id = guard.next_listener_id;
+        guard.next_listener_id = guard.next_listener_id.wrapping_add(1);
+
+        let listener = Box::pin(Listener { id, ops, param }, GFP_KERNEL)?;
+
+        guard.listeners.push(listener, GFP_KERNEL)?;
+
+        Ok(id)
     }
 
-    pub(crate) fn remove_listener(&mut self, handle: *mut ffi::c_void) -> Result<()> {
-        let index = (0..self.listeners.len())
-            .position(|index| {
-                let listener = &self.listeners[index];
-                let listener_handle =
-                    listener.as_ref().get_ref() as *const Listener as *const ffi::c_void;
-
-                listener_handle == handle
-            })
+    fn remove_listener_internal(inner: &mut ContentListenersInner, id: u64) -> Result {
+        let index = inner
+            .listeners
+            .iter()
+            .position(|listener| listener.id == id)
             .ok_or(EINVAL)?;
 
-        _ = self.listeners.remove(index);
+        _ = inner.listeners.remove(index);
 
         Ok(())
     }
 
-    fn notify_listeners(&mut self) {
-        let mut listeners = KVec::new();
-        core::mem::swap(&mut self.listeners, &mut listeners);
+    pub(crate) fn remove_listener(&self, id: u64) -> Result {
+        let mut guard = self.inner.lock();
 
-        for listener in listeners {
+        match guard.state {
+            ContentListenersState::Idle => {
+                _ = Self::remove_listener_internal(&mut guard, id);
+
+                // We are successful either way, if we do find the listener, we remove it as there
+                // is no contention for it. If we cannot find the listener and we know the `id` was
+                // a valid one (`wrapfd_del_listener` will only call us with a valid `id`), we can
+                // conclude that the listener was removed as part of the notification process.
+                Ok(())
+            }
+            ContentListenersState::NotifyingListener(notify_task_pid, listener_id) => {
+                if current!().pid() == notify_task_pid {
+                    if listener_id == id {
+                        // We are being called from within the `on_content_release` callback, the
+                        // particulars of our `notify_listeners` implementation guarantee that we
+                        // won't touch `ops` or `param` again, so it's safe to free them.
+                        Ok(())
+                    } else {
+                        // Calls from within `on_content_release` may only remove the listener
+                        // associated with that callback.
+                        Err(EINVAL)
+                    }
+                } else if Self::remove_listener_internal(&mut guard, id).is_ok() {
+                    // Since we're not on the same thread as `notify_listeners` and we were able to
+                    // remove the listener from the vector it means that `notify_listeners` never
+                    // got a chance to process it and we're done.
+                    Ok(())
+                } else {
+                    // This listener has already been removed from the vector, it has either been
+                    // fully processed or is in the process of being notified, we cannot guarantee
+                    // that the thread executing `notify_listeners` has finished accessing `ops`
+                    // and `param` until the state indicates that it's either processing another
+                    // listener than the one we're interested in or is done processing altogether.
+                    loop {
+                        // TODO: Fix this monstrosity once we have support for let-chains.
+                        if let ContentListenersState::NotifyingListener(_, active_id) = guard.state
+                        {
+                            if active_id != id {
+                                // `notify_listeners` has moved on to another listener.
+                                break;
+                            }
+                        } else {
+                            // `notify_listeners` is done with all listeners.
+                            break;
+                        }
+
+                        self.condvar.wait(&mut guard);
+                    }
+
+                    Ok(())
+                }
+            }
+        }
+    }
+
+    pub(crate) fn notify_listeners(&self) {
+        let current_thread_pid = current!().pid();
+
+        loop {
+            let listener = {
+                let mut guard = self.inner.lock();
+                let Some(listener) = guard.listeners.pop() else {
+                    break;
+                };
+                guard.state =
+                    ContentListenersState::NotifyingListener(current_thread_pid, listener.id);
+
+                self.condvar.notify_all();
+
+                listener
+            };
+
             // SAFETY: We've previously verified that `ops` is a non-null pointer, the contract for
             // `wrapfd_add_listener` requires `ops` to point to a valid `struct
             // wrapfd_listener_operation` and remain valid for as long as the listener is
@@ -285,14 +415,20 @@ impl DmaBufContent {
             let Some(on_content_release) = (unsafe { (*listener.ops).on_content_release }) else {
                 continue;
             };
-            // SAFETY: Safe by contract.
+            // SAFETY: Safe by contract. Note that `listener` is dropped after calling the callback,
+            // we therefore won't access `ops` or `param` again and it's safe to free them from
+            // inside the callback.
             unsafe { on_content_release(listener.param) };
         }
+
+        let mut guard = self.inner.lock();
+        guard.state = ContentListenersState::Idle;
+        self.condvar.notify_all();
     }
 }
 
 impl Drop for DmaBufContent {
     fn drop(&mut self) {
-        self.notify_listeners();
+        self.listeners.notify_listeners();
     }
 }

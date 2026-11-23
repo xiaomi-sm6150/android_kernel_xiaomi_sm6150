@@ -1475,9 +1475,9 @@ static int __guest_request_page_transition(u64 ipa, kvm_pte_t *__pte, u64 *__nr_
 	/*
 	 * Walker reached data.max_ptes or a non-physically-contiguous mapping.
 	 * Proceed with the current valid region. The guest will have to issue a new call for the
-	 * leftover.
+	 * leftover. Without a region, -ERANGE is the walk refusing an IPA beyond the IPA space.
 	 */
-	if (ret == -ERANGE)
+	if (ret == -ERANGE && data.size)
 		ret = 0;
 	else if (ret)
 		return ret;

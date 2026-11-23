@@ -15,6 +15,7 @@ use kernel::{
     security,
     seq_file::SeqFile,
     seq_print,
+    sync::atomic::{ordering::Relaxed, Atomic},
     sync::{Arc, CondVar, SpinLock},
     task::Task,
     types::ARef,
@@ -34,10 +35,7 @@ use crate::{
     BinderReturnWriter, DArc, DLArc, DTRWrap, DeliverCode, DeliverToRead,
 };
 
-use core::{
-    mem::size_of,
-    sync::atomic::{AtomicU32, Ordering},
-};
+use core::mem::size_of;
 
 fn is_aligned(value: usize, to: usize) -> bool {
     value % to == 0
@@ -289,8 +287,8 @@ pub(crate) const LOOPER_VH_MASK: u32 = LOOPER_REGISTERED | LOOPER_ENTERED | LOOP
 impl InnerThread {
     fn new(pid: i32) -> Result<Self> {
         fn next_err_id() -> u32 {
-            static EE_ID: AtomicU32 = AtomicU32::new(0);
-            EE_ID.fetch_add(1, Ordering::Relaxed)
+            static EE_ID: Atomic<u32> = Atomic::new(0);
+            EE_ID.fetch_add(1, Relaxed)
         }
 
         Ok(Self {
@@ -1886,7 +1884,7 @@ impl Thread {
 
 #[pin_data]
 struct ThreadError {
-    error_code: AtomicU32,
+    error_code: Atomic<u32>,
     pid: i32,
     #[pin]
     links_track: AtomicTracker,
@@ -1895,7 +1893,7 @@ struct ThreadError {
 impl ThreadError {
     fn try_new(pid: i32) -> Result<DArc<Self>> {
         DTRWrap::arc_pin_init(pin_init!(Self {
-            error_code: AtomicU32::new(BR_OK),
+            error_code: Atomic::new(BR_OK),
             pid,
             links_track <- AtomicTracker::new(),
         }))
@@ -1903,11 +1901,11 @@ impl ThreadError {
     }
 
     fn set_error_code(&self, code: u32) {
-        self.error_code.store(code, Ordering::Relaxed);
+        self.error_code.store(code, Relaxed);
     }
 
     fn is_unused(&self) -> bool {
-        self.error_code.load(Ordering::Relaxed) == BR_OK
+        self.error_code.load(Relaxed) == BR_OK
     }
 }
 
@@ -1917,14 +1915,14 @@ impl DeliverToRead for ThreadError {
         _thread: &Thread,
         writer: &mut BinderReturnWriter<'_>,
     ) -> Result<bool> {
-        let code = self.error_code.load(Ordering::Relaxed);
-        self.error_code.store(BR_OK, Ordering::Relaxed);
+        let code = self.error_code.load(Relaxed);
+        self.error_code.store(BR_OK, Relaxed);
         writer.write_code(code)?;
         Ok(true)
     }
 
     fn cancel(self: DArc<Self>) {
-        let code = self.error_code.load(Ordering::Relaxed);
+        let code = self.error_code.load(Relaxed);
         if code != BR_OK {
             binder_debug!(
                 pid = self.pid,
@@ -1943,7 +1941,7 @@ impl DeliverToRead for ThreadError {
             m,
             "{}transaction error: {}\n",
             prefix,
-            self.error_code.load(Ordering::Relaxed)
+            self.error_code.load(Relaxed)
         );
         Ok(())
     }

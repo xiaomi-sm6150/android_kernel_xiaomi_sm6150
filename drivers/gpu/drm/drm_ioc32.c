@@ -39,6 +39,7 @@
 #include "drm_crtc_internal.h"
 #include "drm_internal.h"
 
+#ifdef CONFIG_COMPAT
 #define DRM_IOCTL_VERSION32		DRM_IOWR(0x00, drm_version32_t)
 #define DRM_IOCTL_GET_UNIQUE32		DRM_IOWR(0x01, drm_unique32_t)
 #define DRM_IOCTL_GET_MAP32		DRM_IOWR(0x04, drm_map32_t)
@@ -345,6 +346,7 @@ static struct {
 	DRM_IOCTL32_DEF(DRM_IOCTL_MODE_ADDFB2, compat_drm_mode_addfb2),
 #endif
 };
+#endif
 
 /**
  * drm_compat_ioctl - 32bit IOCTL compatibility handler for DRM drivers
@@ -360,6 +362,7 @@ static struct {
  * Returns:
  * Zero on success, negative error code on failure.
  */
+#ifdef CONFIG_COMPAT
 long drm_compat_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	unsigned int nr = DRM_IOCTL_NR(cmd);
@@ -390,4 +393,10 @@ long drm_compat_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		drm_dbg_core(dev, "ret = %d\n", ret);
 	return ret;
 }
+#else
+long drm_compat_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+{
+	return -ENOIOCTLCMD;
+}
+#endif
 EXPORT_SYMBOL(drm_compat_ioctl);

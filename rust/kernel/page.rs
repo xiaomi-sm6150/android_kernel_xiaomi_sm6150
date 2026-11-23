@@ -36,17 +36,20 @@ pub const fn page_align(addr: usize) -> usize {
 }
 
 /// Round down the given number to the nearest multiple of [`PAGE_SIZE`].
-pub fn page_align_down(addr: usize) -> usize {
+#[inline(always)]
+pub const fn page_align_down(addr: usize) -> usize {
     addr & PAGE_MASK
 }
 
 /// Extract the offset within the page from the full address.
-pub fn offset_in_page(addr: usize) -> usize {
+#[inline(always)]
+pub const fn offset_in_page(addr: usize) -> usize {
     addr & !PAGE_MASK
 }
 
 /// Returns whether or not the given address falls on a page boundary.
-pub fn is_page_aligned(addr: usize) -> bool {
+#[inline(always)]
+pub const fn is_page_aligned(addr: usize) -> bool {
     offset_in_page(addr) == 0
 }
 

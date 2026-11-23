@@ -9,7 +9,7 @@
 use crate::{
     bindings, build_error,
     error::{from_err_ptr, VTABLE_DEFAULT_ERROR},
-    fs::{file::Offset, File},
+    fs::{file::Offset, File, LocalFile},
     mm::virt::VmaNew,
     prelude::*,
     seq_file::SeqFile,
@@ -24,7 +24,7 @@ pub trait AnonInodeFileInterface: Sized {
     type Ptr: ForeignOwnable + Send + Sync;
 
     /// Called when the device is released.
-    fn release(device: Self::Ptr, _file: &File) {
+    fn release(device: Self::Ptr) {
         drop(device);
     }
 
@@ -148,7 +148,7 @@ impl<T: AnonInodeFileInterface> AnonInodeFileVTable<T> {
     /// private data `T::Ptr`.
     pub fn borrow_private<'a>(
         &'static self,
-        file: &'a File,
+        file: &'a LocalFile,
     ) -> Option<<T::Ptr as ForeignOwnable>::Borrowed<'a>> {
         // SAFETY: `file.as_ptr()` is a valid pointer to `struct file`.
         let f_op = unsafe { (*file.as_ptr()).f_op };
@@ -171,19 +171,20 @@ impl<T: AnonInodeFileInterface> AnonInodeFileVTable<T> {
         _inode: *mut bindings::inode,
         file: *mut bindings::file,
     ) -> ffi::c_int {
-        // SAFETY: By the safety contract of this function, `file` is valid. The release call of a
-        // file owns the private data.
-        let private = unsafe { (*file).private_data };
+        // SAFETY: By the safety contract of this function, `file` is valid and we have
+        // exclusive access to `private_data` as the file's refcount has reached zero.
+        let private = unsafe {
+            let p = (*file).private_data;
+            (*file).private_data = core::ptr::null_mut();
+            p
+        };
 
         // SAFETY: This file was created via `anon_inode_create_getfile`, which set `private_data`
         // to a pointer from `T::Ptr::into_foreign`. The release call of a file owns the private
         // data and is called only once, so we can safely reclaim ownership.
         let ptr = unsafe { <T::Ptr as ForeignOwnable>::from_foreign(private) };
 
-        // SAFETY:
-        // * The file is valid for the duration of this call.
-        // * There is no active fdget_pos region on the file on this thread.
-        T::release(ptr, unsafe { File::from_raw_file(file) });
+        T::release(ptr);
 
         0
     }
@@ -330,7 +331,7 @@ pub fn anon_inode_create_getfile<T: AnonInodeFileInterface>(
 
     // SAFETY:
     // * `name` is a valid NUL-terminated C string.
-    // * `AnonInodeFileVTable::<T>::build()` returns a valid static `file_operations` table.
+    // * `&vtable.fops` references a valid static `file_operations` table.
     // * `priv_data` is a foreign pointer from `T::Ptr::into_foreign` whose ownership is
     //   transferred to the file on success (and freed in `release`) or reclaimed on error.
     // * `context_inode` is optional and may be NULL.

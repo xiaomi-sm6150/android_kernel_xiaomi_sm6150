@@ -360,8 +360,12 @@ impl LocalFile {
     /// The mode is a combination of the constants in [`mode`].
     #[inline]
     pub fn mode(&self) -> u32 {
+        // This `read_volatile` is intended to correspond to a READ_ONCE call.
+        //
         // SAFETY: The file is valid because the shared reference guarantees a nonzero refcount.
-        unsafe { (*self.as_ptr()).f_mode }
+        //
+        // FIXME(read_once): Replace with `read_once` when available on the Rust side.
+        unsafe { core::ptr::addr_of!((*self.as_ptr()).f_mode).read_volatile() }
     }
 
     /// Returns the size of the file's inode in bytes.

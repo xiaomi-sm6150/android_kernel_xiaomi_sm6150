@@ -116,7 +116,6 @@ int pppox_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 
 EXPORT_SYMBOL(pppox_ioctl);
 
-#ifdef CONFIG_COMPAT
 int pppox_compat_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 {
 	if (cmd == PPPOEIOCSFWD32)
@@ -126,7 +125,6 @@ int pppox_compat_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 }
 
 EXPORT_SYMBOL(pppox_compat_ioctl);
-#endif
 
 static int pppox_create(struct net *net, struct socket *sock, int protocol,
 			int kern)

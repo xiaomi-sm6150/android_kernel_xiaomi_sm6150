@@ -38,6 +38,7 @@
  * data to the routine.
  */
 
+#ifdef CONFIG_COMPAT
 struct v4l2_window32 {
 	struct v4l2_rect        w;
 	__u32			field;	/* enum v4l2_field */
@@ -1167,6 +1168,7 @@ int v4l2_compat_put_array_args(struct file *file, void __user *user_ptr,
 
 	return err;
 }
+#endif
 
 /**
  * v4l2_compat_ioctl32() - Handles a compat32 ioctl call
@@ -1182,6 +1184,7 @@ int v4l2_compat_put_array_args(struct file *file, void __user *user_ptr,
  * If the function is a private one it calls vdev->fops->compat_ioctl32
  * instead.
  */
+#ifdef CONFIG_COMPAT
 long v4l2_compat_ioctl32(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct video_device *vdev = video_devdata(file);
@@ -1204,4 +1207,10 @@ long v4l2_compat_ioctl32(struct file *file, unsigned int cmd, unsigned long arg)
 			 _IOC_TYPE(cmd), _IOC_DIR(cmd), _IOC_NR(cmd), cmd);
 	return ret;
 }
+#else
+long v4l2_compat_ioctl32(struct file *file, unsigned int cmd, unsigned long arg)
+{
+	return -ENOIOCTLCMD;
+}
+#endif
 EXPORT_SYMBOL_GPL(v4l2_compat_ioctl32);

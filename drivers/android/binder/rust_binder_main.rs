@@ -20,6 +20,7 @@ use kernel::{
     prelude::*,
     seq_file::SeqFile,
     seq_print,
+    sync::atomic::{ordering::Relaxed, Atomic},
     sync::poll::PollTable,
     sync::Arc,
     task::Pid,
@@ -30,10 +31,7 @@ use kernel::{
 
 use crate::{context::Context, page_range::Shrinker, process::Process, thread::Thread};
 
-use core::{
-    ptr::NonNull,
-    sync::atomic::{AtomicBool, AtomicUsize, Ordering},
-};
+use core::ptr::NonNull;
 
 mod allocation;
 mod context;
@@ -112,10 +110,10 @@ const RUST_BINDER_LAYOUT: rust_binder_layout = rust_binder_layout {
 };
 
 fn next_debug_id() -> usize {
-    static NEXT_DEBUG_ID: AtomicUsize = AtomicUsize::new(0);
+    static NEXT_DEBUG_ID: Atomic<usize> = Atomic::new(0);
 
     loop {
-        let id = NEXT_DEBUG_ID.fetch_add(1, Ordering::Relaxed);
+        let id = NEXT_DEBUG_ID.fetch_add(1, Relaxed);
         if id != 0 {
             return id;
         }
@@ -249,7 +247,7 @@ impl<T: ListArcSafe> DTRWrap<T> {
 
 struct DeliverCode {
     code: u32,
-    skip: AtomicBool,
+    skip: Atomic<bool>,
     pid: i32,
 }
 
@@ -261,7 +259,7 @@ impl DeliverCode {
     fn new(code: u32, pid: i32) -> Self {
         Self {
             code,
-            skip: AtomicBool::new(false),
+            skip: Atomic::new(false),
             pid,
         }
     }
@@ -271,7 +269,7 @@ impl DeliverCode {
     /// This is used instead of removing it from the work list, since `LinkedList::remove` is
     /// unsafe, whereas this method is not.
     fn skip(&self) {
-        self.skip.store(true, Ordering::Relaxed);
+        self.skip.store(true, Relaxed);
     }
 }
 
@@ -281,14 +279,14 @@ impl DeliverToRead for DeliverCode {
         _thread: &Thread,
         writer: &mut BinderReturnWriter<'_>,
     ) -> Result<bool> {
-        if !self.skip.load(Ordering::Relaxed) {
+        if !self.skip.load(Relaxed) {
             writer.write_code(self.code)?;
         }
         Ok(true)
     }
 
     fn cancel(self: DArc<Self>) {
-        if !self.skip.load(Ordering::Relaxed) {
+        if !self.skip.load(Relaxed) {
             binder_debug!(
                 pid = self.pid,
                 DeadTransaction,
@@ -303,7 +301,7 @@ impl DeliverToRead for DeliverCode {
 
     fn debug_print(&self, m: &SeqFile, prefix: &str, _tprefix: &str, _hashed: bool) -> Result {
         seq_print!(m, "{}", prefix);
-        if self.skip.load(Ordering::Relaxed) {
+        if self.skip.load(Relaxed) {
             seq_print!(m, "(skipped) ");
         }
         if self.code == defs::BR_TRANSACTION_COMPLETE {

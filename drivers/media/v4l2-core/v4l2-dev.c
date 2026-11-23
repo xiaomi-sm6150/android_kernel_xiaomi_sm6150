@@ -489,9 +489,7 @@ static const struct file_operations v4l2_fops = {
 	.get_unmapped_area = v4l2_get_unmapped_area,
 	.mmap = v4l2_mmap,
 	.unlocked_ioctl = v4l2_ioctl,
-#ifdef CONFIG_COMPAT
 	.compat_ioctl = v4l2_compat_ioctl32,
-#endif
 	.release = v4l2_release,
 	.poll = v4l2_poll,
 };

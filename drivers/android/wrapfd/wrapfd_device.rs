@@ -2,21 +2,22 @@
 
 // Copyright (C) 2026 Google LLC.
 
+use core::mem::MaybeUninit;
+
 use crate::{
     content::DmaBufContent,
-    poll::{FileMonitor, ProcessMode},
+    poll::FileMonitor,
     wrap::{Wrap, WRAP_FOPS},
 };
 
 use kernel::{
-    alloc::Allocator,
     bindings, device,
     fs::LocalFile,
     prelude::*,
     sync::{poll::PollTable, Arc},
-    transmute::AsBytes,
+    transmute::{AsBytes, FromBytes},
     types::ARef,
-    uaccess::{UserSlice, UserSliceWriter},
+    uaccess::{UserSlice, UserSliceReader},
     uapi,
 };
 
@@ -45,6 +46,15 @@ impl kernel::miscdevice::MiscDevice for WrapFdDevice {
             },
             GFP_KERNEL,
         )
+    }
+
+    fn release(me: Self::File, _file: &kernel::fs::File) {
+        // Clearing all slots to `None` here, revokes each existing wrap's slot assignment, wraps
+        // will discover this lazily attempting (unsuccessfully) to `generate_wrap_event` and
+        // subsequently drop their own reference to the `FileMonitor`. Once all wraps have done the
+        // `FileMonitor` will be dropped.
+        me.file_monitor.clear_all_slots();
+        drop(me);
     }
 
     fn ioctl(
@@ -126,7 +136,7 @@ impl WrapfdDevFile {
             return Err(EINVAL);
         }
 
-        self.process_monitors(&args.monitors, ProcessMode::Add)
+        self.add_monitors(&args.monitors)
     }
 
     fn del_monitor(&self, user_slice: UserSlice) -> Result<isize> {
@@ -137,18 +147,7 @@ impl WrapfdDevFile {
             return Err(EINVAL);
         }
 
-        self.process_monitors(&args.monitors, ProcessMode::Delete)
-    }
-
-    fn write_vector<T: AsBytes, A: Allocator>(
-        writer: &mut UserSliceWriter,
-        vec: &Vec<T, A>,
-    ) -> Result {
-        for elem in vec {
-            writer.write(elem)?;
-        }
-
-        Ok(())
+        self.delete_monitors(&args.monitors)
     }
 
     fn query_events(&self, user_slice: UserSlice) -> Result<isize> {
@@ -161,60 +160,133 @@ impl WrapfdDevFile {
 
         let max_num_events: usize = args.len.try_into()?;
 
-        let mut events = KVec::<uapi::wrapfd_event>::with_capacity(max_num_events, GFP_KERNEL)?;
-        self.file_monitor.query_events(&mut events)?;
-
         let events_slice = UserSlice::new(
             UserPtr::from_addr(usize::try_from(args.arr)?),
             max_num_events * core::mem::size_of::<uapi::wrapfd_event>(),
         );
-        let mut events_writer = events_slice.writer();
-        Self::write_vector(&mut events_writer, &events)?;
 
-        args.count = events.len() as u64;
-        writer.write(&args)?;
+        self.file_monitor.query_events(max_num_events, |events| {
+            let mut events_writer = events_slice.writer();
+            events_writer.write_slice(events.as_bytes())?;
+
+            args.count = events.len() as u64;
+            writer.write(&args)
+        })?;
 
         Ok(0)
     }
 
-    fn process_monitors(&self, args: &uapi::wrapfd_monitors, mode: ProcessMode) -> Result<isize> {
+    /// Reads exactly `len` elements from `reader` into a newly allocated `KVec` and returns it
+    /// (or an error).
+    fn read_vec<T>(reader: &mut UserSliceReader, len: usize) -> Result<KVec<T>>
+    where
+        T: FromBytes,
+    {
+        let mut vec = KVec::<T>::with_capacity(len, GFP_KERNEL)?;
+
+        let spare: &mut [MaybeUninit<T>] = &mut vec.spare_capacity_mut()[..len];
+        let byte_len = core::mem::size_of_val(spare);
+
+        // SAFETY:
+        // - `spare` is valid for writes of `byte_len` bytes for its lifetime, and casting from
+        //   `MaybeUninit<T>` to `MaybeUninit<u8>` has alignment 1 (always satisfied) with no
+        //   initialization invariants.
+        // - `byte_len` cannot exceed `isize::MAX` because `spare` is an existing Rust slice.
+        let out_bytes: &mut [MaybeUninit<u8>] = unsafe {
+            core::slice::from_raw_parts_mut(spare.as_mut_ptr().cast::<MaybeUninit<u8>>(), byte_len)
+        };
+
+        // Perform a single bulk copy from userspace; on `Ok(())`, `read_raw` guarantees every
+        // byte in `out_bytes` has been initialized.
+        reader.read_raw(out_bytes)?;
+
+        // SAFETY:
+        // - `with_capacity(len)` reserved at least `len` elements.
+        // - `read_raw` succeeded, so all `byte_len` bytes covering `0..len` are initialized,
+        //   and `T: FromBytes` guarantees any initialized bit pattern is a valid `T`.
+        unsafe { vec.inc_len(len) };
+
+        Ok(vec)
+    }
+
+    fn add_monitors(&self, args: &uapi::wrapfd_monitors) -> Result<isize> {
         if args.len == 0 || args.len > (uapi::WRAPFD_MAX_NR_MONITORS as u64) {
             return Err(EINVAL);
         }
 
-        if args.arr == 0 {
+        if args.arr == 0 || args.results == 0 {
             return Err(EFAULT);
         }
 
         let num_monitors: usize = args.len.try_into()?;
 
-        let mut monitors = KVec::<uapi::wrapfd_monitor>::with_capacity(num_monitors, GFP_KERNEL)?;
-
         let monitors_slice = UserSlice::new(
             UserPtr::from_addr(usize::try_from(args.arr)?),
-            num_monitors * core::mem::size_of::<uapi::wrapfd_monitor>(),
+            num_monitors * core::mem::size_of::<uapi::wrapfd_add_monitor>(),
         );
         let mut monitors_reader = monitors_slice.reader();
-        for _ in 0..num_monitors {
-            // NOTE: Should never fail as we reserved the memory ahead of time above.
-            monitors.push_within_capacity(monitors_reader.read()?)?;
-        }
-
-        let mut results: KVec<u64> = KVec::with_capacity(num_monitors, GFP_KERNEL)?;
-        for monitor in &monitors {
-            // NOTE: Should never fail as we reserved the memory ahead of time above.
-            results.push_within_capacity(
-                FileMonitor::process_monitor(&self.file_monitor, monitor, mode)
-                    .map_or_else(Error::to_errno, |_| 0) as u64,
-            )?;
-        }
+        let monitors = Self::read_vec(&mut monitors_reader, num_monitors)?;
 
         let results_slice = UserSlice::new(
             UserPtr::from_addr(usize::try_from(args.results)?),
-            num_monitors * core::mem::size_of::<u64>(),
+            num_monitors * core::mem::size_of::<i64>(),
         );
+
+        let mut results: KVec<i64> = KVec::with_capacity(num_monitors, GFP_KERNEL)?;
+        for monitor in &monitors {
+            // NOTE: Should never fail as we reserved the memory ahead of time above.
+            results.push_within_capacity(
+                FileMonitor::add_monitor(&self.file_monitor, monitor)
+                    .map_or_else(|err| i64::from(err.to_errno()), |seq_num| seq_num)
+                    .into(),
+            )?;
+        }
+
         let mut results_writer = results_slice.writer();
-        Self::write_vector(&mut results_writer, &results)?;
+
+        // Note: There is no "safe" way to roll back our prior actions if `write_slice` fails.
+        // Adding the monitors above would have already been visible to userspace through
+        // `query_events` et al.
+        results_writer.write_slice(results.as_bytes())?;
+
+        Ok(0)
+    }
+
+    fn delete_monitors(&self, args: &uapi::wrapfd_monitors) -> Result<isize> {
+        if args.len == 0 || args.len > (uapi::WRAPFD_MAX_NR_MONITORS as u64) {
+            return Err(EINVAL);
+        }
+
+        if args.arr == 0 || args.results == 0 {
+            return Err(EFAULT);
+        }
+
+        let num_monitors: usize = args.len.try_into()?;
+
+        let monitors_slice = UserSlice::new(
+            UserPtr::from_addr(usize::try_from(args.arr)?),
+            num_monitors * core::mem::size_of::<uapi::wrapfd_del_monitor>(),
+        );
+        let mut monitors_reader = monitors_slice.reader();
+        let monitors = Self::read_vec(&mut monitors_reader, num_monitors)?;
+
+        let results_slice = UserSlice::new(
+            UserPtr::from_addr(usize::try_from(args.results)?),
+            num_monitors * core::mem::size_of::<i64>(),
+        );
+
+        let mut results: KVec<i64> = KVec::with_capacity(num_monitors, GFP_KERNEL)?;
+        for monitor in &monitors {
+            // NOTE: Should never fail as we reserved the memory ahead of time above.
+            results.push_within_capacity(
+                FileMonitor::delete_monitor(&self.file_monitor, monitor)
+                    .map_or_else(Error::to_errno, |_| 0)
+                    .into(),
+            )?;
+        }
+
+        let mut results_writer = results_slice.writer();
+        results_writer.write_slice(results.as_bytes())?;
 
         Ok(0)
     }
@@ -222,14 +294,11 @@ impl WrapfdDevFile {
     fn repopulate(args: &uapi::wrapfd_repopulate) -> Result<u32> {
         let local_file = LocalFile::fget(args.wrapfd)?;
 
-        // SAFETY: There are no `fdget_pos` calls on the current thread.
-        let file = unsafe { LocalFile::assume_no_fdget_pos(local_file) };
-
-        let Some(wrap) = WRAP_FOPS.borrow_private(&*file) else {
+        let Some(wrap) = WRAP_FOPS.borrow_private(&*local_file) else {
             return Err(EBADF);
         };
 
-        let close_on_exec = wrap.repopulate(&file, args.fd)?;
+        let close_on_exec = wrap.repopulate(&local_file, args.fd)?;
 
         // SAFETY: args.wrapfd was a valid file descriptor at least at the time we acquired the
         // `LocalFile` reference above. If the file descriptor has been invalidated since, the

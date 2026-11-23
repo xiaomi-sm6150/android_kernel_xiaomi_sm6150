@@ -119,7 +119,7 @@ impl_int_module_param!(usize);
 /// `ModuleParamAccess<T>`.
 unsafe extern "C" fn get_param<T>(buf: *mut c_char, param: *const bindings::kernel_param) -> c_int
 where
-    T: core::fmt::Display,
+    T: ModuleParam + core::fmt::Display,
 {
     if buf.is_null() {
         // TODO: Use pr_warn_once available.

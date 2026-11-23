@@ -5,7 +5,7 @@
 //! Keep track of statistics for binder_logs.
 
 use crate::defs::*;
-use core::sync::atomic::{AtomicU32, Ordering::Relaxed};
+use kernel::sync::atomic::{ordering::Relaxed, Atomic};
 use kernel::{ioctl::_IOC_NR, seq_file::SeqFile, seq_print};
 
 const BC_COUNT: usize = _IOC_NR(BC_FREEZE_NOTIFICATION_DONE) as usize + 1;
@@ -14,14 +14,14 @@ const BR_COUNT: usize = _IOC_NR(BR_CLEAR_FREEZE_NOTIFICATION_DONE) as usize + 1;
 pub(crate) static GLOBAL_STATS: BinderStats = BinderStats::new();
 
 pub(crate) struct BinderStats {
-    bc: [AtomicU32; BC_COUNT],
-    br: [AtomicU32; BR_COUNT],
+    bc: [Atomic<u32>; BC_COUNT],
+    br: [Atomic<u32>; BR_COUNT],
 }
 
 impl BinderStats {
     pub(crate) const fn new() -> Self {
         #[expect(clippy::declare_interior_mutable_const)]
-        const ZERO: AtomicU32 = AtomicU32::new(0);
+        const ZERO: Atomic<u32> = Atomic::new(0);
 
         Self {
             bc: [ZERO; BC_COUNT],
@@ -32,14 +32,14 @@ impl BinderStats {
     pub(crate) fn inc_bc(&self, bc: u32) {
         let idx = _IOC_NR(bc) as usize;
         if let Some(bc_ref) = self.bc.get(idx) {
-            bc_ref.fetch_add(1, Relaxed);
+            bc_ref.add(1, Relaxed);
         }
     }
 
     pub(crate) fn inc_br(&self, br: u32) {
         let idx = _IOC_NR(br) as usize;
         if let Some(br_ref) = self.br.get(idx) {
-            br_ref.fetch_add(1, Relaxed);
+            br_ref.add(1, Relaxed);
         }
     }
 

@@ -259,6 +259,10 @@ impl IoContext {
         buf_offs: usize,
         len: usize,
     ) -> Result<Self> {
+        if len == 0 {
+            return Err(EINVAL);
+        }
+
         /*
          * If either the file or buffer offset are unaligned, then using direct I/O into the first
          * page of the buffer will overwrite some of the data that is already there. Allocate a

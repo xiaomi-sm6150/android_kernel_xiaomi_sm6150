@@ -3533,6 +3533,13 @@ SYSCALL_DEFINE2(swapon, const char __user *, specialfile, int, swap_flags)
 	if (unlikely(error))
 		goto bad_swap;
 
+	/* Writes the header through the filesystem, so before inode_lock() */
+	error = __fixup_swap_header(swap_file, mapping);
+	if (error) {
+		pgcompat_err("Failed __fixup_swap_header");
+		goto bad_swap;
+	}
+
 	inode_lock(inode);
 	if (d_unlinked(dentry) || cant_mount(dentry)) {
 		error = -ENOENT;
@@ -3564,12 +3571,6 @@ SYSCALL_DEFINE2(swapon, const char __user *, specialfile, int, swap_flags)
 	 */
 	if (!mapping->a_ops->read_folio) {
 		error = -EINVAL;
-		goto bad_swap_unlock_inode;
-	}
-
-	error = __fixup_swap_header(swap_file, mapping);
-	if (error) {
-		pgcompat_err("Failed __fixup_swap_header");
 		goto bad_swap_unlock_inode;
 	}
 

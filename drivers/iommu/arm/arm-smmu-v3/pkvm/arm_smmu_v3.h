@@ -53,6 +53,8 @@ struct hyp_arm_smmu_v3_device {
  * @gbpa		Last value of GBPA from the host
  * @evtq_base		Host evtq base reg
  * @priq_base		Host priq base reg
+ * @evtq_shared		The evtq at @evtq_base is shared with the hypervisor
+ * @priq_shared		The priq at @priq_base is shared with the hypervisor
  */
 struct hyp_arm_smmu_v3_nested_device {
 	struct hyp_arm_smmu_v3_device common;
@@ -66,6 +68,8 @@ struct hyp_arm_smmu_v3_nested_device {
 	u32			gbpa;
 	unsigned long		evtq_base;
 	unsigned long		priq_base;
+	bool			evtq_shared;
+	bool			priq_shared;
 	/* Order smmu.lock => host_mmu.lock => smmu.hw_lock */
 	u32			hw_lock;
 	bool			active;
