@@ -130,9 +130,28 @@ static s8 ptdump_get_level(struct kvm *kvm)
 static struct kvm_ptdump_guest_state *kvm_ptdump_parser_create(struct kvm *kvm)
 {
 	struct kvm_ptdump_guest_state *st;
+	s8 start_level;
+	u32 ia_bits;
 	int ret;
-	u32 ia_bits = ptdump_get_ranges(kvm);
-	s8 start_level = ptdump_get_level(kvm);
+
+	if (is_protected_kvm_enabled()) {
+		ia_bits = ptdump_get_ranges(kvm);
+		start_level = ptdump_get_level(kvm);
+	} else {
+		struct kvm_s2_mmu *mmu = &kvm->arch.mmu;
+
+		/*
+		 * We only need the pgt start level and IPA size to initialize the ptdump,
+		 * get them while holding the mmu_lock. It's fine if the pgt gets freed
+		 * afterwards, we'll check again when doing the actual dump.
+		 */
+		scoped_guard(read_lock, &kvm->mmu_lock) {
+			if (!mmu->pgt)
+				return ERR_PTR(-ENOENT);
+			start_level = mmu->pgt->start_level;
+			ia_bits = mmu->pgt->ia_bits;
+		}
+	}
 
 	st = kzalloc(sizeof(struct kvm_ptdump_guest_state), GFP_KERNEL_ACCOUNT);
 	if (!st)
@@ -175,9 +194,11 @@ static int kvm_ptdump_guest_show(struct seq_file *m, void *unused)
 
 	parser_state->seq = m;
 
-	write_lock(&kvm->mmu_lock);
+	guard(write_lock)(&kvm->mmu_lock);
+	if (!mmu->pgt)
+		return 0;
+
 	ret = kvm_pgtable_walk(mmu->pgt, 0, BIT(mmu->pgt->ia_bits), &walker);
-	write_unlock(&kvm->mmu_lock);
 
 	return ret;
 }
@@ -228,18 +249,35 @@ static const struct file_operations kvm_ptdump_guest_fops = {
 static int kvm_pgtable_range_show(struct seq_file *m, void *unused)
 {
 	struct kvm *kvm = m->private;
-	u32 ia_bits = ptdump_get_ranges(kvm);
 
-	seq_printf(m, "%2u\n", ia_bits);
+	if (is_protected_kvm_enabled()) {
+		seq_printf(m, "%2u\n", ptdump_get_ranges(kvm));
+		return 0;
+	}
+
+	guard(read_lock)(&kvm->mmu_lock);
+
+	if (kvm->arch.mmu.pgt)
+		seq_printf(m, "%2u\n", kvm->arch.mmu.pgt->ia_bits);
+
 	return 0;
 }
 
 static int kvm_pgtable_levels_show(struct seq_file *m, void *unused)
 {
 	struct kvm *kvm = m->private;
-	s8 start_level = ptdump_get_level(kvm);
 
-	seq_printf(m, "%1d\n", KVM_PGTABLE_MAX_LEVELS - start_level);
+	if (is_protected_kvm_enabled()) {
+		seq_printf(m, "%1d\n", KVM_PGTABLE_MAX_LEVELS - ptdump_get_level(kvm));
+		return 0;
+	}
+
+	guard(read_lock)(&kvm->mmu_lock);
+
+	if (kvm->arch.mmu.pgt)
+		seq_printf(m, "%1d\n",
+			   KVM_PGTABLE_MAX_LEVELS - kvm->arch.mmu.pgt->start_level);
+
 	return 0;
 }
 
