@@ -30,7 +30,7 @@
 #include <pthread.h>
 #include <include/vdso/time64.h>
 #include <errno.h>
-#include "../kselftest.h"
+#include "kselftest.h"
 #include "helpers.h"
 
 #define UNREASONABLE_LAT (NSEC_PER_SEC * 5LL) /* hopefully we resume in 5 secs */
