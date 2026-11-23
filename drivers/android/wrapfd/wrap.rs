@@ -146,7 +146,7 @@ impl WrapInfo {
         self.generate_event(uapi::WRAPFD_EVENT_UNOWN);
     }
 
-    fn reset_vmafile(&mut self) {
+    fn reset_vmafile_and_notify_unmapped(&mut self) {
         self.vma_file = VmaFile::None;
         self.generate_event(uapi::WRAPFD_EVENT_UNMAP);
     }
@@ -198,7 +198,7 @@ impl WrapInfo {
         unsafe { bindings::i_mmap_unlock_read(mapping) };
 
         if count == 0 && self.num_pending_mmaps == 0 {
-            self.reset_vmafile();
+            self.reset_vmafile_and_notify_unmapped();
         }
 
         count
@@ -208,7 +208,7 @@ impl WrapInfo {
         self.vma_count() + self.num_mappable_refs
     }
 
-    fn is_mapped(&mut self) -> bool {
+    fn is_mapped_or_notify_unmapped(&mut self) -> bool {
         self.has_pending_mmaps() || self.map_count() > 0
     }
 
@@ -225,7 +225,7 @@ impl WrapInfo {
             return Err(EBUSY);
         }
 
-        if matches!(self.state, WrapState::InUse(_)) || self.is_mapped() {
+        if matches!(self.state, WrapState::InUse(_)) || self.is_mapped_or_notify_unmapped() {
             return Err(EINVAL);
         }
 
@@ -399,7 +399,7 @@ impl Wrap {
             return Err(ENOENT);
         }
 
-        if matches!(guard.state, WrapState::InUse(_)) || guard.is_mapped() {
+        if matches!(guard.state, WrapState::InUse(_)) || guard.is_mapped_or_notify_unmapped() {
             return Err(EINVAL);
         }
 
@@ -588,7 +588,7 @@ impl Wrap {
             }
 
             if matches!(guard.state, WrapState::InUse(_))
-                || guard.is_mapped()
+                || guard.is_mapped_or_notify_unmapped()
                 || guard.content.is_some()
             {
                 return Err(EINVAL);
@@ -1201,7 +1201,7 @@ unsafe extern "C" fn wrapfd_acquire_ownership(
             return Err(ENOENT);
         }
 
-        if matches!(guard.state, WrapState::InUse(_)) || guard.is_mapped() {
+        if matches!(guard.state, WrapState::InUse(_)) || guard.is_mapped_or_notify_unmapped() {
             return Err(EINVAL);
         }
 
