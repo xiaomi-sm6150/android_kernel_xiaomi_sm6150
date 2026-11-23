@@ -61,9 +61,6 @@ include ../scripts/utilities.mak
 #
 # Define NO_LIBBIONIC if you do not want bionic support
 #
-# Define NO_LIBDW_DWARF_UNWIND if you do not want libdw support
-# for dwarf backtrace post unwind.
-#
 # Define NO_LIBTRACEEVENT=1 if you don't want libtraceevent to be linked,
 # this will remove multiple features and tools, such as 'perf trace',
 # that need it to read tracefs event format files, etc.
@@ -76,15 +73,13 @@ include ../scripts/utilities.mak
 #
 # Define NO_ZLIB if you do not want to support compressed kernel modules
 #
-# Define NO_LIBBABELTRACE if you do not want libbabeltrace support
+# Define NO_BABELTRACE2 if you do not want babeltrace2-ctf-writer support
 # for CTF data format.
 #
 # Define NO_CAPSTONE if you do not want libcapstone support
 # for disasm engine.
 #
 # Define NO_LZMA if you do not want to support compressed (xz) kernel modules
-#
-# Define NO_AUXTRACE if you do not want AUX area tracing support
 #
 # Define NO_LIBBPF if you do not want BPF support
 #
