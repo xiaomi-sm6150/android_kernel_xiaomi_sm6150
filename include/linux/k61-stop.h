@@ -36,4 +36,15 @@ static inline bool k61_internal_disk(const char *disk_name)
 	return !strncmp(disk_name, "mmcblk", 6) || !strncmp(disk_name, "sd", 2);
 }
 
+/*
+ * SCSI commands sent from userspace (sg, bsg, SG_IO on sd) bypass the
+ * block-device write checks. While a k61.stop mode is set, only the UFS
+ * RPMB well-known LUN (0xc144) takes them, so qseecomd can reach RPMB.
+ */
+#define K61_UFS_RPMB_LUN	0xc144
+static inline bool k61_scsi_lun_ok(u64 lun)
+{
+	return !k61_stop_init || lun == K61_UFS_RPMB_LUN;
+}
+
 #endif

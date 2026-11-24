@@ -15,6 +15,7 @@
 #include <linux/string.h>
 #include <linux/uaccess.h>
 #include <linux/cdrom.h>
+#include <linux/k61-stop.h>
 
 #include <scsi/scsi.h>
 #include <scsi/scsi_cmnd.h>
@@ -896,10 +897,16 @@ int scsi_ioctl(struct scsi_device *sdev, fmode_t mode, int cmd,
 	case SG_EMULATED_HOST:
 		return sg_emulated_host(q, arg);
 	case SG_IO:
+		if (!k61_scsi_lun_ok(sdev->lun))
+			return -EACCES;
 		return scsi_ioctl_sg_io(sdev, mode, arg);
 	case SCSI_IOCTL_SEND_COMMAND:
+		if (!k61_scsi_lun_ok(sdev->lun))
+			return -EACCES;
 		return sg_scsi_ioctl(q, mode, arg);
 	case CDROM_SEND_PACKET:
+		if (!k61_scsi_lun_ok(sdev->lun))
+			return -EACCES;
 		return scsi_cdrom_send_packet(sdev, mode, arg);
 	case CDROMCLOSETRAY:
 		return scsi_send_start_stop(sdev, 3);
