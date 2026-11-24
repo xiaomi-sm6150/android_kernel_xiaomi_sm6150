@@ -856,13 +856,13 @@ struct block_device *blkdev_get_by_dev(dev_t dev, fmode_t mode, void *holder)
 		return ERR_PTR(-ENXIO);
 	disk = bdev->bd_disk;
 
-	/* DEBUG (k61.stop=ro/sys): nothing may open the eMMC for writing */
+	/* DEBUG (k61.stop=ro/sys): nothing may open the eMMC/UFS for writing */
 	if (k61_stop_ro && (mode & FMODE_WRITE) &&
-	    !strncmp(disk->disk_name, "mmcblk", 6) && k61_rw_allowed(bdev)) {
+	    k61_internal_disk(disk->disk_name) && k61_rw_allowed(bdev)) {
 		pr_info("k61.stop=ro: allowing write open of %pg (%s, k61.rw)\n",
 			bdev, bdev->bd_meta_info->volname);
 	} else if (k61_stop_ro && (mode & FMODE_WRITE) &&
-	    !strncmp(disk->disk_name, "mmcblk", 6)) {
+	    k61_internal_disk(disk->disk_name)) {
 		pr_warn("k61.stop=ro: refusing kernel write open of %pg\n", bdev);
 		blkdev_put_no_open(bdev);
 		return ERR_PTR(-EROFS);
