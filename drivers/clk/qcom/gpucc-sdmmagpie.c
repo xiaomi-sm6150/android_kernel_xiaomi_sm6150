@@ -212,8 +212,8 @@ static const struct clk_parent_data gpu_cc_parent_data_0[] = {
 	{ .fw_name = "bi_tcxo" },
 	{ .hw = &gpu_cc_pll0.clkr.hw },
 	{ .hw = &gpu_cc_pll1.clkr.hw },
-	{ .name = "gcc_gpu_gpll0_clk_src" },
-	{ .name = "gcc_gpu_gpll0_div_clk_src" },
+	{ .fw_name = "gcc_gpu_gpll0_clk_src", .name = "gcc_gpu_gpll0_clk_src" },
+	{ .fw_name = "gcc_gpu_gpll0_div_clk_src", .name = "gcc_gpu_gpll0_div_clk_src" },
 };
 
 static const struct parent_map gpu_cc_parent_map_2[] = {
@@ -231,7 +231,7 @@ static const struct clk_parent_data gpu_cc_parent_data_2[] = {
 	{ .name = "gpu_cc_pll0_out_odd" },
 	{ .hw = &gpu_cc_pll1_out_even.clkr.hw },
 	{ .name = "gpu_cc_pll1_out_odd" },
-	{ .name = "gcc_gpu_gpll0_clk_src" },
+	{ .fw_name = "gcc_gpu_gpll0_clk_src", .name = "gcc_gpu_gpll0_clk_src" },
 };
 static const struct freq_tbl ftbl_gpu_cc_gmu_clk_src[] = {
 	F(19200000, P_BI_TCXO, 1, 0, 0),
