@@ -13,6 +13,7 @@
 #include <linux/dma-buf.h>
 #include <linux/fdtable.h>
 #include <linux/file.h>
+#include <linux/fs.h>
 #include <linux/jiffies.h>
 #include <linux/kthread.h>
 #include <linux/mman.h>
@@ -714,6 +715,116 @@ cleanup:
 	release_owned_wrap(test, file, wrapfd);
 }
 
+static void is_wrapfd_file_test(struct kunit *test)
+{
+	KUNIT_ASSERT_FALSE(test, is_wrapfd_file(NULL));
+	KUNIT_ASSERT_FALSE(test, is_wrapfd_file(test_data.dmabuf->file));
+	KUNIT_ASSERT_TRUE(test, is_wrapfd_file(test_data.file));
+	KUNIT_ASSERT_TRUE(test, is_wrapfd_file(test_data.empty_file));
+}
+
+/*
+ * KUnit tests run in a kthread, so once a mock device owns @file, current is
+ * not the owner and wrap_llseek() treats it as a guest: seeking succeeds with
+ * the buffer size iff guests are allowed, and fails with -EBUSY otherwise.
+ */
+static loff_t guest_llseek_end(struct file *file)
+{
+	return file->f_op->llseek(file, 0, SEEK_END);
+}
+
+static void wrapfd_allow_guests_test(struct kunit *test)
+{
+	struct file *dmabuf_file = test_data.dmabuf->file;
+	struct file *empty_file = test_data.empty_file;
+	struct device *dev1 = test_data.mock_dev1;
+	struct device *dev2 = test_data.mock_dev2;
+	struct file *file = test_data.file;
+	union wrapfd_mappable mappable;
+	struct file *owned_file;
+	int wrapfd;
+
+	/* Test invalid inputs */
+	KUNIT_ASSERT_EQ(test, wrapfd_allow_guests(NULL, dev1), -EBADF);
+	KUNIT_ASSERT_EQ(test, wrapfd_prohibit_guests(NULL, dev1), -EBADF);
+	KUNIT_ASSERT_EQ(test, wrapfd_allow_guests(dmabuf_file, dev1), -EBADF);
+	KUNIT_ASSERT_EQ(test, wrapfd_prohibit_guests(dmabuf_file, dev1), -EBADF);
+	KUNIT_ASSERT_EQ(test, wrapfd_allow_guests(file, NULL), -ENODEV);
+	KUNIT_ASSERT_EQ(test, wrapfd_prohibit_guests(file, NULL), -ENODEV);
+
+	/* Changing guest policy on unowned buffers fails with -EBUSY */
+	KUNIT_ASSERT_EQ(test, wrapfd_allow_guests(file, dev1), -EBUSY);
+	KUNIT_ASSERT_EQ(test, wrapfd_prohibit_guests(file, dev1), -EBUSY);
+	KUNIT_ASSERT_EQ(test, wrapfd_allow_guests(empty_file, dev1), -EBUSY);
+	KUNIT_ASSERT_EQ(test, wrapfd_prohibit_guests(empty_file, dev1), -EBUSY);
+
+	/*
+	 * Unowned buffer is accessible; acquiring ownership prohibits guests
+	 * by default.
+	 */
+	KUNIT_ASSERT_EQ(test, guest_llseek_end(file), PAGE_SIZE);
+	KUNIT_ASSERT_EQ(test, wrapfd_acquire_ownership(file, dev1), 0);
+	KUNIT_EXPECT_EQ(test, guest_llseek_end(file), -EBUSY);
+
+	/* Prohibiting when already prohibited is a no-op */
+	KUNIT_EXPECT_EQ(test, wrapfd_prohibit_guests(file, dev1), 0);
+	KUNIT_EXPECT_EQ(test, guest_llseek_end(file), -EBUSY);
+
+	/* Allowing guests enables access and is idempotent */
+	KUNIT_EXPECT_EQ(test, wrapfd_allow_guests(file, dev1), 0);
+	KUNIT_EXPECT_EQ(test, guest_llseek_end(file), PAGE_SIZE);
+	KUNIT_EXPECT_EQ(test, wrapfd_allow_guests(file, dev1), 0);
+	KUNIT_EXPECT_EQ(test, guest_llseek_end(file), PAGE_SIZE);
+
+	/* Non-owner device cannot change guest policy */
+	KUNIT_EXPECT_EQ(test, wrapfd_allow_guests(file, dev2), -EBUSY);
+	KUNIT_EXPECT_EQ(test, wrapfd_prohibit_guests(file, dev2), -EBUSY);
+	KUNIT_EXPECT_EQ(test, guest_llseek_end(file), PAGE_SIZE);
+
+	/* Prohibiting guests revokes access and is idempotent */
+	KUNIT_EXPECT_EQ(test, wrapfd_prohibit_guests(file, dev1), 0);
+	KUNIT_EXPECT_EQ(test, guest_llseek_end(file), -EBUSY);
+	KUNIT_EXPECT_EQ(test, wrapfd_prohibit_guests(file, dev1), 0);
+	KUNIT_EXPECT_EQ(test, wrapfd_allow_guests(file, dev2), -EBUSY);
+	KUNIT_EXPECT_EQ(test, guest_llseek_end(file), -EBUSY);
+
+	/*
+	 * Allowing guests while mapped succeeds; prohibiting while mapped
+	 * fails with -EINVAL.
+	 */
+	KUNIT_EXPECT_EQ(test, wrapfd_get_mappable(file, dev1, &mappable), 0);
+	KUNIT_EXPECT_EQ(test, wrapfd_prohibit_guests(file, dev1), -EINVAL);
+	KUNIT_EXPECT_EQ(test, wrapfd_allow_guests(file, dev1), 0);
+	KUNIT_EXPECT_EQ(test, guest_llseek_end(file), PAGE_SIZE);
+	KUNIT_EXPECT_EQ(test, wrapfd_prohibit_guests(file, dev1), -EINVAL);
+	KUNIT_EXPECT_EQ(test, guest_llseek_end(file), PAGE_SIZE);
+	KUNIT_EXPECT_EQ(test, wrapfd_put_mappable(file, dev1, &mappable), 0);
+	KUNIT_EXPECT_EQ(test, wrapfd_prohibit_guests(file, dev1), 0);
+	KUNIT_EXPECT_EQ(test, guest_llseek_end(file), -EBUSY);
+
+	/* Releasing ownership resets guest policy for the next owner */
+	KUNIT_EXPECT_EQ(test, wrapfd_allow_guests(file, dev1), 0);
+	KUNIT_EXPECT_EQ(test, guest_llseek_end(file), PAGE_SIZE);
+	KUNIT_ASSERT_EQ(test, wrapfd_release_ownership(file, dev1), 0);
+	KUNIT_ASSERT_EQ(test, wrapfd_acquire_ownership(file, dev2), 0);
+	KUNIT_EXPECT_EQ(test, guest_llseek_end(file), -EBUSY);
+	KUNIT_ASSERT_EQ(test, wrapfd_release_ownership(file, dev2), 0);
+
+	/*
+	 * Emptying an owned wrap rejects allow_guests (-ENOENT) while still
+	 * allowing prohibit_guests.
+	 */
+	owned_file = create_owned_wrap(test, dev1, &wrapfd);
+	KUNIT_EXPECT_EQ(test, wrapfd_allow_guests(owned_file, dev1), 0);
+	KUNIT_EXPECT_EQ(test, empty_wrapfd(owned_file, dev1), 0);
+	KUNIT_EXPECT_EQ(test, wrapfd_allow_guests(owned_file, dev1), -ENOENT);
+	KUNIT_EXPECT_EQ(test, wrapfd_allow_guests(owned_file, dev2), -EBUSY);
+	KUNIT_EXPECT_EQ(test, wrapfd_prohibit_guests(owned_file, dev2), -EBUSY);
+	KUNIT_EXPECT_EQ(test, wrapfd_prohibit_guests(owned_file, dev1), 0);
+	KUNIT_EXPECT_EQ(test, wrapfd_release_ownership(owned_file, dev1), 0);
+	release_owned_wrap(test, owned_file, wrapfd);
+}
+
 static struct kunit_case wrapfd_test_cases[] = {
 	KUNIT_CASE(wrapfd_get_mappable_test),
 	KUNIT_CASE(wrapfd_acquire_ownership_test),
@@ -721,6 +832,8 @@ static struct kunit_case wrapfd_test_cases[] = {
 	KUNIT_CASE(wrapfd_listener_file_release_test),
 	KUNIT_CASE(wrapfd_listener_non_owner_test),
 	KUNIT_CASE(wrapfd_listener_del_in_progress_test),
+	KUNIT_CASE(is_wrapfd_file_test),
+	KUNIT_CASE(wrapfd_allow_guests_test),
 	{},
 };
 
