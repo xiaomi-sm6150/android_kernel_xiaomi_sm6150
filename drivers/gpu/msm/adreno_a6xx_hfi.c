@@ -242,6 +242,18 @@ int a6xx_receive_ack_cmd(struct a6xx_gmu_device *gmu, void *rcvd,
 	if (ret_cmd == NULL)
 		return -EINVAL;
 
+	/*
+	 * Legacy GMU firmware (A615 family) does not echo the size field of
+	 * the request header in its ack; match on id and sequence number
+	 * there, as 4.14 did.
+	 */
+	if (gmu->ver.core <= 0x20010004 &&
+	    MSG_HDR_GET_ID(ret_cmd->sent_hdr) == MSG_HDR_GET_ID(req_hdr) &&
+	    MSG_HDR_GET_SEQNUM(ret_cmd->sent_hdr) == MSG_HDR_GET_SEQNUM(req_hdr)) {
+		memcpy(&ret_cmd->results, ack, MSG_HDR_GET_SIZE(hdr) << 2);
+		return 0;
+	}
+
 	if (CMP_HFI_ACK_HDR(ret_cmd->sent_hdr, req_hdr)) {
 		memcpy(&ret_cmd->results, ack, MSG_HDR_GET_SIZE(hdr) << 2);
 		return 0;
