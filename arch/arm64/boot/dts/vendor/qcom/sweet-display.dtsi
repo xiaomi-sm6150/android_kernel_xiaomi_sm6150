@@ -135,3 +135,13 @@
 		format = "a8r8g8b8";
 	};
 };
+
+/*
+ * DEBUG: simplefb must be able to claim and ioremap the splash buffer. As
+ * plain reserved memory it stays in the linear map (System RAM), so the
+ * request fails ("cannot reserve video memory") and arm64 refuses to
+ * ioremap RAM. no-map keeps it out of the linear map.
+ */
+&cont_splash_memory {
+	no-map;
+};
