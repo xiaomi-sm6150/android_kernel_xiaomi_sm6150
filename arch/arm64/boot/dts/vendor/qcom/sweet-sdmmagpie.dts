@@ -2159,3 +2159,8 @@
 &mpss_pas {
 	k61,solo-cpu;
 };
+
+/* DEBUG (k61.stop tester builds): RAM copies of the modem EFS partitions */
+&mpss_pas {
+	k61,efs-scratch = "modemst1", "modemst2", "fsg", "fsc";
+};
