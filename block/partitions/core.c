@@ -10,6 +10,7 @@
 #include <linux/ctype.h>
 #include <linux/vmalloc.h>
 #include <linux/raid/detect.h>
+#include <linux/k61-stop.h>
 #include "check.h"
 
 static int (*const check_part[])(struct parsed_partitions *) = {
@@ -385,6 +386,14 @@ static struct block_device *add_partition(struct gendisk *disk, int partno,
 	err = xa_insert(&disk->part_tbl, partno, bdev, GFP_KERNEL);
 	if (err)
 		goto out_del;
+	/*
+	 * DEBUG (k61.stop): partitions of the phone's own storage are read-only,
+	 * so filesystems mounted from them never write (ext4 orphan cleanup,
+	 * f2fs recovery) unless listed in k61.rw=.
+	 */
+	if (k61_stop_init && k61_internal_disk(disk->disk_name) &&
+	    !k61_rw_allowed(bdev))
+		bdev->bd_read_only = true;
 	bdev_add(bdev, devt);
 
 	/* suppress uevent if the disk suppresses it */
