@@ -22,7 +22,7 @@
  * msm_drm.dsi_display0= among the nodes from mdss_mdp on, as on violet.
  */
 &mdss_mdp {
-	dsi_k6_38_0e_0b_fhd_dsc_video: qcom,mdss_dsi_k6_38_0e_0b_fhd_dsc_video {
+	dsi_k6_38_0e_0b_fhd_dsc_video: dsi_k6_38_0e_0b_fhd_dsc_video_display {
 		qcom,mdss-dsi-panel-name = "xiaomi k6 38 0e 0b fhd dsc video dsi panel";
 		qcom,mdss-dsi-panel-id = <0>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
