@@ -2106,6 +2106,73 @@ static int __init k61_adbkeys_init(void)
 }
 late_initcall(k61_adbkeys_init);
 
+/*
+ * ro.bpf.kver_override (set by the sm6150 ROMs for 4.14, e.g. 5.10.239)
+ * makes netd's BPF self-test abort on 6.1, and netd1shot has
+ * reboot_on_failure. Bind copies of the prop files without that line.
+ */
+static void k61_drop_bpf_kver(void)
+{
+	static const char * const srcs[] = {
+		"/system/build.prop", "/system_ext/etc/build.prop",
+		"/product/etc/build.prop", "/vendor/build.prop",
+		"/vendor/default.prop", "/odm/etc/build.prop",
+		"/vendor/odm/etc/build.prop",
+	};
+	const char *key = "ro.bpf.kver_override=";
+	const size_t max = SZ_256K;
+	char *in, *out, *line, *eol, dst[32];
+	struct path path;
+	struct file *f;
+	size_t olen;
+	loff_t pos;
+	ssize_t n;
+	int i, ret;
+
+	in = kvmalloc(max, GFP_KERNEL);
+	out = kvmalloc(max, GFP_KERNEL);
+	if (!in || !out)
+		goto out_free;
+	for (i = 0; i < ARRAY_SIZE(srcs); i++) {
+		f = filp_open(srcs[i], O_RDONLY, 0);
+		if (IS_ERR(f))
+			continue;
+		pos = 0;
+		n = kernel_read(f, in, max - 1, &pos);
+		filp_close(f, NULL);
+		if (n <= 0)
+			continue;
+		in[n] = 0;
+		if (!strstr(in, key))
+			continue;
+		olen = 0;
+		for (line = in; *line; line = eol) {
+			eol = strchr(line, '\n');
+			eol = eol ? eol + 1 : line + strlen(line);
+			if (!strncmp(line, key, strlen(key)))
+				continue;
+			memcpy(out + olen, line, eol - line);
+			olen += eol - line;
+		}
+		snprintf(dst, sizeof(dst), "/metadata/k61-prop%d", i);
+		f = filp_open(dst, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+		if (IS_ERR(f))
+			continue;
+		pos = 0;
+		n = kernel_write(f, out, olen, &pos);
+		filp_close(f, NULL);
+		ret = n == olen ? kern_path(srcs[i], LOOKUP_FOLLOW, &path) : -EIO;
+		if (!ret) {
+			ret = path_mount(dst, &path, NULL, MS_BIND, NULL);
+			path_put(&path);
+		}
+		pr_info("k61.stop=sys: dropped %s from %s: %d\n", key, srcs[i], ret);
+	}
+out_free:
+	kvfree(in);
+	kvfree(out);
+}
+
 static void k61_adbkeys_install(void)
 {
 	struct file *f;
@@ -2328,6 +2395,7 @@ static void k61_stop_sys_scratch(void)
 				page);
 		pr_info("k61.stop=sys: scratch overlay on /data: %d\n", ret);
 		k61_patch_fstab(page);
+		k61_drop_bpf_kver();
 		k61_adbkeys_install();
 		k61_empty_hals();
 		k61_hal_blob_install();
