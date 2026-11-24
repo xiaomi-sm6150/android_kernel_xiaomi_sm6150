@@ -133,9 +133,9 @@ int wrapfd_add_listener(struct file *file, struct device *dev,
  *
  * The function can be called from on_content_release, but only to delete the
  * listener this callback was invoked for. In this case it does not wait.
- * Deleting another listener of the same content which is still waiting for
- * its on_content_release fails with -EINVAL and leaves that listener and its
- * handle intact; it should be deleted later, outside of the callback.
+ * Deleting another listener of the same content fails with -EINVAL and leaves
+ * that listener and its handle intact; it should be deleted later, outside of
+ * the callback.
  *
  * handle: listener handle returned by wrapfd_add_listener().
  *

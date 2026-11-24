@@ -5,7 +5,7 @@
 use core::{mem::MaybeUninit, ptr::NonNull};
 
 use crate::{
-    content::{ContentListeners, DmaBufContent},
+    content::{ContentListeners, DmaBufContent, Listener},
     poll::FileMonitor,
     THIS_MODULE,
 };
@@ -1096,7 +1096,7 @@ unsafe extern "C" fn wrapfd_put_mappable(
 
 struct ListenerHandle {
     info: Arc<ContentListeners>,
-    id: u64,
+    listener: Arc<Listener>,
 }
 
 #[export]
@@ -1151,13 +1151,13 @@ unsafe extern "C" fn wrapfd_add_listener(
             return Err(ENOENT);
         };
 
-        let id = content.listeners.add_listener(ops, param)?;
+        let listener = content.listeners.add_listener(ops, param)?;
 
         let handle = Box::into_pin(Box::write(
             handle,
             ListenerHandle {
                 info: Arc::clone(&content.listeners),
-                id,
+                listener,
             },
         ));
 
@@ -1192,7 +1192,10 @@ unsafe extern "C" fn wrapfd_del_listener(handle: *mut ffi::c_void) -> ffi::c_int
     // it is still "foreign-owned".
     let listener_handle = unsafe { Pin::<KBox<ListenerHandle>>::borrow(handle) };
 
-    match listener_handle.info.remove_listener(listener_handle.id) {
+    match listener_handle
+        .info
+        .remove_listener(&listener_handle.listener)
+    {
         Ok(()) => {
             // SAFETY: By function contract `handle` was returned from `wrapfd_add_listener` which
             // obtained it from `Pin::<KBox<ListenerHandle>>::into_foreign()`. Also by function

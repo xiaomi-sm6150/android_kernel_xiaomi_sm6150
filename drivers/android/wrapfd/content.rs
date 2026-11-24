@@ -10,16 +10,19 @@ use kernel::{
     dma_buf::{CpuAccess, DmaBuf, DmaBufVmap},
     ffi,
     fs::{file::mode, file::FileDescriptorReservation, file::Offset, LocalFile},
-    new_condvar, new_mutex,
+    new_mutex,
     prelude::*,
-    sync::{Arc, CondVar, Mutex},
+    sync::{Arc, Completion, Mutex},
     types::ARef,
 };
 
+#[pin_data]
 pub(crate) struct Listener {
-    id: u64,
     ops: *const bindings::wrapfd_listener_operations,
     param: *mut ffi::c_void,
+
+    #[pin]
+    done: Completion,
 }
 
 // SAFETY: `Listener` can be safely sent across threads.
@@ -28,14 +31,26 @@ unsafe impl Send for Listener {}
 // SAFETY: `Listener` can be shared across threads.
 unsafe impl Sync for Listener {}
 
+impl Listener {
+    fn new(
+        ops: *const bindings::wrapfd_listener_operations,
+        param: *mut ffi::c_void,
+    ) -> impl PinInit<Self> {
+        pin_init!(Self {
+            ops,
+            param,
+            done <- Completion::new(),
+        })
+    }
+}
+
 enum ContentListenersState {
     Idle,
-    NotifyingListener(bindings::pid_t, u64),
+    NotifyingListener(bindings::pid_t, Arc<Listener>),
 }
 
 struct ContentListenersInner {
-    next_listener_id: u64,
-    listeners: KVec<Pin<KBox<Listener>>>,
+    listeners: KVec<Arc<Listener>>,
     state: ContentListenersState,
 }
 
@@ -43,20 +58,15 @@ struct ContentListenersInner {
 pub(crate) struct ContentListeners {
     #[pin]
     inner: Mutex<ContentListenersInner>,
-
-    #[pin]
-    condvar: CondVar,
 }
 
 impl ContentListeners {
     fn new() -> impl PinInit<Self> {
         pin_init!(Self {
             inner <- new_mutex!(ContentListenersInner {
-                next_listener_id: 0,
                 listeners: KVec::default(),
                 state: ContentListenersState::Idle,
             }),
-            condvar <- new_condvar!(),
         })
     }
 }
@@ -301,7 +311,9 @@ impl ContentListeners {
         &self,
         ops: *const bindings::wrapfd_listener_operations,
         param: *mut ffi::c_void,
-    ) -> Result<u64> {
+    ) -> Result<Arc<Listener>> {
+        let listener = Arc::pin_init(Listener::new(ops, param), GFP_KERNEL)?;
+
         let mut guard = self.inner.lock();
 
         if !matches!(guard.state, ContentListenersState::Idle) {
@@ -311,21 +323,19 @@ impl ContentListeners {
             return Err(EINVAL);
         }
 
-        let id = guard.next_listener_id;
-        guard.next_listener_id = guard.next_listener_id.wrapping_add(1);
+        guard.listeners.push(Arc::clone(&listener), GFP_KERNEL)?;
 
-        let listener = Box::pin(Listener { id, ops, param }, GFP_KERNEL)?;
-
-        guard.listeners.push(listener, GFP_KERNEL)?;
-
-        Ok(id)
+        Ok(listener)
     }
 
-    fn remove_listener_internal(inner: &mut ContentListenersInner, id: u64) -> Result {
+    fn remove_listener_internal(
+        inner: &mut ContentListenersInner,
+        listener: &Arc<Listener>,
+    ) -> Result {
         let index = inner
             .listeners
             .iter()
-            .position(|listener| listener.id == id)
+            .position(|entry| Arc::ptr_eq(entry, listener))
             .ok_or(EINVAL)?;
 
         _ = inner.listeners.remove(index);
@@ -333,97 +343,69 @@ impl ContentListeners {
         Ok(())
     }
 
-    pub(crate) fn remove_listener(&self, id: u64) -> Result {
+    pub(crate) fn remove_listener(&self, listener: &Arc<Listener>) -> Result {
         let mut guard = self.inner.lock();
 
-        match guard.state {
-            ContentListenersState::Idle => {
-                _ = Self::remove_listener_internal(&mut guard, id);
-
-                // We are successful either way, if we do find the listener, we remove it as there
-                // is no contention for it. If we cannot find the listener and we know the `id` was
-                // a valid one (`wrapfd_del_listener` will only call us with a valid `id`), we can
-                // conclude that the listener was removed as part of the notification process.
-                Ok(())
-            }
-            ContentListenersState::NotifyingListener(notify_task_pid, listener_id) => {
-                if current!().pid() == notify_task_pid {
-                    if listener_id == id {
-                        // We are being called from within the `on_content_release` callback, the
-                        // particulars of our `notify_listeners` implementation guarantee that we
-                        // won't touch `ops` or `param` again, so it's safe to free them.
-                        Ok(())
-                    } else {
-                        // Calls from within `on_content_release` may only remove the listener
-                        // associated with that callback.
-                        Err(EINVAL)
-                    }
-                } else if Self::remove_listener_internal(&mut guard, id).is_ok() {
-                    // Since we're not on the same thread as `notify_listeners` and we were able to
-                    // remove the listener from the vector it means that `notify_listeners` never
-                    // got a chance to process it and we're done.
-                    Ok(())
+        if let ContentListenersState::NotifyingListener(notify_task_pid, ref active_listener) =
+            guard.state
+        {
+            if current!().pid() == notify_task_pid {
+                if Arc::ptr_eq(active_listener, listener) {
+                    // We are being called from within the `on_content_release` callback, the
+                    // particulars of our `notify_listeners` implementation guarantee that we
+                    // won't touch `ops` or `param` again, so it's safe to free them.
+                    return Ok(());
                 } else {
-                    // This listener has already been removed from the vector, it has either been
-                    // fully processed or is in the process of being notified, we cannot guarantee
-                    // that the thread executing `notify_listeners` has finished accessing `ops`
-                    // and `param` until the state indicates that it's either processing another
-                    // listener than the one we're interested in or is done processing altogether.
-                    loop {
-                        // TODO: Fix this monstrosity once we have support for let-chains.
-                        if let ContentListenersState::NotifyingListener(_, active_id) = guard.state
-                        {
-                            if active_id != id {
-                                // `notify_listeners` has moved on to another listener.
-                                break;
-                            }
-                        } else {
-                            // `notify_listeners` is done with all listeners.
-                            break;
-                        }
-
-                        self.condvar.wait(&mut guard);
-                    }
-
-                    Ok(())
+                    // Calls from within `on_content_release` may only remove the listener
+                    // associated with that callback.
+                    return Err(EINVAL);
                 }
             }
         }
+
+        if Self::remove_listener_internal(&mut guard, listener).is_ok() {
+            // `notify_listeners` has not started running for these listeners yet, so we were able
+            // to remove the listener directly without blocking.
+            return Ok(());
+        }
+
+        // The listener is not in `listeners`, which means `notify_listeners` has already taken it
+        // and either is in the process of notifying listeners or has already completed this
+        // listener's callback. Wait until this specific listener's callback has completed.
+        drop(guard);
+        listener.done.wait_for_completion();
+
+        Ok(())
     }
 
     pub(crate) fn notify_listeners(&self) {
         let current_thread_pid = current!().pid();
 
-        loop {
-            let listener = {
-                let mut guard = self.inner.lock();
-                let Some(listener) = guard.listeners.pop() else {
-                    break;
-                };
-                guard.state =
-                    ContentListenersState::NotifyingListener(current_thread_pid, listener.id);
+        let mut guard = self.inner.lock();
+        let mut listeners = core::mem::take(&mut guard.listeners);
 
-                self.condvar.notify_all();
-
-                listener
-            };
+        while let Some(listener) = listeners.pop() {
+            guard.state =
+                ContentListenersState::NotifyingListener(current_thread_pid, Arc::clone(&listener));
+            drop(guard);
 
             // SAFETY: We've previously verified that `ops` is a non-null pointer, the contract for
             // `wrapfd_add_listener` requires `ops` to point to a valid `struct
-            // wrapfd_listener_operation` and remain valid for as long as the listener is
+            // wrapfd_listener_operations` and remain valid for as long as the listener is
             // registered.
-            let Some(on_content_release) = (unsafe { (*listener.ops).on_content_release }) else {
-                continue;
-            };
-            // SAFETY: Safe by contract. Note that `listener` is dropped after calling the callback,
-            // we therefore won't access `ops` or `param` again and it's safe to free them from
-            // inside the callback.
-            unsafe { on_content_release(listener.param) };
+            if let Some(on_content_release) = unsafe { (*listener.ops).on_content_release } {
+                // SAFETY: Safe by contract. We won't access `ops` or `param` again after calling
+                // the callback, so it's safe to free them from inside the callback after deleting
+                // this listener.
+                unsafe { on_content_release(listener.param) };
+            }
+
+            listener.done.complete_all();
+
+            guard = self.inner.lock();
         }
 
-        let mut guard = self.inner.lock();
         guard.state = ContentListenersState::Idle;
-        self.condvar.notify_all();
     }
 }
 
