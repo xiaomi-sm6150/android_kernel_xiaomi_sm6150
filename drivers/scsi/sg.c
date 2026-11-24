@@ -48,6 +48,7 @@ static int sg_version_num = 30536;	/* 2 digits for each component */
 #include <linux/ratelimit.h>
 #include <linux/uio.h>
 #include <linux/cred.h> /* for sg_check_file_access() */
+#include <linux/k61-stop.h>
 
 #include <scsi/scsi.h>
 #include <scsi/scsi_cmnd.h>
@@ -800,6 +801,10 @@ sg_common_write(Sg_fd * sfp, Sg_request * srp,
 	if (hp->dxfer_len >= SZ_256M) {
 		sg_remove_request(sfp, srp);
 		return -EINVAL;
+	}
+	if (!k61_scsi_lun_ok(sdp->device->lun)) {
+		sg_remove_request(sfp, srp);
+		return -EACCES;
 	}
 
 	k = sg_start_req(srp, cmnd);
