@@ -37,6 +37,7 @@
 #include "ufshcd-crypto.h"
 #include "ufshpb.h"
 #include <asm/unaligned.h>
+#include <uapi/scsi/ufs/ioctl.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/ufs.h>
@@ -8996,6 +8997,133 @@ static struct ufs_hba_variant_params ufs_hba_vps = {
 	.ondemand_data.downdifferential	= 5,
 };
 
+/*
+ * UFS_IOCTL_QUERY, as in the Qualcomm 4.14 kernels, reads only: vendor
+ * librpmb (qseecomd) reads the device, geometry and RPMB unit descriptors
+ * with it before it opens the RPMB LUN. The 4.14 WRITE_ATTR (boot LU) is
+ * left out.
+ */
+static int ufshcd_query_ioctl(struct ufs_hba *hba, u8 lun, void __user *buffer)
+{
+	struct ufs_ioctl_query_data ioctl_data;
+	void *data_ptr;
+	u8 *desc = NULL;
+	int length = 0;
+	bool flag = false;
+	u32 att = 0;
+	u8 index = 0;
+	int err;
+
+	if (copy_from_user(&ioctl_data, buffer, sizeof(ioctl_data)))
+		return -EFAULT;
+
+	switch (ioctl_data.opcode) {
+	case UPIU_QUERY_OPCODE_READ_DESC:
+		switch (ioctl_data.idn) {
+		case QUERY_DESC_IDN_DEVICE:
+		case QUERY_DESC_IDN_CONFIGURATION:
+		case QUERY_DESC_IDN_INTERCONNECT:
+		case QUERY_DESC_IDN_GEOMETRY:
+		case QUERY_DESC_IDN_POWER:
+			break;
+		case QUERY_DESC_IDN_UNIT:
+			if (!ufs_is_valid_unit_desc_lun(&hba->dev_info, lun))
+				return -EINVAL;
+			index = lun;
+			break;
+		default:
+			return -EINVAL;
+		}
+		length = min_t(int, QUERY_DESC_MAX_SIZE, ioctl_data.buf_size);
+		desc = kzalloc(QUERY_DESC_MAX_SIZE, GFP_KERNEL);
+		if (!desc)
+			return -ENOMEM;
+		err = ufshcd_query_descriptor_retry(hba, ioctl_data.opcode,
+				ioctl_data.idn, index, 0, desc, &length);
+		data_ptr = desc;
+		break;
+	case UPIU_QUERY_OPCODE_READ_ATTR:
+		switch (ioctl_data.idn) {
+		case QUERY_ATTR_IDN_BOOT_LU_EN:
+		case QUERY_ATTR_IDN_POWER_MODE:
+		case QUERY_ATTR_IDN_ACTIVE_ICC_LVL:
+		case QUERY_ATTR_IDN_OOO_DATA_EN:
+		case QUERY_ATTR_IDN_BKOPS_STATUS:
+		case QUERY_ATTR_IDN_PURGE_STATUS:
+		case QUERY_ATTR_IDN_MAX_DATA_IN:
+		case QUERY_ATTR_IDN_MAX_DATA_OUT:
+		case QUERY_ATTR_IDN_REF_CLK_FREQ:
+		case QUERY_ATTR_IDN_CONF_DESC_LOCK:
+		case QUERY_ATTR_IDN_MAX_NUM_OF_RTT:
+		case QUERY_ATTR_IDN_EE_CONTROL:
+		case QUERY_ATTR_IDN_EE_STATUS:
+		case QUERY_ATTR_IDN_SECONDS_PASSED:
+			break;
+		case QUERY_ATTR_IDN_DYN_CAP_NEEDED:
+		case QUERY_ATTR_IDN_CORR_PRG_BLK_NUM:
+			index = lun;
+			break;
+		default:
+			return -EINVAL;
+		}
+		err = ufshcd_query_attr(hba, ioctl_data.opcode, ioctl_data.idn,
+					index, 0, &att);
+		length = sizeof(u32);
+		data_ptr = &att;
+		break;
+	case UPIU_QUERY_OPCODE_READ_FLAG:
+		switch (ioctl_data.idn) {
+		case QUERY_FLAG_IDN_FDEVICEINIT:
+		case QUERY_FLAG_IDN_PERMANENT_WPE:
+		case QUERY_FLAG_IDN_PWR_ON_WPE:
+		case QUERY_FLAG_IDN_BKOPS_EN:
+		case QUERY_FLAG_IDN_PURGE_ENABLE:
+		case QUERY_FLAG_IDN_FPHYRESOURCEREMOVAL:
+		case QUERY_FLAG_IDN_BUSY_RTC:
+			break;
+		default:
+			return -EINVAL;
+		}
+		err = ufshcd_query_flag_retry(hba, ioctl_data.opcode,
+					      ioctl_data.idn, 0, &flag);
+		length = 1;
+		data_ptr = &flag;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	if (err) {
+		dev_err(hba->dev, "%s: query opcode 0x%x idn 0x%x failed: %d\n",
+			__func__, ioctl_data.opcode, ioctl_data.idn, err);
+		goto out;
+	}
+	ioctl_data.buf_size = min_t(int, ioctl_data.buf_size, length);
+	if (copy_to_user(buffer, &ioctl_data, sizeof(ioctl_data)) ||
+	    copy_to_user(buffer + sizeof(ioctl_data), data_ptr,
+			 ioctl_data.buf_size))
+		err = -EFAULT;
+out:
+	kfree(desc);
+	return err;
+}
+
+static int ufshcd_ioctl(struct scsi_device *dev, unsigned int cmd,
+			void __user *buffer)
+{
+	struct ufs_hba *hba = shost_priv(dev->host);
+	int err;
+
+	if (cmd != UFS_IOCTL_QUERY)
+		return -ENOIOCTLCMD;
+	if (!buffer)
+		return -EINVAL;
+	ufshcd_rpm_get_sync(hba);
+	err = ufshcd_query_ioctl(hba, ufshcd_scsi_to_upiu_lun(dev->lun), buffer);
+	ufshcd_rpm_put_sync(hba);
+	return err;
+}
+
 static struct scsi_host_template ufshcd_driver_template = {
 	.module			= THIS_MODULE,
 	.name			= UFSHCD,
@@ -9011,6 +9139,10 @@ static struct scsi_host_template ufshcd_driver_template = {
 	.eh_device_reset_handler = ufshcd_eh_device_reset_handler,
 	.eh_host_reset_handler   = ufshcd_eh_host_reset_handler,
 	.eh_timed_out		= ufshcd_eh_timed_out,
+	.ioctl			= ufshcd_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl		= ufshcd_ioctl,
+#endif
 	.this_id		= -1,
 	.sg_tablesize		= SG_ALL,
 	.cmd_per_lun		= UFSHCD_CMD_PER_LUN,
