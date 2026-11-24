@@ -2431,6 +2431,21 @@ static int a6xx_gmu_first_boot(struct adreno_device *adreno_dev)
 	level = pwr->pwrlevels[pwr->default_pwrlevel].bus_min;
 	icc_set_bw(pwr->icc_path, 0, kBps_to_icc(pwr->ddr_table[level]));
 
+	/*
+	 * Program the GPU PDC and RSC before the GMU starts. With the
+	 * HFI_USE_REG quirk the boot_slumber OOB below has the GMU vote GX
+	 * and MX through them, so they must be loaded first, as 4.14 did in
+	 * a6xx_gmu_fw_start().
+	 */
+	if (!test_bit(GMU_PRIV_PDC_RSC_LOADED, &gmu->flags)) {
+		ret = a6xx_load_pdc_ucode(adreno_dev);
+		if (ret)
+			goto err;
+
+		a6xx_load_rsc_ucode(adreno_dev);
+		set_bit(GMU_PRIV_PDC_RSC_LOADED, &gmu->flags);
+	}
+
 	/* Clear any GPU faults that might have been left over */
 	adreno_clear_gpu_fault(adreno_dev);
 
@@ -2450,15 +2465,6 @@ static int a6xx_gmu_first_boot(struct adreno_device *adreno_dev)
 		ret = a6xx_gmu_sptprac_enable(adreno_dev);
 		if (ret)
 			goto err;
-	}
-
-	if (!test_bit(GMU_PRIV_PDC_RSC_LOADED, &gmu->flags)) {
-		ret = a6xx_load_pdc_ucode(adreno_dev);
-		if (ret)
-			goto err;
-
-		a6xx_load_rsc_ucode(adreno_dev);
-		set_bit(GMU_PRIV_PDC_RSC_LOADED, &gmu->flags);
 	}
 
 	ret = a6xx_gmu_hfi_start(adreno_dev);
