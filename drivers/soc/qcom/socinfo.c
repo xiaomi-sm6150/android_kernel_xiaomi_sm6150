@@ -58,6 +58,14 @@ enum {
 	HW_PLATFORM_WDP = 36,
 	HW_PLATFORM_QXR = 38,
 	HW_PLATFORM_QAR = 44,
+	/* Xiaomi sm6150/sdmmagpie CDT ids, as in their 4.14 kernels */
+	HW_PLATFORM_F3A = 35,
+	HW_PLATFORM_F10 = 39,
+	HW_PLATFORM_F4 = 42,
+	HW_PLATFORM_G7B = 43,
+	HW_PLATFORM_F4L = 44,
+	HW_PLATFORM_K9A = 45,
+	HW_PLATFORM_K6 = 46,
 	HW_PLATFORM_INVALID
 };
 
@@ -84,7 +92,14 @@ static const char * const hw_platform[] = {
 	[HW_PLATFORM_IDP] = "IDP",
 	[HW_PLATFORM_WDP] = "WDP",
 	[HW_PLATFORM_QXR] = "QXR",
-	[HW_PLATFORM_QAR] = "QAR",
+	[HW_PLATFORM_F3A] = "AQUILA",
+	[HW_PLATFORM_F10] = "DAVINCI",
+	[HW_PLATFORM_F4] = "TUCANA",
+	[HW_PLATFORM_G7B] = "PHOENIX",
+	/* 44 is QAR upstream; the Xiaomi family kernels report TOCO */
+	[HW_PLATFORM_F4L] = "TOCO",
+	[HW_PLATFORM_K9A] = "COURBET",
+	[HW_PLATFORM_K6] = "SWEET",
 };
 
 enum {
@@ -1033,6 +1048,9 @@ msm_get_hw_platform(struct device *dev,
 	uint32_t hw_type;
 
 	hw_type = socinfo_get_platform_type();
+
+	if (hw_type >= ARRAY_SIZE(hw_platform) || !hw_platform[hw_type])
+		hw_type = HW_PLATFORM_UNKNOWN;
 
 	return scnprintf(buf, PAGE_SIZE, "%-.32s\n",
 			hw_platform[hw_type]);
