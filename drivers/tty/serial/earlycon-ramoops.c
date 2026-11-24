@@ -46,6 +46,15 @@ static void earlycon_ramoops_write(struct console *con, const char *s,
 
 	start = readl_relaxed(&rbuf->start);
 	size = readl_relaxed(&rbuf->size);
+	/*
+	 * The zone header is shared: once the real ramoops backend is up its
+	 * zone (e.g. pmsg) can be bigger than this mapping and move start
+	 * past it. Never write outside our own ring.
+	 */
+	if (start >= rbuf_size)
+		start = 0;
+	if (size > rbuf_size)
+		size = rbuf_size;
 	while (n--) {
 		writeb_relaxed(*s++, &rbuf->data[start]);
 		if (++start == rbuf_size)
