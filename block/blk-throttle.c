@@ -1667,7 +1667,26 @@ static void tg_flush_bios(struct throtl_grp *tg)
 
 static void throtl_pd_offline(struct blkg_policy_data *pd)
 {
-	tg_flush_bios(pd_to_tg(pd));
+	struct throtl_grp *tg = pd_to_tg(pd);
+	struct throtl_grp *parent = blkg_to_tg(tg_to_blkg(tg)->parent);
+
+	tg_flush_bios(tg);
+
+	/* the recursive files of the ancestors go on counting what it did */
+	if (parent) {
+		blkg_rwstat_add_aux(&parent->stat_bytes, &tg->stat_bytes);
+		blkg_rwstat_add_aux(&parent->stat_ios, &tg->stat_ios);
+		blkg_rwstat_reset(&tg->stat_bytes);
+		blkg_rwstat_reset(&tg->stat_ios);
+	}
+}
+
+static void throtl_pd_reset_stats(struct blkg_policy_data *pd)
+{
+	struct throtl_grp *tg = pd_to_tg(pd);
+
+	blkg_rwstat_reset(&tg->stat_bytes);
+	blkg_rwstat_reset(&tg->stat_ios);
 }
 
 struct blkcg_policy blkcg_policy_throtl = {
@@ -1679,6 +1698,7 @@ struct blkcg_policy blkcg_policy_throtl = {
 	.pd_online_fn		= throtl_pd_online,
 	.pd_offline_fn		= throtl_pd_offline,
 	.pd_free_fn		= throtl_pd_free,
+	.pd_reset_stats_fn	= throtl_pd_reset_stats,
 };
 
 void blk_throtl_cancel_bios(struct gendisk *disk)
