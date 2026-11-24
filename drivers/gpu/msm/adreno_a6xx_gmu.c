@@ -2155,7 +2155,7 @@ void a6xx_gmu_send_nmi(struct kgsl_device *device, bool force)
 
 	gmu_core_regread(device, A6XX_GMU_CM3_FW_INIT_RESULT, &val);
 
-	if (val & 0xE00)
+	if (val != 0xBABEFACE && (val & 0xE00))
 		return;
 
 nmi:
