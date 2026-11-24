@@ -1958,12 +1958,40 @@ static int k61_scratch_mkdir(const char *name)
  * entry is a plain read-only nofail mount (no formattable/check/encryption).
  */
 #define K61_UD_PREFIX "/dev/block/bootdevice/by-name/userdata"
+
+/*
+ * mount_all without a path makes libfstab read fstab.<ro.boot.fstab_suffix>
+ * from /odm/etc, then /vendor/etc: emmc on violet, default on sweet (UFS).
+ * Patch the same file; fall back to violet's fstab.emmc.
+ */
+static void k61_fstab_src(char *src, size_t len)
+{
+	static const char *const dirs[] = { "/odm/etc", "/vendor/etc" };
+	const char *key = "androidboot.fstab_suffix=";
+	const char *p = strstr(saved_command_line, key);
+	char suffix[32] = "emmc";
+	struct path path;
+	int i;
+
+	if (p) {
+		p += strlen(key);
+		strscpy(suffix, p, min_t(size_t, sizeof(suffix), strcspn(p, " ") + 1));
+	}
+	for (i = 0; i < ARRAY_SIZE(dirs); i++) {
+		snprintf(src, len, "%s/fstab.%s", dirs[i], suffix);
+		if (!kern_path(src, LOOKUP_FOLLOW, &path)) {
+			path_put(&path);
+			return;
+		}
+	}
+	snprintf(src, len, "/vendor/etc/fstab.emmc");
+}
 #define K61_UD_LINE   K61_UD_PREFIX " /data f2fs ro latemount,wait,nofail\n"
 
 static void k61_patch_fstab(char *page)
 {
-	const char *src = "/vendor/etc/fstab.emmc";
-	const char *dst = "/metadata/k61-fstab.emmc";
+	char src[64];
+	const char *dst = "/metadata/k61-fstab";
 	char *in, *out, *line, *eol;
 	size_t olen = 0;
 	struct file *f;
@@ -1972,6 +2000,7 @@ static void k61_patch_fstab(char *page)
 	ssize_t n;
 	int ret;
 
+	k61_fstab_src(src, sizeof(src));
 	in = kmalloc(16384, GFP_KERNEL);
 	out = kmalloc(16384, GFP_KERNEL);
 	if (!in || !out)
