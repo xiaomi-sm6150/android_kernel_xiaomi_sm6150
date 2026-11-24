@@ -282,10 +282,12 @@ static int poll_gmu_reg(struct adreno_device *adreno_dev,
 		 * timeout early. Bits [11:9] of A6XX_GMU_CM3_FW_INIT_RESULT
 		 * contain GMU reset status. Non zero value here indicates that
 		 * GMU reset is active, NMI handler would eventually complete
-		 * and GMU would wait for recovery.
+		 * and GMU would wait for recovery. Legacy GMU firmware leaves
+		 * its 0xBABEFACE boot value in this register, which has those
+		 * bits set, so it does not mean NMI there.
 		 */
 		gmu_core_regread(device, A6XX_GMU_CM3_FW_INIT_RESULT, &val);
-		if (val & 0xE00) {
+		if (val != 0xBABEFACE && (val & 0xE00)) {
 			nmi = true;
 			break;
 		}
