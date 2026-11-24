@@ -7,6 +7,7 @@
 
 #include <linux/bsg-lib.h>
 #include <linux/dma-mapping.h>
+#include <linux/k61-stop.h>
 #include <scsi/scsi.h>
 #include <scsi/scsi_host.h>
 #include "ufs_bsg.h"
@@ -151,6 +152,10 @@ static int ufs_bsg_request(struct bsg_job *job)
 		ret = -EINVAL;
 		goto out_complete;
 	}
+
+	/* DEBUG k61.stop: no UPIU queries (flags, descriptors) from userspace */
+	if (k61_stop_init)
+		return -EACCES;
 
 	ufshcd_rpm_get_sync(hba);
 

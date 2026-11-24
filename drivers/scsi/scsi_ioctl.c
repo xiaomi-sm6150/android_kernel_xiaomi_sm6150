@@ -919,10 +919,16 @@ int scsi_ioctl(struct scsi_device *sdev, bool open_for_write, int cmd,
 	case SG_EMULATED_HOST:
 		return sg_emulated_host(q, arg);
 	case SG_IO:
+		if (!k61_scsi_lun_ok(sdev->lun))
+			return -EACCES;
 		return scsi_ioctl_sg_io(sdev, open_for_write, arg);
 	case SCSI_IOCTL_SEND_COMMAND:
+		if (!k61_scsi_lun_ok(sdev->lun))
+			return -EACCES;
 		return sg_scsi_ioctl(q, open_for_write, arg);
 	case CDROM_SEND_PACKET:
+		if (!k61_scsi_lun_ok(sdev->lun))
+			return -EACCES;
 		return scsi_cdrom_send_packet(sdev, open_for_write, arg);
 	case CDROMCLOSETRAY:
 		return scsi_send_start_stop(sdev, 3);
