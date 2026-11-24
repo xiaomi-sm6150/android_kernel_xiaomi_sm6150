@@ -22,6 +22,10 @@ extern bool k61_stop_sys;
 
 void k61_efs_scratch(const char **names, int n);
 
+struct block_device;
+/* k61.rw=<name>,...: internal partitions that may still be written */
+bool k61_rw_allowed(struct block_device *bdev);
+
 /*
  * The phone's own storage, which the k61.stop modes must never write:
  * eMMC (mmcblk*, violet) and UFS (sd*, sdmmagpie). Device-mapper targets

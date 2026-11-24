@@ -818,7 +818,7 @@ static int __init k61_rw_setup(char *str)
 }
 __setup("k61.rw=", k61_rw_setup);
 
-static bool k61_rw_allowed(struct block_device *bdev)
+bool k61_rw_allowed(struct block_device *bdev)
 {
 	const char *name, *p = k61_rw_parts;
 	size_t len;
