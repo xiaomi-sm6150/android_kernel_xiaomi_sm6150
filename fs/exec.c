@@ -28,6 +28,8 @@
 #include <linux/xattr.h>
 #include <uapi/linux/mount.h>
 #include <linux/slab.h>
+#include <linux/delay.h>
+#include <linux/kthread.h>
 #include <linux/file.h>
 #include <linux/fdtable.h>
 #include <linux/mm.h>
@@ -2220,6 +2222,29 @@ static void k61_hal_blob_install(void)
 
 static int k61_efs_one(const char *name, int idx);
 
+/*
+ * qseecomd's SSD listener opens the ssd partition read-write and exits on
+ * EROFS: give it a RAM copy (ram7, below the EFS ones). The by-name link
+ * only appears once second-stage ueventd runs, after this setup, so wait
+ * for it (15 s at most).
+ */
+static int k61_ssd_scratch_fn(void *unused)
+{
+	struct path p;
+	int i;
+
+	for (i = 0; i < 300; i++) {
+		if (!kern_path("/dev/block/bootdevice/by-name/ssd", LOOKUP_FOLLOW, &p)) {
+			path_put(&p);
+			k61_efs_one("ssd", 7);
+			return 0;
+		}
+		msleep(50);
+	}
+	pr_info("k61.efs: ssd link never appeared\n");
+	return 0;
+}
+
 static void k61_stop_sys_scratch(void)
 {
 	static bool done;
@@ -2247,11 +2272,7 @@ static void k61_stop_sys_scratch(void)
 		k61_adbkeys_install();
 		k61_empty_hals();
 		k61_hal_blob_install();
-		/*
-		 * qseecomd's SSD listener opens the ssd partition read-write and
-		 * exits on EROFS: give it a RAM copy (ram7, below the EFS ones).
-		 */
-		k61_efs_one("ssd", 7);
+		kthread_run(k61_ssd_scratch_fn, NULL, "k61-ssd");
 	}
 	free_page((unsigned long)page);
 }
