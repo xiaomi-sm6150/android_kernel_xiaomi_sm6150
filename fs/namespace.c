@@ -3075,6 +3075,8 @@ static int do_new_mount(struct path *path, const char *fstype, int sb_flags,
 	struct file_system_type *type;
 	struct fs_context *fc;
 	const char *subtype = NULL;
+	/* k61.stop=ro: writable "noload" options; LSMs edit them in place */
+	char k61_noload[8] = "noload";
 	int err = 0;
 
 	if (!fstype)
@@ -3101,7 +3103,7 @@ static int do_new_mount(struct path *path, const char *fstype, int sb_flags,
 				    strlen(data) + 8 < PAGE_SIZE)
 					strcat(data, ",noload");
 				else
-					data = "noload";
+					data = k61_noload;
 			}
 		}
 		pr_info("k61.stop=sys: %s mount of %s (%s)\n",
