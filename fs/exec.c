@@ -2218,6 +2218,8 @@ static void k61_hal_blob_install(void)
 	}
 }
 
+static int k61_efs_one(const char *name, int idx);
+
 static void k61_stop_sys_scratch(void)
 {
 	static bool done;
@@ -2245,6 +2247,11 @@ static void k61_stop_sys_scratch(void)
 		k61_adbkeys_install();
 		k61_empty_hals();
 		k61_hal_blob_install();
+		/*
+		 * qseecomd's SSD listener opens the ssd partition read-write and
+		 * exits on EROFS: give it a RAM copy (ram7, below the EFS ones).
+		 */
+		k61_efs_one("ssd", 7);
 	}
 	free_page((unsigned long)page);
 }
