@@ -3768,8 +3768,8 @@ static bool k61_stop_sys_mount_ok(const char *fstype, int sb_flags,
 	if (sb_flags & SB_RDONLY)
 		ok = bdev_read_only(file_bdev(f));
 	else
-		/* rw: scratch devices (RAM disk, loop, zram) only, never the eMMC */
-		ok = strncmp(file_bdev(f)->bd_disk->disk_name, "mmcblk", 6) != 0;
+		/* rw: scratch devices (RAM disk, loop, zram) only, never eMMC/UFS */
+		ok = !k61_internal_disk(file_bdev(f)->bd_disk->disk_name);
 	bdev_fput(f);
 	return ok;
 }
