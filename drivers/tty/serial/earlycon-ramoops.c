@@ -35,6 +35,8 @@ static struct ramoops_buffer __iomem *rbuf;
 static phys_addr_t rbuf_phys;
 static size_t rbuf_map_size;
 static u32 rbuf_size;
+static struct console *rcon;
+static bool rbuf_early;
 
 static void earlycon_ramoops_write(struct console *con, const char *s,
 				   unsigned int n)
@@ -85,6 +87,7 @@ static int __init earlycon_ramoops_setup(struct earlycon_device *dev,
 	rbuf = early_ioremap(rbuf_phys, rbuf_map_size);
 	if (!rbuf)
 		return -ENOMEM;
+	rbuf_early = true;
 	rbuf_size = size - sizeof(*rbuf);
 
 	writel_relaxed(0, &rbuf->start);
@@ -93,6 +96,7 @@ static int __init earlycon_ramoops_setup(struct earlycon_device *dev,
 	mb();
 
 	dev->con->write = earlycon_ramoops_write;
+	rcon = dev->con;
 	return 0;
 }
 EARLYCON_DECLARE(ramoops, earlycon_ramoops_setup);
@@ -111,8 +115,35 @@ static int __init earlycon_ramoops_remap(void)
 
 	console_lock();
 	rbuf = new;
+	rbuf_early = false;
 	console_unlock();
 	early_iounmap(old, rbuf_map_size);
 	return 0;
 }
 early_initcall(earlycon_ramoops_remap);
+
+/*
+ * Stop before userspace starts. This boot console is never replaced by a
+ * console with a tty, so it would otherwise stay registered for good and
+ * keep writing into a zone that the real ramoops backend (pmsg) now owns
+ * and moves. The pstore console has the log from 0.1 s on anyway.
+ */
+static int __init earlycon_ramoops_stop(void)
+{
+	struct ramoops_buffer __iomem *old;
+
+	if (!rcon || !rbuf)
+		return 0;
+	unregister_console(rcon);
+	console_lock();
+	old = rbuf;
+	rbuf = NULL;
+	console_unlock();
+	if (rbuf_early)
+		early_iounmap(old, rbuf_map_size);
+	else
+		iounmap(old);
+	pr_info("earlycon: ramoops boot console stopped\n");
+	return 0;
+}
+late_initcall_sync(earlycon_ramoops_stop);
