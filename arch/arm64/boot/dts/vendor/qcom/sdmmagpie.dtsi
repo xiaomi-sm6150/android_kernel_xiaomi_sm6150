@@ -1361,17 +1361,11 @@
 						qcom,pre-scaling = <1 6>;
 					};
 
-					v_i_int_ext {
-						reg = <ADC5_INT_EXT_ISENSE_VBAT_VDATA>;
-						label = "v_i_int_vbat_vdata";
-						qcom,pre-scaling = <1 1>;
-					};
-
-					v_i_parallel {
-						reg = <ADC5_PARALLEL_ISENSE_VBAT_VDATA>;
-						label = "v_i_parallel_vbat_vdata";
-						qcom,pre-scaling = <1 1>;
-					};
+					/*
+					 * 4.14 v_i_int_ext (0xb0) and v_i_parallel (0xb4)
+					 * dropped: the 6.1 adc5 driver has no such channels
+					 * and fails the whole probe on them; nothing uses them.
+					 */
 				};
 
 				/* MERGE io-channels: 4.14 target has (none) */
