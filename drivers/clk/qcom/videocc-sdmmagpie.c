@@ -342,10 +342,16 @@ static int video_multipipe_fixup(struct platform_device *pdev,
 	struct device *dev = &pdev->dev;
 	u32 val;
 
+	/*
+	 * The fuse word lies inside the qfprom region that the nvmem driver
+	 * already requested, so map it without claiming the region.
+	 */
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
-	base = devm_ioremap_resource(dev, res);
-	if (IS_ERR(base))
-		return PTR_ERR(base);
+	if (!res)
+		return -EINVAL;
+	base = devm_ioremap(dev, res->start, resource_size(res));
+	if (!base)
+		return -ENOMEM;
 
 	val = readl_relaxed(base);
 	val = (val >> IRIS_DISBALE_MULTIPIPE) & 0x1;
