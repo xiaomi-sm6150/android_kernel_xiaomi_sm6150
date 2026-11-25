@@ -726,6 +726,15 @@ static int __test_loads(struct __test_metadata *_metadata,
 	EXPECT_EQ(ret, 0)
 		return ret;
 
+	/*
+	 * Test a multi-request unaligned load where the final sub-request starts at the second
+	 * tail bounce page, past the end of the direct I/O segment.
+	 */
+	ret = load_and_cmp(_metadata, self, wrapfd, self->page_size / 4, self->page_size / 2,
+			   ALIGN(self->size / 3, self->page_size));
+	EXPECT_EQ(ret, 0)
+		return ret;
+
 	ret = load_and_cmp(_metadata, self, wrapfd, 0, 0, self->size);
 	EXPECT_EQ(ret, 0);
 
