@@ -315,6 +315,7 @@ struct aw8624 {
 	struct work_struct rtp_work;
 	struct work_struct set_gain_work;
 	struct delayed_work ram_work;
+	unsigned int ram_retry;
 	struct delayed_work stop_work;
 
 	struct fileops fileops;

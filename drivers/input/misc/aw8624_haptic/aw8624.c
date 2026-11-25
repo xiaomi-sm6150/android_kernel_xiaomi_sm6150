@@ -416,8 +416,20 @@ static void aw8624_ram_loaded(const struct firmware *cont, void *context)
 	pr_info("%s: enter\n", __func__);
 
 	if (!cont) {
+		/*
+		 * The RAM waveforms live in /vendor/firmware, which is not
+		 * mounted yet when the first request runs (~7 s) and the
+		 * uevent request has no fallback, so retry for a minute.
+		 */
+		if (aw8624->ram_retry < 12) {
+			aw8624->ram_retry++;
+			pr_info("%s: %s not there yet, retry %u in 5 s\n",
+				__func__, aw8624_ram_name, aw8624->ram_retry);
+			queue_delayed_work(aw8624->work_queue, &aw8624->ram_work,
+					   msecs_to_jiffies(5000));
+			return;
+		}
 		pr_err("%s: failed to read %s\n", __func__, aw8624_ram_name);
-		release_firmware(cont);
 		return;
 	}
 
