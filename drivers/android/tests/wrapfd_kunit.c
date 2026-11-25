@@ -470,6 +470,9 @@ static void wrapfd_listener_test(struct kunit *test)
 	struct file *file;
 	int wrapfd;
 
+	kunit_skip(test,
+		   "b/590561996: create_owned_wrap() cannot be called from kernel security domain");
+
 	/* Test invalid inputs */
 	KUNIT_EXPECT_EQ(test, wrapfd_del_listener(NULL), -EINVAL);
 	KUNIT_EXPECT_EQ(test, add_test_listener(NULL, dev1, &failed), -EBADF);
@@ -530,6 +533,9 @@ static void wrapfd_listener_file_release_test(struct kunit *test)
 	struct file *file;
 	int wrapfd;
 
+	kunit_skip(test,
+		   "b/590561996: create_owned_wrap() cannot be called from kernel security domain");
+
 	file = create_owned_wrap(test, dev1, &wrapfd);
 	KUNIT_EXPECT_EQ(test, add_test_listener(file, dev1, &l1), 0);
 	KUNIT_EXPECT_EQ(test, add_test_listener(file, dev1, &l2), 0);
@@ -555,6 +561,9 @@ static void wrapfd_listener_non_owner_test(struct kunit *test)
 	struct test_listener l1 = {};
 	struct file *file;
 	int wrapfd;
+
+	kunit_skip(test,
+		   "b/590561996: create_owned_wrap() cannot be called from kernel security domain");
 
 	file = create_owned_wrap(test, dev1, &wrapfd);
 	KUNIT_EXPECT_EQ(test, wrapfd_release_ownership(file, dev1), 0);
@@ -655,6 +664,9 @@ static void wrapfd_listener_del_in_progress_test(struct kunit *test)
 	struct file *file;
 	int wrapfd;
 
+	kunit_skip(test,
+		   "b/590561996: create_owned_wrap() cannot be called from kernel security domain");
+
 	init_completion(&running.started);
 	init_completion(&running.proceed);
 	init_completion(&empty_work.done);
@@ -743,6 +755,9 @@ static void wrapfd_allow_guests_test(struct kunit *test)
 	union wrapfd_mappable mappable;
 	struct file *owned_file;
 	int wrapfd;
+
+	kunit_skip(test,
+		   "b/590561996: create_owned_wrap() cannot be called from kernel security domain");
 
 	/* Test invalid inputs */
 	KUNIT_ASSERT_EQ(test, wrapfd_allow_guests(NULL, dev1), -EBADF);
