@@ -266,7 +266,7 @@ static int setup_per_mode_enc_key(struct fscrypt_inode_info *ci,
 		return 0;
 	}
 
-	new_node = kzalloc(sizeof(*new_node), GFP_KERNEL);
+	new_node = kzalloc_obj(*new_node);
 	if (!new_node)
 		return -ENOMEM;
 	new_node->hkdf_context = hkdf_context;
