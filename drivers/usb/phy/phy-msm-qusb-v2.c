@@ -212,22 +212,24 @@ static int qusb_phy_disable_power(struct qusb_phy *qphy)
 	dev_dbg(qphy->phy.dev, "%s:req to turn off regulators\n",
 			__func__);
 
-	ret = regulator_disable(qphy->refgen);
-	if (ret)
-		dev_err(qphy->phy.dev, "Unable to disable refgen:%d\n", ret);
-
-	if (!regulator_is_enabled(qphy->refgen)) {
-		ret = regulator_set_voltage(qphy->refgen, 0,
-					QUSB2PHY_REFGEN_VOL_MAX);
+	if (qphy->refgen) {
+		ret = regulator_disable(qphy->refgen);
 		if (ret)
-			dev_err(qphy->phy.dev,
-				"Unable to set (0) voltage for refgen:%d\n",
-					ret);
+			dev_err(qphy->phy.dev, "Unable to disable refgen:%d\n", ret);
 
-		ret = regulator_set_load(qphy->refgen, 0);
-		if (ret < 0)
-			dev_err(qphy->phy.dev,
-					"Unable to set (0) HPM of refgen\n");
+		if (!regulator_is_enabled(qphy->refgen)) {
+			ret = regulator_set_voltage(qphy->refgen, 0,
+						QUSB2PHY_REFGEN_VOL_MAX);
+			if (ret)
+				dev_err(qphy->phy.dev,
+					"Unable to set (0) voltage for refgen:%d\n",
+						ret);
+
+			ret = regulator_set_load(qphy->refgen, 0);
+			if (ret < 0)
+				dev_err(qphy->phy.dev,
+						"Unable to set (0) HPM of refgen\n");
+		}
 	}
 
 	ret = regulator_disable(qphy->vdda33);
@@ -352,24 +354,26 @@ static int qusb_phy_enable_power(struct qusb_phy *qphy)
 		goto unset_vdd33;
 	}
 
-	ret = regulator_set_load(qphy->refgen, QUSB2PHY_REFGEN_HPM_LOAD);
-	if (ret < 0) {
-		dev_err(qphy->phy.dev, "Unable to set HPM of refgen:%d\n", ret);
-		goto disable_vdd33;
-	}
+	if (qphy->refgen) {
+		ret = regulator_set_load(qphy->refgen, QUSB2PHY_REFGEN_HPM_LOAD);
+		if (ret < 0) {
+			dev_err(qphy->phy.dev, "Unable to set HPM of refgen:%d\n", ret);
+			goto disable_vdd33;
+		}
 
-	ret = regulator_set_voltage(qphy->refgen, QUSB2PHY_REFGEN_VOL_MIN,
-						QUSB2PHY_REFGEN_VOL_MAX);
-	if (ret) {
-		dev_err(qphy->phy.dev,
-				"Unable to set voltage for refgen:%d\n", ret);
-		goto put_refgen_lpm;
-	}
+		ret = regulator_set_voltage(qphy->refgen, QUSB2PHY_REFGEN_VOL_MIN,
+							QUSB2PHY_REFGEN_VOL_MAX);
+		if (ret) {
+			dev_err(qphy->phy.dev,
+					"Unable to set voltage for refgen:%d\n", ret);
+			goto put_refgen_lpm;
+		}
 
-	ret = regulator_enable(qphy->refgen);
-	if (ret) {
-		dev_err(qphy->phy.dev, "Unable to enable refgen\n");
-		goto unset_refgen;
+		ret = regulator_enable(qphy->refgen);
+		if (ret) {
+			dev_err(qphy->phy.dev, "Unable to enable refgen\n");
+			goto unset_refgen;
+		}
 	}
 	pr_debug("%s(): QUSB PHY's regulators are turned ON.\n", __func__);
 
@@ -379,13 +383,13 @@ static int qusb_phy_enable_power(struct qusb_phy *qphy)
 	return ret;
 
 unset_refgen:
-	ret = regulator_set_voltage(qphy->refgen, 0, QUSB2PHY_REFGEN_VOL_MAX);
+	ret = qphy->refgen ? regulator_set_voltage(qphy->refgen, 0, QUSB2PHY_REFGEN_VOL_MAX) : 0;
 	if (ret)
 		dev_err(qphy->phy.dev,
 			"Unable to set (0) voltage for refgen:%d\n", ret);
 
 put_refgen_lpm:
-	ret = regulator_set_load(qphy->refgen, 0);
+	ret = qphy->refgen ? regulator_set_load(qphy->refgen, 0) : 0;
 	if (ret < 0)
 		dev_err(qphy->phy.dev, "Unable to set (0) HPM of refgen\n");
 
@@ -1049,10 +1053,14 @@ static int qusb2_get_regulators(struct qusb_phy *qphy)
 		return PTR_ERR(qphy->vdda18);
 	}
 
-	qphy->refgen = devm_regulator_get(dev, "refgen");
+	/* Older targets (sdmmagpie, as on 4.14) have no refgen supply. */
+	qphy->refgen = devm_regulator_get_optional(dev, "refgen");
 	if (IS_ERR(qphy->refgen)) {
-		dev_err(dev, "unable to get refgen supply\n");
-		return PTR_ERR(qphy->refgen);
+		if (PTR_ERR(qphy->refgen) != -ENODEV) {
+			dev_err(dev, "unable to get refgen supply\n");
+			return PTR_ERR(qphy->refgen);
+		}
+		qphy->refgen = NULL;
 	}
 
 	return 0;
