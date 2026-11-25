@@ -1208,16 +1208,20 @@ unsafe extern "C" fn wrapfd_del_listener(handle: *mut ffi::c_void) -> ffi::c_int
 }
 
 #[export]
+/// Acquires ownership of the wrap on behalf of `dev`.
+///
+/// Unless already owned by `dev`, the wrap must be non-empty, unmapped, not in use, and not owned
+/// by another task or device for this function to succeed.
+///
+/// On success, 0 is returned, and `dev` owns the wrap. On failure, a negative error code is
+/// returned, and the wrap is not owned by `dev`.
+///
 /// # Safety
 ///
-/// - `file` is a pointer to a valid struct file and remains valid throughout this call.
-/// - `dev` is a pointer to a valid struct device and remains valid throughout this call.
-///
-/// The buffer must not be in use or owned by another process or device for this function to
-/// succeed.
-///
-/// On success, 0 is returned, and the device owns the buffer. On failure, a negative error code is
-/// returned, and the buffer is not owned by the invoking device.
+/// - `file` must be NULL or a valid pointer to a live C `struct file` for the duration of this
+///   call.
+/// - `dev` must be NULL or a valid pointer to a live C `struct device` for the duration of this
+///   call.
 unsafe extern "C" fn wrapfd_acquire_ownership(
     file: *mut bindings::file,
     dev: *mut bindings::device,
@@ -1261,15 +1265,19 @@ unsafe extern "C" fn wrapfd_acquire_ownership(
 }
 
 #[export]
+/// Releases ownership of the wrap on behalf of `dev`.
+///
+/// The wrap must be owned by `dev` for this function to succeed.
+///
+/// On success, 0 is returned, and `dev` no longer owns the wrap. On failure, a negative error code
+/// is returned, and the wrap's ownership state remains unchanged.
+///
 /// # Safety
 ///
-/// - `file` is a pointer to a valid struct file and remains valid throughout this call.
-/// - `dev` is a pointer to a valid struct device and remains valid throughout this call.
-///
-/// The buffer must be owned by `dev` to succeed.
-///
-/// On success, 0 is returned, and the device no longer owns the buffer. On failure, a negative
-/// error code is returned, and the buffer's ownership state remains unchanged.
+/// - `file` must be NULL or a valid pointer to a live C `struct file` for the duration of this
+///   call.
+/// - `dev` must be NULL or a valid pointer to a live C `struct device` for the duration of this
+///   call.
 unsafe extern "C" fn wrapfd_release_ownership(
     file: *mut bindings::file,
     dev: *mut bindings::device,
