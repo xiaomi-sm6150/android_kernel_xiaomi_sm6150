@@ -2152,13 +2152,6 @@
 };
 
 
-/*
- * Long TZ calls of the modem boot (MBA/PAS auth) can stall the other CPUs
- * (IPIs lost, ticks stop), as on violet: boot it with CPUs 1-7 offline.
- */
-&mpss_pas {
-	k61,solo-cpu;
-};
 
 /* DEBUG (k61.stop tester builds): RAM copies of the modem EFS partitions */
 &mpss_pas {
