@@ -478,6 +478,7 @@ void remove_vma(struct vm_area_struct *vma)
 		fput(vma->vm_file);
 	}
 	mpol_put(vma_policy(vma));
+	ptshare_put_vma(vma);
 	vm_area_free(vma);
 }
 
@@ -1367,7 +1368,13 @@ static void vms_complete_munmap_vmas(struct vma_munmap_struct *vms,
 	struct vm_area_struct *vma;
 	struct mm_struct *mm;
 
-	mm = current->mm;
+	if (!vms->vma) {
+		/* Only __mmap_prepare() passes vms->vma == NULL, with unlock = false. */
+		VM_WARN_ON_ONCE(vms->unlock);
+		return;
+	}
+
+	mm = vms->vma->vm_mm;
 	mm->map_count -= vms->vma_count;
 	mm->locked_vm -= vms->locked_vm;
 	if (vms->unlock)
@@ -2579,6 +2586,7 @@ static int __mmap_new_file_vma(struct mmap_state *map,
 
 		vma_iter_set(vmi, vma->vm_end);
 		/* Undo any partial mapping done by a device driver. */
+		ptshare_abort_new_vma(vma);
 		unmap_region(&vmi->mas, vma, map->prev, map->next);
 
 		return error;

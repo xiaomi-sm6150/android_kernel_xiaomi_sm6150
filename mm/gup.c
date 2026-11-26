@@ -21,6 +21,7 @@
 #include <linux/pagevec.h>
 #include <linux/sched/mm.h>
 #include <linux/shmem_fs.h>
+#include <linux/ptshare.h>
 
 #include <asm/mmu_context.h>
 #include <asm/tlbflush.h>
@@ -1428,6 +1429,13 @@ static long __get_user_pages(struct mm_struct *mm,
 			ret = check_vma_flags(vma, gup_flags);
 			if (ret)
 				goto out;
+			ret = ptshare_unshare_vma_on_gup(vma, start, gup_flags,
+							 locked);
+			if (ret) {
+				if (ret == -EAGAIN)
+					ret = 0;
+				goto out;
+			}
 		}
 retry:
 		/*

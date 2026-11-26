@@ -93,10 +93,16 @@ static inline unsigned int disk_zone_wplugs_hash_size(struct gendisk *disk)
  *    to prevent new references to the zone write plug to be taken for
  *    newly incoming BIOs. A zone write plug flagged with this flag will be
  *    freed once all remaining references from BIOs or functions are dropped.
+ *  - BLK_ZONE_WPLUG_SERIALIZED: Indicates that a REQ_ZONE_SERIALIZED write
+ *    (e.g. REQ_PREFLUSH/REQ_FUA write passing through the flush machinery and
+ *    the requeue list) is in flight. The zone write plug stays plugged and
+ *    plugged BIOs are not submitted until that write completes, even if other
+ *    pipelined writes for the zone complete earlier.
  */
 #define BLK_ZONE_WPLUG_PLUGGED		(1U << 0)
 #define BLK_ZONE_WPLUG_NEED_WP_UPDATE	(1U << 1)
 #define BLK_ZONE_WPLUG_UNHASHED		(1U << 2)
+#define BLK_ZONE_WPLUG_SERIALIZED	(1U << 3)
 
 /**
  * blk_zone_cond_str - Return string XXX in BLK_ZONE_COND_XXX.
@@ -629,7 +635,12 @@ static void disk_zone_wplug_abort(struct blk_zone_wplug *zwplug)
 	while ((bio = bio_list_pop(&zwplug->bio_list)))
 		blk_zone_wplug_bio_io_error(zwplug, bio);
 
-	zwplug->flags &= ~BLK_ZONE_WPLUG_PLUGGED;
+	/*
+	 * Keep the zone write plug plugged while a serialized write is in
+	 * flight, the completion of that write will unplug it.
+	 */
+	if (!(zwplug->flags & BLK_ZONE_WPLUG_SERIALIZED))
+		zwplug->flags &= ~BLK_ZONE_WPLUG_PLUGGED;
 }
 
 /*
@@ -1132,6 +1143,10 @@ static bool blk_zone_wplug_handle_write(struct bio *bio, unsigned int nr_segs,
 		 * BIO.
 		 */
 		zwplug->flags |= BLK_ZONE_WPLUG_PLUGGED;
+		if (bio->bi_opf & REQ_ZONE_SERIALIZED) {
+			WARN_ON_ONCE(zwplug->flags & BLK_ZONE_WPLUG_SERIALIZED);
+			zwplug->flags |= BLK_ZONE_WPLUG_SERIALIZED;
+		}
 	}
 
 	spin_unlock_irqrestore(&zwplug->lock, flags);
@@ -1278,11 +1293,30 @@ bool blk_zone_plug_bio(struct bio *bio, unsigned int nr_segs, int rq_cpu)
 EXPORT_SYMBOL_GPL(blk_zone_plug_bio);
 
 static void disk_zone_wplug_unplug_bio(struct gendisk *disk,
-				       struct blk_zone_wplug *zwplug)
+				       struct blk_zone_wplug *zwplug,
+				       bool serialized)
 {
 	unsigned long flags;
 
 	spin_lock_irqsave(&zwplug->lock, flags);
+
+	if (serialized) {
+		/*
+		 * The serialized write completed, allow dispatching the BIOs
+		 * plugged behind it.
+		 */
+		WARN_ON_ONCE(!(zwplug->flags & BLK_ZONE_WPLUG_SERIALIZED));
+		zwplug->flags &= ~BLK_ZONE_WPLUG_SERIALIZED;
+	} else if (zwplug->flags & BLK_ZONE_WPLUG_SERIALIZED) {
+		/*
+		 * A serialized write is still in flight: keep the zone write
+		 * plug plugged, the completion of that write will unplug it.
+		 * Otherwise, the completion of an earlier pipelined write would
+		 * let plugged BIOs be dispatched ahead of the serialized write.
+		 */
+		spin_unlock_irqrestore(&zwplug->lock, flags);
+		return;
+	}
 
 	/* Schedule submission of the next plugged BIO if we have one. */
 	if (!bio_list_empty(&zwplug->bio_list)) {
@@ -1370,7 +1404,7 @@ void blk_zone_write_plug_bio_endio(struct bio *bio)
 	 * plugged BIO here.
 	 */
 	if (bdev_test_flag(bio->bi_bdev, BD_HAS_SUBMIT_BIO))
-		disk_zone_wplug_unplug_bio(disk, zwplug);
+		disk_zone_wplug_unplug_bio(disk, zwplug, false);
 
 	/* Drop the reference we took when entering this function. */
 	disk_put_zone_wplug(zwplug);
@@ -1393,7 +1427,8 @@ void blk_zone_write_plug_finish_request(struct request *req)
 	 */
 	disk_put_zone_wplug(zwplug);
 
-	disk_zone_wplug_unplug_bio(disk, zwplug);
+	disk_zone_wplug_unplug_bio(disk, zwplug,
+				   req->cmd_flags & REQ_ZONE_SERIALIZED);
 
 	/* Drop the reference we took when entering this function. */
 	disk_put_zone_wplug(zwplug);
@@ -1415,6 +1450,14 @@ static void blk_zone_wplug_bio_work(struct work_struct *work)
 		 * the plugged flag.
 		 */
 		spin_lock_irqsave(&zwplug->lock, flags);
+		/*
+		 * Do not submit anything while a serialized write is in
+		 * flight, its completion will reschedule this work.
+		 */
+		if (zwplug->flags & BLK_ZONE_WPLUG_SERIALIZED) {
+			spin_unlock_irqrestore(&zwplug->lock, flags);
+			goto put_zwplug;
+		}
 		bio = bio_list_pop(&zwplug->bio_list);
 		if (!bio) {
 			zwplug->flags &= ~BLK_ZONE_WPLUG_PLUGGED;
@@ -1428,6 +1471,10 @@ static void blk_zone_wplug_bio_work(struct work_struct *work)
 					 bio_sectors(bio));
 
 		prepared = blk_zone_wplug_prepare_bio(zwplug, bio);
+		if (prepared && (bio->bi_opf & REQ_ZONE_SERIALIZED)) {
+			WARN_ON_ONCE(zwplug->flags & BLK_ZONE_WPLUG_SERIALIZED);
+			zwplug->flags |= BLK_ZONE_WPLUG_SERIALIZED;
+		}
 		spin_unlock_irqrestore(&zwplug->lock, flags);
 
 		if (!prepared) {

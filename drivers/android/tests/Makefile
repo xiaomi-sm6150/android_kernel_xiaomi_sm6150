@@ -4,3 +4,4 @@
 #
 
 obj-$(CONFIG_ANDROID_BINDER_ALLOC_KUNIT_TEST)	+= binder_alloc_kunit.o
+obj-$(CONFIG_ANDROID_WRAPFD_KUNIT_TEST)	+= wrapfd_kunit.o

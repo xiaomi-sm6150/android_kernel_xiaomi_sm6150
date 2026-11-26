@@ -393,20 +393,25 @@ impl DmaBufVmap {
     /// returns some Result type that can express errors of type kernel::Error.
     fn begin_cpu_access_fallible<const READ: bool, const WRITE: bool, F, T, E>(
         &self,
+        range: Option<(usize, usize)>,
         f: F,
     ) -> Result<T, E>
     where
         F: FnOnce(CpuAccess<'_, READ, WRITE>) -> Result<T, E>,
         E: From<Error>,
     {
-        match self.begin_cpu_access::<READ, WRITE, _, _>(f) {
+        match self.begin_cpu_access::<READ, WRITE, _, _>(range, f) {
             Ok(res) => res,
             Err(err) => Err(err.into()),
         }
     }
 
     /// Internal helper for cpu access.
-    fn begin_cpu_access<const READ: bool, const WRITE: bool, F, T>(&self, f: F) -> Result<T>
+    fn begin_cpu_access<const READ: bool, const WRITE: bool, F, T>(
+        &self,
+        range: Option<(usize, usize)>,
+        f: F,
+    ) -> Result<T>
     where
         F: FnOnce(CpuAccess<'_, READ, WRITE>) -> T,
     {
@@ -419,14 +424,34 @@ impl DmaBufVmap {
             }
         };
         let mut map = self.map;
-        self.dmabuf.begin_cpu_access(dir)?;
+        let (start, size, c_range) = match range {
+            None => {
+                self.dmabuf.begin_cpu_access(dir)?;
+                (0, self.dmabuf.size(), None)
+            }
+            Some((offset, len)) => {
+                let end = offset.checked_add(len).ok_or(EINVAL)?;
+                if end > self.dmabuf.size() {
+                    return Err(EINVAL);
+                }
+                let _ = c_uint::try_from(end)?;
+                let c_offset = c_uint::try_from(offset)?;
+                let c_len = c_uint::try_from(len)?;
+                self.dmabuf.begin_cpu_access_partial(dir, c_offset, c_len)?;
+                (offset, len, Some((c_offset, c_len)))
+            }
+        };
         // INVARIANT: Cpu access has begin with the given direction.
         let result = f(CpuAccess {
             map: &raw mut map,
-            size: self.dmabuf.size(),
+            start,
+            size,
             _lifetime: PhantomData,
         });
-        self.dmabuf.end_cpu_access(dir)?;
+        match c_range {
+            None => self.dmabuf.end_cpu_access(dir)?,
+            Some((c_offset, c_len)) => self.dmabuf.end_cpu_access_partial(dir, c_offset, c_len)?,
+        }
         Ok(result)
     }
 
@@ -436,7 +461,7 @@ impl DmaBufVmap {
         F: FnOnce(CpuAccess<'_, false, true>) -> Result<T, E>,
         E: From<Error>,
     {
-        self.begin_cpu_access_fallible(f)
+        self.begin_cpu_access_fallible(None, f)
     }
 
     /// Perform cpu-access that only writes to the device.
@@ -444,7 +469,30 @@ impl DmaBufVmap {
     where
         F: FnOnce(CpuAccess<'_, false, true>) -> T,
     {
-        self.begin_cpu_access(f)
+        self.begin_cpu_access(None, f)
+    }
+
+    /// Perform partial cpu-access on `[offset, offset + len)` that only writes to the device.
+    /// Fallible version.
+    pub fn begin_cpu_access_to_partial_fallible<F, T, E>(
+        &self,
+        offset: usize,
+        len: usize,
+        f: F,
+    ) -> Result<T, E>
+    where
+        F: FnOnce(CpuAccess<'_, false, true>) -> Result<T, E>,
+        E: From<Error>,
+    {
+        self.begin_cpu_access_fallible(Some((offset, len)), f)
+    }
+
+    /// Perform partial cpu-access on `[offset, offset + len)` that only writes to the device.
+    pub fn begin_cpu_access_to_partial<F, T>(&self, offset: usize, len: usize, f: F) -> Result<T>
+    where
+        F: FnOnce(CpuAccess<'_, false, true>) -> T,
+    {
+        self.begin_cpu_access(Some((offset, len)), f)
     }
 
     /// Perform cpu-access that only reads from the device. Fallible version.
@@ -453,7 +501,7 @@ impl DmaBufVmap {
         F: FnOnce(CpuAccess<'_, true, false>) -> Result<T, E>,
         E: From<Error>,
     {
-        self.begin_cpu_access_fallible(f)
+        self.begin_cpu_access_fallible(None, f)
     }
 
     /// Perform cpu-access that only reads from the device.
@@ -461,7 +509,30 @@ impl DmaBufVmap {
     where
         F: FnOnce(CpuAccess<'_, true, false>) -> T,
     {
-        self.begin_cpu_access(f)
+        self.begin_cpu_access(None, f)
+    }
+
+    /// Perform partial cpu-access on `[offset, offset + len)` that only reads from the device.
+    /// Fallible version.
+    pub fn begin_cpu_access_from_partial_fallible<F, T, E>(
+        &self,
+        offset: usize,
+        len: usize,
+        f: F,
+    ) -> Result<T, E>
+    where
+        F: FnOnce(CpuAccess<'_, true, false>) -> Result<T, E>,
+        E: From<Error>,
+    {
+        self.begin_cpu_access_fallible(Some((offset, len)), f)
+    }
+
+    /// Perform partial cpu-access on `[offset, offset + len)` that only reads from the device.
+    pub fn begin_cpu_access_from_partial<F, T>(&self, offset: usize, len: usize, f: F) -> Result<T>
+    where
+        F: FnOnce(CpuAccess<'_, true, false>) -> T,
+    {
+        self.begin_cpu_access(Some((offset, len)), f)
     }
 
     /// Perform bidirectional cpu-access. Fallible version.
@@ -470,7 +541,7 @@ impl DmaBufVmap {
         F: FnOnce(CpuAccess<'_, true, true>) -> Result<T, E>,
         E: From<Error>,
     {
-        self.begin_cpu_access_fallible(f)
+        self.begin_cpu_access_fallible(None, f)
     }
 
     /// Perform bidirectional cpu-access.
@@ -478,7 +549,34 @@ impl DmaBufVmap {
     where
         F: FnOnce(CpuAccess<'_, true, true>) -> T,
     {
-        self.begin_cpu_access(f)
+        self.begin_cpu_access(None, f)
+    }
+
+    /// Perform partial bidirectional cpu-access on `[offset, offset + len)`. Fallible version.
+    pub fn begin_cpu_access_bidirectional_partial_fallible<F, T, E>(
+        &self,
+        offset: usize,
+        len: usize,
+        f: F,
+    ) -> Result<T, E>
+    where
+        F: FnOnce(CpuAccess<'_, true, true>) -> Result<T, E>,
+        E: From<Error>,
+    {
+        self.begin_cpu_access_fallible(Some((offset, len)), f)
+    }
+
+    /// Perform partial bidirectional cpu-access on `[offset, offset + len)`.
+    pub fn begin_cpu_access_bidirectional_partial<F, T>(
+        &self,
+        offset: usize,
+        len: usize,
+        f: F,
+    ) -> Result<T>
+    where
+        F: FnOnce(CpuAccess<'_, true, true>) -> T,
+    {
+        self.begin_cpu_access(Some((offset, len)), f)
     }
 }
 
@@ -495,76 +593,94 @@ impl Drop for DmaBufVmap {
 ///
 /// # Invariants
 ///
-/// The iosys map references a vmap with cpu access enabled in the listed directions.
+/// The iosys map references a vmap with cpu access enabled in the listed directions for
+/// `[start, start + size)`.
 pub struct CpuAccess<'access, const READ: bool, const WRITE: bool> {
     map: *mut bindings::iosys_map,
+    start: usize,
     size: usize,
     _lifetime: PhantomData<&'access DmaBufVmap>,
 }
 
 impl<'a, const READ: bool> CpuAccess<'a, READ, true> {
-    /// Copies data from `src` into the buffer at `offset`.
+    /// Copies data from `src` into the active CPU access range at `offset`.
     #[inline]
     #[track_caller]
     pub fn memcpy_to(&mut self, offset: usize, src: &[u8]) {
         let (end, end_overflow) = offset.overflowing_add(src.len());
         if end_overflow || end > self.size {
             panic!(
-                "memcpy_to of {} bytes at {offset} in dma-buf of {} bytes out of bounds",
+                "memcpy_to of {} bytes at {offset} in dma-buf range of {} bytes out of bounds",
                 src.len(),
                 self.size
             );
         }
-        // SAFETY: The bounds check ensures we don't write out of bounds. The guard has WRITE
-        // enabled.
-        unsafe { bindings::iosys_map_memcpy_to(self.map, offset, src.as_ptr().cast(), src.len()) };
+        // SAFETY: The bounds check ensures `offset + src.len() <= self.size`, and
+        // `self.start + self.size <= dmabuf.size()`, so `self.start + offset` cannot overflow or
+        // write out of bounds. The guard has WRITE enabled.
+        unsafe {
+            bindings::iosys_map_memcpy_to(
+                self.map,
+                self.start + offset,
+                src.as_ptr().cast(),
+                src.len(),
+            )
+        };
     }
 
-    /// Sets a range of `len` bytes starting at `offset` into the buffer to `value`.
+    /// Sets a range of `len` bytes starting at `offset` in the active CPU access range to `value`.
     #[inline]
     #[track_caller]
     pub fn memset(&mut self, offset: usize, value: u8, len: usize) {
         let (end, end_overflow) = offset.overflowing_add(len);
         if end_overflow || end > self.size {
-            panic!("memset of {len} bytes at {offset} in dma-buf out of bounds",);
+            panic!("memset of {len} bytes at {offset} in dma-buf range out of bounds",);
         }
-        // SAFETY: The bounds check ensures we don't write out of bounds. The guard has WRITE
-        // enabled.
-        unsafe { bindings::iosys_map_memset(self.map, offset, value as c_int, len) };
+        // SAFETY: The bounds check ensures `offset + len <= self.size`, and
+        // `self.start + self.size <= dmabuf.size()`, so `self.start + offset` cannot overflow or
+        // write out of bounds. The guard has WRITE enabled.
+        unsafe { bindings::iosys_map_memset(self.map, self.start + offset, value as c_int, len) };
     }
 }
 
 impl<'a, const WRITE: bool> CpuAccess<'a, true, WRITE> {
-    /// Copies data from the buffer at `offset` into `dst`.
+    /// Copies data from the active CPU access range at `offset` into `dst`.
     #[inline]
     #[track_caller]
     pub fn memcpy_from(&mut self, dst: &mut [u8], offset: usize) {
         let (end, end_overflow) = offset.overflowing_add(dst.len());
         if end_overflow || end > self.size {
             panic!(
-                "memcpy_from of {} bytes at {offset} in dma-buf of {} bytes out of bounds",
+                "memcpy_from of {} bytes at {offset} in dma-buf range of {} bytes out of bounds",
                 dst.len(),
                 self.size
             );
         }
-        // SAFETY: The bounds check ensures we don't write out of bounds. The guard has READ
-        // enabled.
+        // SAFETY: The bounds check ensures `offset + dst.len() <= self.size`, and
+        // `self.start + self.size <= dmabuf.size()`, so `self.start + offset` cannot overflow or
+        // write out of bounds. The guard has READ enabled.
         unsafe {
-            bindings::iosys_map_memcpy_from(dst.as_mut_ptr().cast(), self.map, offset, dst.len())
+            bindings::iosys_map_memcpy_from(
+                dst.as_mut_ptr().cast(),
+                self.map,
+                self.start + offset,
+                dst.len(),
+            )
         };
     }
 }
 
 impl<'a> CpuAccess<'a, true, true> {
-    /// Copies bytes from one part of the buffer to another part of itself, using `memmove`.
+    /// Copies bytes from one part of the active CPU access range to another part of itself, using
+    /// `memmove`.
     ///
-    /// `src` is the range within the buffer to copy from. `dst` is the starting index of the
-    /// range within the buffer to copy to, which will have the same length as `src`. The two
-    /// ranges may overlap.
+    /// `src` is the range within the active CPU access range to copy from. `dst` is the starting
+    /// index of the range within the active CPU access range to copy to, which will have the same
+    /// length as `src`. The two ranges may overlap.
     ///
     /// Fails with [`EINVAL`] if the mapping is in I/O memory (`is_iomem`), if either the source
-    /// or destination range exceeds the end of the buffer, or if the start of `src` is after the
-    /// end.
+    /// or destination range exceeds the active CPU access range, or if the start of `src` is after
+    /// the end.
     #[inline]
     pub fn copy_within<R: RangeBounds<usize>>(&mut self, src: R, dst: usize) -> Result {
         let src_start = match src.start_bound() {
@@ -599,9 +715,15 @@ impl<'a> CpuAccess<'a, true, true> {
         }
 
         // SAFETY: The bounds checks above ensure that both `src_start..src_start + len` and
-        // `dst..dst + len` are within `[0, self.size)`. The guard has both READ and WRITE
-        // enabled.
-        unsafe { ptr::copy(vaddr.add(src_start), vaddr.add(dst), len) };
+        // `dst..dst + len` are within `[0, self.size)`, and
+        // `self.start + self.size <= dmabuf.size()`. The guard has both READ and WRITE enabled.
+        unsafe {
+            ptr::copy(
+                vaddr.add(self.start + src_start),
+                vaddr.add(self.start + dst),
+                len,
+            )
+        };
         Ok(())
     }
 }

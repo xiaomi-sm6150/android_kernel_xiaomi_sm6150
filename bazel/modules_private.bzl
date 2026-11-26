@@ -232,6 +232,12 @@ _KUNIT_CLK_MODULES_LIST = [
     "drivers/clk/clk_kunit_helpers.ko",
 ]
 
+# KUnit modules that depend on RUST && 64BIT
+_KUNIT_RUST_MODULES_LIST = [
+    # keep sorted
+    "drivers/android/tests/wrapfd_kunit.ko",
+]
+
 def _get_kunit_modules_list_minus_select(arch, map_each):
     """ Provides the list of KUnit modules, minus those in select() branches.
 
@@ -253,11 +259,11 @@ def _get_kunit_modules_list_minus_select(arch, map_each):
     if arch == "arm":
         kunit_modules_list += _KUNIT_CLK_MODULES_LIST
     elif arch == "arm64":
-        kunit_modules_list += _KUNIT_CLK_MODULES_LIST
+        kunit_modules_list += _KUNIT_CLK_MODULES_LIST + _KUNIT_RUST_MODULES_LIST
     elif arch == "i386":
         kunit_modules_list.append("drivers/clk/clk_kunit_helpers.ko")
     elif arch == "x86_64":
-        kunit_modules_list.append("drivers/clk/clk_kunit_helpers.ko")
+        kunit_modules_list += ["drivers/clk/clk_kunit_helpers.ko"] + _KUNIT_RUST_MODULES_LIST
 
     return _apply(map_each, kunit_modules_list)
 

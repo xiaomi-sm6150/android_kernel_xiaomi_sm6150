@@ -133,9 +133,9 @@ int wrapfd_add_listener(struct file *file, struct device *dev,
  *
  * The function can be called from on_content_release, but only to delete the
  * listener this callback was invoked for. In this case it does not wait.
- * Deleting another listener of the same content which is still waiting for
- * its on_content_release fails with -EINVAL and leaves that listener and its
- * handle intact; it should be deleted later, outside of the callback.
+ * Deleting another listener of the same content fails with -EINVAL and leaves
+ * that listener and its handle intact; it should be deleted later, outside of
+ * the callback.
  *
  * handle: listener handle returned by wrapfd_add_listener().
  *
@@ -147,7 +147,7 @@ int wrapfd_add_listener(struct file *file, struct device *dev,
 int wrapfd_del_listener(void *handle);
 
 /*
- * Take file ownersip.
+ * Take file ownership.
  * Function does not take file references, therefore the caller should
  * ensure the file is stable until wrapfd_put_ownership() is called.
  *
@@ -176,6 +176,59 @@ int wrapfd_acquire_ownership(struct file *file, struct device *dev);
  * -EOPNOTSUPP: wrapfd driver is not enabled
  */
 int wrapfd_release_ownership(struct file *file, struct device *dev);
+
+#if IS_ENABLED(CONFIG_KUNIT)
+/*
+ * Hooks for the wrapfd KUnit test only, exported in the
+ * EXPORTED_FOR_KUNIT_TESTING namespace. Not part of the wrapfd kernel API.
+ */
+int create_wrapfd(int fd, int prot);
+int empty_wrapfd(struct file *file, struct device *dev);
+#endif /* CONFIG_KUNIT */
+
+/*
+ * Check if the file is a wrapfd file.
+ *
+ * file: file structure to check.
+ *
+ * Returns true if @file is non-NULL and refers to a wrap file, or false
+ * otherwise (including when the wrapfd driver is not enabled).
+ */
+bool is_wrapfd_file(struct file *file);
+
+/*
+ * Allow other tasks to use the buffer. The caller should own the buffer, and
+ * the wrap should not be empty. If guests are already allowed, this is a no-op
+ * and returns 0.
+ *
+ * file: wrap file associated with the mappable object.
+ * dev: device requesting the operation.
+ *
+ * On success returns 0. On error returns:
+ * -EBADF: file is invalid.
+ * -ENODEV: device is invalid.
+ * -EBUSY: buffer is not owned by the caller.
+ * -ENOENT: wrap is empty.
+ * -EOPNOTSUPP: wrapfd driver is not enabled.
+ */
+int wrapfd_allow_guests(struct file *file, struct device *dev);
+
+/*
+ * Prohibit other tasks from using the buffer. The caller should own the buffer,
+ * and the buffer should not be in use (e.g. mapped). If guests are already
+ * prohibited, this is a no-op and returns 0.
+ *
+ * file: wrap file associated with the mappable object.
+ * dev: device requesting the operation.
+ *
+ * On success returns 0. On error returns:
+ * -EBADF: file is invalid.
+ * -ENODEV: device is invalid.
+ * -EBUSY: buffer is not owned by the caller.
+ * -EINVAL: buffer is in use.
+ * -EOPNOTSUPP: wrapfd driver is not enabled.
+ */
+int wrapfd_prohibit_guests(struct file *file, struct device *dev);
 
 #else /* CONFIG_ANDROID_WRAPFD */
 
@@ -214,6 +267,21 @@ static inline int wrapfd_acquire_ownership(struct file *file, struct device *dev
 }
 
 static inline int wrapfd_release_ownership(struct file *file, struct device *dev)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline bool is_wrapfd_file(struct file *file)
+{
+	return false;
+}
+
+static inline int wrapfd_allow_guests(struct file *file, struct device *dev)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline int wrapfd_prohibit_guests(struct file *file, struct device *dev)
 {
 	return -EOPNOTSUPP;
 }

@@ -101,6 +101,13 @@ static int rb_swap_reader_page(struct hyp_rb_per_cpu *cpu_buffer)
 	unsigned long *old_head_link, old_link_val, new_link_val, overrun;
 	struct hyp_buffer_page *head, *reader = cpu_buffer->reader_page;
 
+	/*
+	 * The reader is already the tail page. See rb_move_tail() for memory
+	 * ordering.
+	 */
+	if (reader == smp_load_acquire(&cpu_buffer->tail_page))
+		return 0;
+
 spin:
 	/* Update the cpu_buffer->header_page according to HYP_RB_PAGE_HEAD */
 	head = rb_set_head_page(cpu_buffer);
@@ -176,9 +183,14 @@ again:
 	new_tail->write = 0;
 	new_tail->entries = 0;
 
+	/*
+	 * Setting a new tail may unblock the swap in rb_swap_reader_page().
+	 * Ensure the reader observes the page::commit reset.
+	 */
+	smp_store_release(&cpu_buffer->tail_page, new_tail);
+
 	WRITE_ONCE(meta_pages_touched(cpu_buffer->meta),
 		   meta_pages_touched(cpu_buffer->meta) + 1);
-	cpu_buffer->tail_page = new_tail;
 
 	return new_tail;
 }
@@ -267,8 +279,19 @@ void tracing_commit_entry(void)
 {
 	struct hyp_rb_per_cpu *cpu_buffer = this_cpu_ptr(&trace_rb);
 
+	/*
+	 * Order page::data and page::time_stamp before page::commit. Paired
+	 * with __rb_get_reader_page_from_writer().
+	 */
+	smp_wmb();
 	local_set(&cpu_buffer->tail_page->page->commit,
 		  cpu_buffer->tail_page->write);
+
+	/*
+	 * Order page::commit before meta::entries. Paired with
+	 * __rb_get_reader_page_from_writer().
+	 */
+	smp_wmb();
 	WRITE_ONCE(cpu_buffer->meta->entries,
 		   cpu_buffer->meta->entries + 1);
 

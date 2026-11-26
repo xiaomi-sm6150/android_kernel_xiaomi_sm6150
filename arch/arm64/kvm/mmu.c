@@ -2432,9 +2432,12 @@ static int user_mem_abort(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa,
 	 * Permission faults just need to update the existing leaf entry,
 	 * and so normally don't require allocations from the memcache. The
 	 * only exception to this is when dirty logging is enabled at runtime
-	 * and a write fault needs to collapse a block entry into a table.
+	 * and a fault needs to collapse a block entry into a table.
+	 * Under pKVM a permission fault can also collapse pages into a block,
+	 * which needs a fresh mapping object, and the hypervisor requires the
+	 * min-pages memcache even when the install allocates nothing.
 	 */
-	topup_memcache = !fault_is_perm || (logging_active && write_fault);
+	topup_memcache = !fault_is_perm || logging_active || is_protected_kvm_enabled();
 	ret = prepare_mmu_memcache(vcpu, topup_memcache, &memcache);
 	if (ret)
 		return ret;

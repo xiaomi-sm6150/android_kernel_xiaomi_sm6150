@@ -5540,38 +5540,52 @@ rb_update_iter_read_stamp(struct ring_buffer_iter *iter,
 	}
 }
 
-static bool rb_read_writer_meta_page(struct ring_buffer_per_cpu *cpu_buffer)
+static void rb_read_writer_meta_page(struct ring_buffer_per_cpu *cpu_buffer)
 {
-	local_set(&cpu_buffer->entries, READ_ONCE(cpu_buffer->meta_page->entries));
-	local_set(&cpu_buffer->overrun, READ_ONCE(cpu_buffer->meta_page->overrun));
+	unsigned long entries = READ_ONCE(cpu_buffer->meta_page->entries);
+	unsigned long overrun = READ_ONCE(cpu_buffer->meta_page->overrun);
+
+	/*
+	 * The writer updates page::commit before meta::entries, so
+	 * cpu_buffer->read can exceed meta::entries.
+	 */
+	local_set(&cpu_buffer->entries, max(entries, overrun + cpu_buffer->read));
+	local_set(&cpu_buffer->overrun, overrun);
 	local_set(&cpu_buffer->pages_touched, READ_ONCE(meta_pages_touched(cpu_buffer->meta_page)));
 	local_set(&cpu_buffer->pages_lost, READ_ONCE(meta_pages_lost(cpu_buffer->meta_page)));
 	/*
 	 * No need to get the "read" field, it can be tracked here as any
 	 * reader will have to go through a rign_buffer_per_cpu.
 	 */
-
-	return rb_num_of_entries(cpu_buffer);
 }
 
 static struct buffer_page *
 __rb_get_reader_page_from_writer(struct ring_buffer_per_cpu *cpu_buffer)
 {
+	unsigned long min_entries;
 	u32 prev_reader;
 
-	if (!rb_read_writer_meta_page(cpu_buffer))
-		return NULL;
+	rb_read_writer_meta_page(cpu_buffer);
+
+	/*
+	 * Order meta::entries read before page::commit, paired with
+	 * tracing_commit_entry().
+	 */
+	smp_rmb();
 
 	/* More to read on the reader page */
-	if (cpu_buffer->reader_page->read < rb_page_size(cpu_buffer->reader_page)) {
-		if (cpu_buffer->reader_page->read == 0)
-			cpu_buffer->read_stamp = cpu_buffer->reader_page->page->time_stamp;
-		return cpu_buffer->reader_page;
-	}
+	if (cpu_buffer->reader_page->read < rb_page_size(cpu_buffer->reader_page))
+		goto out;
 
-	prev_reader = cpu_buffer->meta_page->reader.id;
-	if (cpu_buffer->meta_page->reader.id == cpu_buffer->reader_page->id)
-		WARN_ON(cpu_buffer->writer->get_reader_page(cpu_buffer->cpu));
+	if (!rb_num_of_entries(cpu_buffer))
+		return NULL;
+
+	prev_reader = cpu_buffer->reader_page->id;
+	if (cpu_buffer->meta_page->reader.id == prev_reader &&
+	    cpu_buffer->writer->get_reader_page(cpu_buffer->cpu)) {
+		pr_warn_ratelimited("Writer reader page swap failed\n");
+		return NULL;
+	}
 
 	/* nr_pages doesn't include the reader page */
 	if (cpu_buffer->meta_page->reader.id > cpu_buffer->nr_pages) {
@@ -5579,18 +5593,35 @@ __rb_get_reader_page_from_writer(struct ring_buffer_per_cpu *cpu_buffer)
 		return NULL;
 	}
 
+	if (prev_reader == cpu_buffer->meta_page->reader.id)
+		return NULL;
+
 	cpu_buffer->reader_page->page =
 		(void *)cpu_buffer->subbuf_ids[cpu_buffer->meta_page->reader.id];
 	cpu_buffer->reader_page->id = cpu_buffer->meta_page->reader.id;
 	cpu_buffer->reader_page->read = 0;
-	cpu_buffer->read_stamp = cpu_buffer->reader_page->page->time_stamp;
 	cpu_buffer->lost_events = cpu_buffer->meta_page->reader.lost_events;
-
-	WARN_ON(!IS_ENABLED(CONFIG_PKVM_DUMP_TRACE_ON_PANIC) &&
-		prev_reader == cpu_buffer->meta_page->reader.id);
 
 	if (!rb_page_size(cpu_buffer->reader_page))
 		return NULL;
+
+out:
+	/*
+	 * Order page::commit read before page::data and page::time_stamp,
+	 * paired with tracing_commit_entry().
+	 */
+	smp_rmb();
+
+	/*
+	 * At least one unread event is committed on reader_page; account for it
+	 * before rb_advance_reader() increments cpu_buffer->read.
+	 */
+	min_entries = local_read(&cpu_buffer->overrun) + cpu_buffer->read + 1;
+	if ((unsigned long)local_read(&cpu_buffer->entries) < min_entries)
+		local_set(&cpu_buffer->entries, min_entries);
+
+	if (!cpu_buffer->reader_page->read)
+		cpu_buffer->read_stamp = cpu_buffer->reader_page->page->time_stamp;
 
 	return cpu_buffer->reader_page;
 }
@@ -6354,7 +6385,6 @@ rb_reset_cpu(struct ring_buffer_per_cpu *cpu_buffer)
 			return;
 
 		cpu_buffer->writer->reset(cpu_buffer->cpu);
-		rb_read_writer_meta_page(cpu_buffer);
 
 		/* Read related values, not covered by the meta-page */
 		local_set(&cpu_buffer->pages_read, 0);
@@ -6362,6 +6392,8 @@ rb_reset_cpu(struct ring_buffer_per_cpu *cpu_buffer)
 		cpu_buffer->read_bytes = 0;
 		cpu_buffer->last_overrun = 0;
 		cpu_buffer->reader_page->read = 0;
+
+		rb_read_writer_meta_page(cpu_buffer);
 
 		return;
 	}
@@ -6608,7 +6640,8 @@ int ring_buffer_poll_writer(struct trace_buffer *buffer, int cpu)
 		cpu_buffer = buffer->buffers[cpu];
 
 		raw_spin_lock_irqsave(&cpu_buffer->reader_lock, flags);
-		if (rb_read_writer_meta_page(cpu_buffer))
+		rb_read_writer_meta_page(cpu_buffer);
+		if (rb_num_of_entries(cpu_buffer))
 			rb_wakeups(buffer, cpu_buffer);
 		raw_spin_unlock_irqrestore(&cpu_buffer->reader_lock, flags);
 

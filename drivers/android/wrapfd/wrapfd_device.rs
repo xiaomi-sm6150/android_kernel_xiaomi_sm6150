@@ -311,3 +311,30 @@ impl WrapfdDevFile {
         Ok(0)
     }
 }
+
+#[cfg(CONFIG_KUNIT)]
+#[export]
+/// Wraps the dma-buf `fd` like `WRAPFD_DEV_IOC_WRAP` does, for the wrapfd KUnit test.
+///
+/// Returns the new wrapfd, or a negative errno on failure.
+///
+/// # Safety
+///
+/// Must be called from a task with a file table, the new wrapfd is installed in it.
+unsafe extern "C" fn create_wrapfd(
+    fd: kernel::ffi::c_int,
+    prot: kernel::ffi::c_int,
+) -> kernel::ffi::c_int {
+    // Negative values become large u32s, which `wrap_file` rejects with EBADF for the fd and
+    // EINVAL for the protection bits.
+    let args = uapi::wrapfd_wrap {
+        fd: fd as u32,
+        prot: prot as u32,
+        reserved: 0,
+    };
+
+    match WrapfdDevFile::wrap_file(&args) {
+        Ok(wrapfd) => wrapfd as kernel::ffi::c_int,
+        Err(err) => err.to_errno(),
+    }
+}

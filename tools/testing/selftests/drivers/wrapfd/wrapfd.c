@@ -726,6 +726,15 @@ static int __test_loads(struct __test_metadata *_metadata,
 	EXPECT_EQ(ret, 0)
 		return ret;
 
+	/*
+	 * Test a multi-request unaligned load where the final sub-request starts at the second
+	 * tail bounce page, past the end of the direct I/O segment.
+	 */
+	ret = load_and_cmp(_metadata, self, wrapfd, self->page_size / 4, self->page_size / 2,
+			   ALIGN(self->size / 3, self->page_size));
+	EXPECT_EQ(ret, 0)
+		return ret;
+
 	ret = load_and_cmp(_metadata, self, wrapfd, 0, 0, self->size);
 	EXPECT_EQ(ret, 0);
 
@@ -1644,22 +1653,47 @@ TEST_F(wrapfd_tests, guests)
 	wrapfd = wrapfd_wrap(self->dev_fd, self->dmabuf_fd, PROT_READ | PROT_WRITE);
 	ASSERT_TRUE(wrapfd >= 0);
 
-	/* Try allowing guests for unowned buffer */
+	/* Try changing guest policy for unowned buffer */
 	ASSERT_TRUE(wrapfd_allow_guests(wrapfd) < 0 && errno == EBUSY);
+	ASSERT_TRUE(wrapfd_prohibit_guests(wrapfd) < 0 && errno == EBUSY);
 
 	/* Take buffer ownership */
 	ASSERT_EQ(wrapfd_acquire_ownership(wrapfd), 0);
 
-	/* Try allowing guests for a mapped buffer */
+	/*
+	 * Allowing guests on a mapped buffer succeeds (and is idempotent), while
+	 * prohibiting guests on a mapped buffer fails with EINVAL.
+	 */
 	ptr = mmap(NULL, self->size, PROT_READ | PROT_WRITE, MAP_SHARED,
 		   wrapfd, 0);
 	ASSERT_NE(ptr, MAP_FAILED);
-	ASSERT_TRUE(wrapfd_allow_guests(wrapfd) < 0 && errno == EINVAL);
+	ASSERT_EQ(wrapfd_allow_guests(wrapfd), 0);
+	ASSERT_EQ(wrapfd_allow_guests(wrapfd), 0);
+	ASSERT_TRUE(wrapfd_prohibit_guests(wrapfd) < 0 && errno == EINVAL);
 	ASSERT_EQ(munmap(ptr, self->size), 0);
 
-	/* Allow guests */
-	ASSERT_EQ(wrapfd_allow_guests(wrapfd), 0);
+	/* Once unmapped, prohibiting guests succeeds (and is idempotent) */
 	ASSERT_EQ(wrapfd_prohibit_guests(wrapfd), 0);
+	ASSERT_EQ(wrapfd_prohibit_guests(wrapfd), 0);
+
+	/*
+	 * Emptying an owned wrap still allows prohibiting guests, while allowing
+	 * guests on an empty wrap fails with ENOENT.
+	 */
+	ASSERT_EQ(wrapfd_allow_guests(wrapfd), 0);
+	ASSERT_EQ(wrapfd_empty(wrapfd), 0);
+	ASSERT_TRUE(wrapfd_allow_guests(wrapfd) < 0 && errno == ENOENT);
+	ASSERT_EQ(wrapfd_prohibit_guests(wrapfd), 0);
+
+	/* Ensure that a wrap's guest policy does not change across being repopulated. */
+	ASSERT_EQ(wrapfd_repopulate(self->dev_fd, wrapfd, self->dmabuf_fd), 0);
+	if (!worker_start(_metadata, &wk)) {
+		EXPECT_EQ(try_map(wrapfd, self->size), -EBUSY);
+		worker_exit(_metadata);
+	}
+	worker_join(_metadata, &wk);
+
+	/* Allow guests again */
 	ASSERT_EQ(wrapfd_allow_guests(wrapfd), 0);
 
 	/* Another process may map the owned buffer now */

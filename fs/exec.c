@@ -31,8 +31,8 @@
 #include <linux/stat.h>
 #include <linux/fcntl.h>
 #include <linux/futex.h>
-#include <linux/android_kabi.h>
 #include <linux/swap.h>
+#include <linux/android_kabi.h>
 
 ANDROID_KABI_DECLONLY(robust_list_head);
 #include <linux/string.h>
@@ -88,6 +88,10 @@ ANDROID_KABI_DECLONLY(robust_list_head);
 
 /* For vma exec functions. */
 #include "../mm/internal.h"
+
+#include <linux/android_kabi.h>
+/* Keep KMI CRCs stable after adding the <linux/futex.h> include */
+ANDROID_KABI_DECLONLY(robust_list_head);
 
 static int bprm_creds_from_file(struct linux_binprm *bprm);
 

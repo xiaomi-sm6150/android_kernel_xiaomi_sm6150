@@ -438,6 +438,7 @@ static inline vm_fault_t vmf_anon_prepare(struct vm_fault *vmf)
 }
 
 vm_fault_t do_swap_page(struct vm_fault *vmf);
+vm_fault_t handle_pte_fault(struct vm_fault *vmf);
 void folio_rotate_reclaimable(struct folio *folio);
 bool __folio_end_writeback(struct folio *folio);
 void deactivate_file_folio(struct folio *folio);
@@ -1163,6 +1164,13 @@ static inline struct file *maybe_unlock_mmap_for_io(struct vm_fault *vmf,
 		release_fault_lock(vmf);
 	}
 	return fpin;
+}
+
+static inline bool fault_drops_lock(vm_fault_t ret, unsigned int flags)
+{
+	return (ret & VM_FAULT_COMPLETED) ||
+	       ((ret & VM_FAULT_RETRY) &&
+		!(flags & FAULT_FLAG_RETRY_NOWAIT));
 }
 
 static inline bool vma_supports_mlock(const struct vm_area_struct *vma)
