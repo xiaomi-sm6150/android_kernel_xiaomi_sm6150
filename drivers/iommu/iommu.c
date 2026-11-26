@@ -639,10 +639,14 @@ static int __iommu_probe_device(struct device *dev, struct list_head *group_list
 		/*
 		 * With a group_list argument we defer the default_domain setup
 		 * to the caller by providing a de-duplicated list of groups
-		 * that need further setup.
+		 * that need further setup. The list holds a reference on each
+		 * group, as its devices may be released before the caller
+		 * gets to it.
 		 */
-		if (list_empty(&group->entry))
+		if (list_empty(&group->entry)) {
+			iommu_group_ref_get(group);
 			list_add_tail(&group->entry, group_list);
+		}
 	}
 
 	if (group->default_domain)
@@ -1905,6 +1909,18 @@ static void iommu_group_do_probe_finalize(struct device *dev)
 		ops->probe_finalize(dev);
 }
 
+static void iommu_group_list_put(struct list_head *group_list)
+{
+	struct iommu_group *group, *next;
+
+	list_for_each_entry_safe(group, next, group_list, entry) {
+		mutex_lock(&group->mutex);
+		list_del_init(&group->entry);
+		mutex_unlock(&group->mutex);
+		iommu_group_put(group);
+	}
+}
+
 static int bus_iommu_probe(const struct bus_type *bus)
 {
 	struct iommu_group *group, *next;
@@ -1913,7 +1929,7 @@ static int bus_iommu_probe(const struct bus_type *bus)
 
 	ret = bus_for_each_dev(bus, NULL, &group_list, probe_iommu_group);
 	if (ret)
-		return ret;
+		goto err_put_groups;
 
 	list_for_each_entry_safe(group, next, &group_list, entry) {
 		struct group_device *gdev;
@@ -1924,6 +1940,16 @@ static int bus_iommu_probe(const struct bus_type *bus)
 		list_del_init(&group->entry);
 
 		/*
+		 * The bus notifier may have released every device of the group
+		 * since it was added to the list; there is nothing to set up.
+		 */
+		if (list_empty(&group->devices)) {
+			mutex_unlock(&group->mutex);
+			iommu_group_put(group);
+			continue;
+		}
+
+		/*
 		 * We go to the trouble of deferred default domain creation so
 		 * that the cross-group default domain type and the setup of the
 		 * IOMMU_RESV_DIRECT will work correctly in non-hotpug scenarios.
@@ -1931,7 +1957,8 @@ static int bus_iommu_probe(const struct bus_type *bus)
 		ret = iommu_setup_default_domain(group, 0);
 		if (ret) {
 			mutex_unlock(&group->mutex);
-			return ret;
+			iommu_group_put(group);
+			goto err_put_groups;
 		}
 		for_each_group_device(group, gdev)
 			iommu_setup_dma_ops(gdev->dev);
@@ -1945,9 +1972,15 @@ static int bus_iommu_probe(const struct bus_type *bus)
 		 */
 		for_each_group_device(group, gdev)
 			iommu_group_do_probe_finalize(gdev->dev);
+
+		iommu_group_put(group);
 	}
 
 	return 0;
+
+err_put_groups:
+	iommu_group_list_put(&group_list);
+	return ret;
 }
 
 /**
