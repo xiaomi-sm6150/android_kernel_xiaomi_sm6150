@@ -1883,12 +1883,13 @@ static int k61_scratch_mkdir(const char *name)
 	struct dentry *dentry;
 	int ret;
 
-	dentry = kern_path_create(AT_FDCWD, name, &parent, LOOKUP_DIRECTORY);
+	dentry = start_creating_path(AT_FDCWD, name, &parent, LOOKUP_DIRECTORY);
 	if (IS_ERR(dentry))
 		return PTR_ERR(dentry);
-	ret = vfs_mkdir(mnt_user_ns(parent.mnt), d_inode(parent.dentry),
-			dentry, 0700);
-	done_path_create(&parent, dentry);
+	dentry = vfs_mkdir(mnt_idmap(parent.mnt), d_inode(parent.dentry),
+			   dentry, 0700);
+	ret = PTR_ERR_OR_ZERO(dentry);
+	end_creating_path(&parent, dentry);
 	return ret;
 }
 
@@ -2406,10 +2407,10 @@ static int k61_efs_one(const char *name, int idx)
 	vfs_fsync(out, 0);
 
 	if (!kern_path(ram, LOOKUP_FOLLOW, &rpath)) {
-		l = vfs_getxattr(mnt_user_ns(real.mnt), real.dentry,
+		l = vfs_getxattr(mnt_idmap(real.mnt), real.dentry,
 				 XATTR_NAME_SELINUX, lbl, sizeof(lbl));
 		if (l > 0)
-			vfs_setxattr(mnt_user_ns(rpath.mnt), rpath.dentry,
+			vfs_setxattr(mnt_idmap(rpath.mnt), rpath.dentry,
 				     XATTR_NAME_SELINUX, lbl, l, 0);
 		path_put(&rpath);
 	}
