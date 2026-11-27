@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
-KGSL_PATH := $(srctree)/$(src)
+KGSL_PATH := $(src)
 
 ccflags-y += -I$(KGSL_PATH) -I$(KGSL_PATH)/include/linux -I$(KGSL_PATH)/include -I$(srctree)/drivers/devfreq
 

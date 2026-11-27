@@ -3,7 +3,7 @@
 # Awinic AW882xx smart PA (sweet), from the 4.14 Xiaomi techpack
 # asoc/codecs/awinic. Enabled by config/sweetauto.conf.
 
-ccflags-y += -I$(srctree)/$(src)/inc
+ccflags-y += -I$(src)/inc
 
 aw882xx_dlkm-y := src/aw_dsp.o \
 		  src/aw882xx.o \
