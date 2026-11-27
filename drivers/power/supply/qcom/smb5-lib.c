@@ -1313,7 +1313,7 @@ static void smblib_uusb_removal(struct smb_charger *chg)
 	chg->uusb_apsd_rerun_done = false;
 	chg->chg_param.forced_main_fcc = 0;
 
-	del_timer_sync(&chg->apsd_timer);
+	timer_delete_sync(&chg->apsd_timer);
 	chg->apsd_ext_timeout = false;
 
 	/* write back the default FLOAT charger configuration */
@@ -6500,7 +6500,7 @@ static void typec_src_removal(struct smb_charger *chg)
 
 	chg->typec_legacy = false;
 
-	del_timer_sync(&chg->apsd_timer);
+	timer_delete_sync(&chg->apsd_timer);
 	chg->apsd_ext_timeout = false;
 }
 
@@ -8498,7 +8498,7 @@ int smblib_deinit(struct smb_charger *chg)
 			alarm_cancel(&chg->chg_termination_alarm);
 			cancel_work_sync(&chg->chg_termination_work);
 		}
-		del_timer_sync(&chg->apsd_timer);
+		timer_delete_sync(&chg->apsd_timer);
 		cancel_work_sync(&chg->bms_update_work);
 		cancel_work_sync(&chg->jeita_update_work);
 		cancel_work_sync(&chg->pl_update_work);

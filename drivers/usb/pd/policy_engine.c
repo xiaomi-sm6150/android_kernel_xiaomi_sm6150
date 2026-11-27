@@ -4733,8 +4733,8 @@ struct usbpd *usbpd_create(struct device *parent,
 	INIT_WORK(&pd->sm_work, usbpd_sm);
 	INIT_WORK(&pd->psy_chg_work, psy_changed_notifier_work);
 	INIT_WORK(&pd->start_periph_work, start_usb_peripheral_work);
-	hrtimer_init(&pd->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-	pd->timer.function = pd_timeout;
+	hrtimer_setup(&pd->timer, pd_timeout, CLOCK_MONOTONIC,
+		      HRTIMER_MODE_REL);
 	mutex_init(&pd->swap_lock);
 	mutex_init(&pd->svid_handler_lock);
 

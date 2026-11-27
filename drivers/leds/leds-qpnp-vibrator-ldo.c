@@ -362,8 +362,8 @@ static int qpnp_vibrator_ldo_probe(struct platform_device *pdev)
 	mutex_init(&chip->lock);
 	INIT_WORK(&chip->overdrive_work, qpnp_vib_overdrive_work);
 
-	hrtimer_init(&chip->overdrive_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-	chip->overdrive_timer.function = vib_overdrive_timer;
+	hrtimer_setup(&chip->overdrive_timer, vib_overdrive_timer, CLOCK_MONOTONIC,
+		      HRTIMER_MODE_REL);
 	dev_set_drvdata(&pdev->dev, chip);
 
 	chip->cdev.name = "vibrator";

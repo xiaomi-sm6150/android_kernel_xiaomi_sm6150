@@ -507,7 +507,7 @@ static void cam_icp_ctx_timer_cb(struct timer_list *timer_data)
 	struct crm_workq_task *task;
 	struct clk_work_data *task_data;
 	struct cam_req_mgr_timer *timer =
-		from_timer(timer, timer_data, sys_timer);
+		timer_container_of(timer, timer_data, sys_timer);
 
 	spin_lock_irqsave(&icp_hw_mgr.hw_mgr_lock, flags);
 	task = cam_req_mgr_workq_get_task(icp_hw_mgr.timer_work);
@@ -532,7 +532,7 @@ static void cam_icp_device_timer_cb(struct timer_list *timer_data)
 	struct crm_workq_task *task;
 	struct clk_work_data *task_data;
 	struct cam_req_mgr_timer *timer =
-		from_timer(timer, timer_data, sys_timer);
+		timer_container_of(timer, timer_data, sys_timer);
 
 	spin_lock_irqsave(&icp_hw_mgr.hw_mgr_lock, flags);
 	task = cam_req_mgr_workq_get_task(icp_hw_mgr.timer_work);

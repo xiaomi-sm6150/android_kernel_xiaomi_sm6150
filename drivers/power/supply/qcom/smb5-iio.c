@@ -380,7 +380,7 @@ int smb5_iio_set_prop(struct smb_charger *chg, int channel, int val)
 		chg->adapter_cc_mode = val;
 		break;
 	case PSY_IIO_APSD_RERUN:
-		del_timer_sync(&chg->apsd_timer);
+		timer_delete_sync(&chg->apsd_timer);
 		chg->apsd_ext_timeout = false;
 		smblib_rerun_apsd(chg);
 		break;

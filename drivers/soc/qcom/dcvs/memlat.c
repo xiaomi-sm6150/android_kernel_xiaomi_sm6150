@@ -1412,8 +1412,8 @@ static int memlat_sampling_init(void)
 	}
 	INIT_WORK(&memlat_data->work, &memlat_update_work);
 
-	hrtimer_init(&memlat_data->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-	memlat_data->timer.function = memlat_hrtimer_handler;
+	hrtimer_setup(&memlat_data->timer, memlat_hrtimer_handler, CLOCK_MONOTONIC,
+		      HRTIMER_MODE_REL);
 
 	register_trace_android_vh_scheduler_tick(memlat_sched_tick_cb, NULL);
 	register_trace_android_vh_jiffies_update(memlat_jiffies_update_cb, NULL);
