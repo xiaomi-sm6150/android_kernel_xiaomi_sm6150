@@ -311,8 +311,7 @@ void *qcom_create_ramdump_device(const char *dev_name, struct device *parent)
 		return NULL;
 
 	/* get a minor number */
-	minor = ida_simple_get(&rd_minor_id, 0, RAMDUMP_NUM_DEVICES,
-			GFP_KERNEL);
+	minor = ida_alloc_range(&rd_minor_id, 0, (RAMDUMP_NUM_DEVICES) - 1, GFP_KERNEL);
 	if (minor < 0) {
 		pr_err("%s: No more minor numbers left! rc:%d\n", __func__,
 			minor);
@@ -346,7 +345,7 @@ void *qcom_create_ramdump_device(const char *dev_name, struct device *parent)
 fail_cdev_add:
 	device_unregister(rd_dev->dev);
 fail_return_minor:
-	ida_simple_remove(&rd_minor_id, minor);
+	ida_free(&rd_minor_id, minor);
 fail_out_of_minors:
 	kfree(rd_dev);
 	return ERR_PTR(ret);
@@ -363,7 +362,7 @@ void qcom_destroy_ramdump_device(void *dev)
 
 	cdev_del(&rd_dev->cdev);
 	device_unregister(rd_dev->dev);
-	ida_simple_remove(&rd_minor_id, minor);
+	ida_free(&rd_minor_id, minor);
 	kfree(rd_dev);
 }
 EXPORT_SYMBOL(qcom_destroy_ramdump_device);

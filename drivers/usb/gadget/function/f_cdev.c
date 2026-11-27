@@ -861,7 +861,7 @@ static void cser_free_inst(struct usb_function_instance *fi)
 	if (opts->port) {
 		cdev_device_del(&opts->port->fcdev_cdev, &opts->port->dev);
 		mutex_lock(&chardev_ida_lock);
-		ida_simple_remove(&chardev_ida, opts->port->minor);
+		ida_free(&chardev_ida, opts->port->minor);
 		mutex_unlock(&chardev_ida_lock);
 		usb_cser_debugfs_exit(opts->port);
 		put_device(&opts->port->dev);
@@ -1712,9 +1712,9 @@ static struct f_cdev *f_cdev_alloc(char *func_name, int portno)
 		}
 	}
 
-	ret = ida_simple_get(&chardev_ida, 0, 0, GFP_KERNEL);
+	ret = ida_alloc(&chardev_ida, GFP_KERNEL);
 	if (ret >= NUM_INSTANCE) {
-		ida_simple_remove(&chardev_ida, ret);
+		ida_free(&chardev_ida, ret);
 		mutex_unlock(&chardev_ida_lock);
 		ret = -ENODEV;
 		goto err_get_ida;

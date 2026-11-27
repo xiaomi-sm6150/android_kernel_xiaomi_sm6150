@@ -1126,7 +1126,7 @@ static void glink_pkt_release_device(struct device *dev)
 		       gpdev->ch_name, current->comm,
 		       task_pid_nr(current), refcount_read(&gpdev->refcount));
 
-	ida_simple_remove(&glink_pkt_minor_ida, MINOR(gpdev->dev.devt));
+	ida_free(&glink_pkt_minor_ida, MINOR(gpdev->dev.devt));
 	cdev_del(&gpdev->cdev);
 	kfree(gpdev);
 }
@@ -1175,8 +1175,7 @@ static int glink_pkt_create_device(struct device *parent,
 	if (!gpdev)
 		return -ENOMEM;
 
-	minor = ida_simple_get(&glink_pkt_minor_ida, 0, num_glink_pkt_devs,
-			     GFP_KERNEL);
+	minor = ida_alloc_range(&glink_pkt_minor_ida, 0, (num_glink_pkt_devs) - 1, GFP_KERNEL);
 	if (minor < 0) {
 		kfree(gpdev);
 		return minor;
@@ -1187,7 +1186,7 @@ static int glink_pkt_create_device(struct device *parent,
 	ret = glink_pkt_parse_devicetree(np, gpdev);
 	if (ret < 0) {
 		GLINK_PKT_ERR("failed to parse dt ret:%d\n", ret);
-		ida_simple_remove(&glink_pkt_minor_ida, MINOR(dev->devt));
+		ida_free(&glink_pkt_minor_ida, MINOR(dev->devt));
 		kfree(gpdev);
 		return ret;
 	}
@@ -1229,7 +1228,7 @@ static int glink_pkt_create_device(struct device *parent,
 	if (ret) {
 		GLINK_PKT_ERR("cdev_add failed for %s ret:%d\n",
 			      gpdev->dev_name, ret);
-		ida_simple_remove(&glink_pkt_minor_ida, MINOR(dev->devt));
+		ida_free(&glink_pkt_minor_ida, MINOR(dev->devt));
 		kfree(gpdev);
 		return ret;
 	}
