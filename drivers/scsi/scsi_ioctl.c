@@ -16,6 +16,7 @@
 #include <linux/string.h>
 #include <linux/uaccess.h>
 #include <linux/cdrom.h>
+#include <linux/k61-stop.h>
 
 #include <scsi/scsi.h>
 #include <scsi/scsi_cmnd.h>
