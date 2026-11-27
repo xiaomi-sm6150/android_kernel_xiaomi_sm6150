@@ -140,11 +140,9 @@ static int dummy_clk_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int dummy_clk_remove(struct platform_device *pdev)
+static void dummy_clk_remove(struct platform_device *pdev)
 {
 	of_clk_del_provider(pdev->dev.of_node);
-
-	return 0;
 }
 
 static const struct of_device_id dummy_clk_match_table[] = {
