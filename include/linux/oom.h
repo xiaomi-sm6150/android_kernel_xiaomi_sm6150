@@ -118,4 +118,5 @@ extern void dump_tasks(struct oom_control *oc);
 extern struct task_struct *find_lock_task_mm(struct task_struct *p);
 
 void add_to_oom_reaper(struct task_struct *p);
+extern bool __oom_reap_task_mm(struct mm_struct *mm);
 #endif /* _INCLUDE_LINUX_OOM_H */
