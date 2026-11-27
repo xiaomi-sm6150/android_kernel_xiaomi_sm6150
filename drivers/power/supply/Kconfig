@@ -1099,4 +1099,5 @@ config FUEL_GAUGE_MM8013
 source "drivers/power/supply/xiaomi/Kconfig"
 source "drivers/power/supply/ti/Kconfig"
 
+source "drivers/power/supply/qcom/Kconfig"
 endif # POWER_SUPPLY
