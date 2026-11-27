@@ -58,6 +58,25 @@ config PINCTRL_SDMMAGPIE
 	 Technologies Inc SDMMAGPIE (SM7150) platform.
 	 Say N, if not sure.
 
+config PINCTRL_SM6150
+	tristate "Qualcomm Technologies Inc SM6150 pin controller driver"
+	depends on OF
+	depends on PINCTRL_MSM
+	help
+	 This is the pinctrl, pinmux, pinconf and gpiolib driver for the
+	 Qualcomm Technologies Inc TLMM block found on the Qualcomm
+	 Technologies Inc SM6150 platform.
+	 Say N, if not sure.
+
+config PINCTRL_SLPI
+	tristate "Qualcomm Technologies, Inc SLPI pin controller driver"
+	depends on GPIOLIB && OF
+	help
+	  Sensor Low Power Island(SLPI) has a Pin controller which can support
+	  14 pin configurations. This is the pinctrl, pinmux and  pinconf
+	  driver for the SLPI pin controller block. Select Y if this driver
+	  needs to be enabled or select N if unsure.
+
 config PINCTRL_LPASS_LPI
 	tristate "Qualcomm Technologies Inc LPASS LPI pin controller driver"
 	select PINMUX
