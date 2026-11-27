@@ -64,6 +64,15 @@ config RPMSG_QCOM_GLINK_SMEM
 	  which provides support for using the GLINK communication protocol
 	  over SMEM.
 
+config QCOM_GLINK_PKT
+	tristate "Enable device interface for GLINK packet channels"
+	depends on RPMSG_QCOM_GLINK_SMEM || RPMSG_QCOM_GLINK_SLATECOM
+	help
+	  G-link packet driver provides the interface for the userspace
+	  clients to communicate over G-Link via device nodes.
+	  This enable the userspace clients to read and write to
+	  some glink packets channel.
+
 config RPMSG_QCOM_SMD
 	tristate "Qualcomm Shared Memory Driver (SMD)"
 	depends on MAILBOX
