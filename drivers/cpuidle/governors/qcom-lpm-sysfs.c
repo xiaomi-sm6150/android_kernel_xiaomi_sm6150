@@ -24,7 +24,7 @@ static ssize_t cluster_idle_set(struct kobject *kobj,
 	bool disable;
 	int ret;
 
-	ret = strtobool(buf, &disable);
+	ret = kstrtobool(buf, &disable);
 	if (ret)
 		return -EINVAL;
 

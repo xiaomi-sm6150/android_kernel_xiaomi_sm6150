@@ -479,7 +479,7 @@ static ssize_t spi_max_dump_size_show(struct device *dev, struct device_attribut
 	struct spi_master *spi = platform_get_drvdata(pdev);
 	struct spi_geni_master *geni_mas;
 
-	geni_mas = spi_master_get_devdata(spi);
+	geni_mas = spi_controller_get_devdata(spi);
 
 	return scnprintf(buf, sizeof(int), "%d\n", geni_mas->max_data_dump_size);
 }
@@ -502,7 +502,7 @@ static ssize_t spi_max_dump_size_store(struct device *dev, struct device_attribu
 	struct spi_master *spi = platform_get_drvdata(pdev);
 	struct spi_geni_master *geni_mas;
 
-	geni_mas = spi_master_get_devdata(spi);
+	geni_mas = spi_controller_get_devdata(spi);
 
 	spin_lock(&geni_mas->data_dump_lock);
 	if (kstrtoint(buf, 0, &geni_mas->max_data_dump_size)) {
@@ -529,7 +529,7 @@ static ssize_t spi_slave_state_show(struct device *dev,
 	struct spi_master *spi = platform_get_drvdata(pdev);
 	struct spi_geni_master *geni_mas;
 
-	geni_mas = spi_master_get_devdata(spi);
+	geni_mas = spi_controller_get_devdata(spi);
 
 	if (geni_mas)
 		ret = scnprintf(buf, sizeof(int), "%d\n",
@@ -562,7 +562,7 @@ static ssize_t capture_kpi_show(struct device *dev,
 	struct spi_master *spi = platform_get_drvdata(pdev);
 	struct spi_geni_master *geni_mas;
 
-	geni_mas = spi_master_get_devdata(spi);
+	geni_mas = spi_controller_get_devdata(spi);
 	if (!geni_mas)
 		return -EINVAL;
 
@@ -588,7 +588,7 @@ static ssize_t capture_kpi_store(struct device *dev,
 	struct spi_geni_master *geni_mas;
 	char name[36];
 
-	geni_mas = spi_master_get_devdata(spi);
+	geni_mas = spi_controller_get_devdata(spi);
 	if (!geni_mas)
 		return -EINVAL;
 
@@ -640,7 +640,7 @@ static void spi_slv_setup(struct spi_geni_master *mas)
 
 static int spi_slv_abort(struct spi_master *spi)
 {
-	struct spi_geni_master *mas = spi_master_get_devdata(spi);
+	struct spi_geni_master *mas = spi_controller_get_devdata(spi);
 
 	complete_all(&mas->tx_cb);
 	complete_all(&mas->rx_cb);
@@ -730,7 +730,7 @@ static void spi_setup_word_len(struct spi_geni_master *mas, u32 mode,
 static int setup_fifo_params(struct spi_device *spi_slv,
 					struct spi_master *spi)
 {
-	struct spi_geni_master *mas = spi_master_get_devdata(spi);
+	struct spi_geni_master *mas = spi_controller_get_devdata(spi);
 	u16 mode = spi_slv->mode;
 	u32 loopback_cfg = geni_read_reg(mas->base, SE_SPI_LOOPBACK);
 	u32 cpol = geni_read_reg(mas->base, SE_SPI_CPOL);
@@ -813,7 +813,7 @@ setup_fifo_params_exit:
 static int select_xfer_mode(struct spi_master *spi,
 				struct spi_message *spi_msg)
 {
-	struct spi_geni_master *mas = spi_master_get_devdata(spi);
+	struct spi_geni_master *mas = spi_controller_get_devdata(spi);
 	int mode = GENI_SE_DMA;
 	int fifo_disable = (geni_read_reg(mas->base,  GENI_IF_DISABLE_RO) &
 							FIFO_IF_DISABLE);
@@ -1000,7 +1000,7 @@ static void spi_gsi_ch_cb(struct dma_chan *ch, struct msm_gpi_cb const *cb,
 		return;
 	}
 
-	mas = spi_master_get_devdata(spi);
+	mas = spi_controller_get_devdata(spi);
 	switch (cb->cb_event) {
 	case MSM_GPI_QUP_NOTIFY:
 	case MSM_GPI_QUP_MAX_EVENT:
@@ -1053,7 +1053,7 @@ static void spi_gsi_rx_callback(void *cb)
 	desc_cb = (struct gsi_desc_cb *)cb_param->userdata;
 	spi = desc_cb->spi;
 	xfer = desc_cb->xfer;
-	mas = spi_master_get_devdata(spi);
+	mas = spi_controller_get_devdata(spi);
 
 	if (mas->is_tx_rx)
 		xfer = desc_cb->xfer_tx_rx;
@@ -1093,7 +1093,7 @@ static void spi_gsi_tx_callback(void *cb)
 	desc_cb = (struct gsi_desc_cb *)cb_param->userdata;
 	spi = desc_cb->spi;
 	xfer = desc_cb->xfer;
-	mas = spi_master_get_devdata(spi);
+	mas = spi_controller_get_devdata(spi);
 
 	/*
 	 * Case when lock/unlock support is required:
@@ -1139,7 +1139,7 @@ static void spi_gsi_tx_callback(void *cb)
  */
 static int spi_geni_lock_bus(struct spi_master *spi)
 {
-	struct spi_geni_master *mas = spi_master_get_devdata(spi);
+	struct spi_geni_master *mas = spi_controller_get_devdata(spi);
 	struct msm_gpi_tre *lock_t = NULL;
 	int ret = 0, timeout = 0;
 	struct scatterlist *xfer_tx_sg = mas->gsi_lock_unlock->tx_sg;
@@ -1197,7 +1197,7 @@ err_spi_geni_lock_bus:
 
 static void spi_geni_unlock_bus(struct spi_master *spi)
 {
-	struct spi_geni_master *mas = spi_master_get_devdata(spi);
+	struct spi_geni_master *mas = spi_controller_get_devdata(spi);
 	struct msm_gpi_tre *unlock_t = NULL;
 	int ret = 0, timeout = 0;
 	struct scatterlist *xfer_tx_sg = mas->gsi_lock_unlock->tx_sg;
@@ -1747,7 +1747,7 @@ static int spi_geni_prepare_message(struct spi_master *spi,
 					struct spi_message *spi_msg)
 {
 	int ret = 0;
-	struct spi_geni_master *mas = spi_master_get_devdata(spi);
+	struct spi_geni_master *mas = spi_controller_get_devdata(spi);
 	int count;
 	unsigned long long start_time;
 
@@ -1858,7 +1858,7 @@ exit_prepare_message:
 static int spi_geni_unprepare_message(struct spi_master *spi_mas,
 					struct spi_message *spi_msg)
 {
-	struct spi_geni_master *mas = spi_master_get_devdata(spi_mas);
+	struct spi_geni_master *mas = spi_controller_get_devdata(spi_mas);
 	int count = 0;
 	unsigned long long start_time;
 
@@ -2007,7 +2007,7 @@ out:
  */
 static int spi_geni_mas_setup(struct spi_master *spi)
 {
-	struct spi_geni_master *mas = spi_master_get_devdata(spi);
+	struct spi_geni_master *mas = spi_controller_get_devdata(spi);
 	unsigned int major = 0;
 	unsigned int minor = 0;
 	int hw_ver = 0;
@@ -2154,7 +2154,7 @@ setup_ipc:
 
 static int spi_geni_prepare_transfer_hardware(struct spi_master *spi)
 {
-	struct spi_geni_master *mas = spi_master_get_devdata(spi);
+	struct spi_geni_master *mas = spi_controller_get_devdata(spi);
 	int ret = 0, count = 0;
 	unsigned long long start_time;
 
@@ -2252,7 +2252,7 @@ exit_prepare_transfer_hardware:
 
 static int spi_geni_unprepare_transfer_hardware(struct spi_master *spi)
 {
-	struct spi_geni_master *mas = spi_master_get_devdata(spi);
+	struct spi_geni_master *mas = spi_controller_get_devdata(spi);
 	int count = 0;
 	unsigned long long start_time;
 
@@ -2432,7 +2432,7 @@ static int setup_fifo_xfer(struct spi_transfer *xfer,
 static void handle_fifo_timeout(struct spi_master *spi,
 					struct spi_transfer *xfer)
 {
-	struct spi_geni_master *mas = spi_master_get_devdata(spi);
+	struct spi_geni_master *mas = spi_controller_get_devdata(spi);
 	unsigned long timeout;
 	u32 rx_fifo_status;
 	int rx_wc, i;
@@ -2557,7 +2557,7 @@ static int spi_geni_transfer_one(struct spi_master *spi, struct spi_device *slv,
 {
 	int ret = 0;
 	unsigned int xfer_timeout;
-	struct spi_geni_master *mas = spi_master_get_devdata(spi);
+	struct spi_geni_master *mas = spi_controller_get_devdata(spi);
 	unsigned long timeout, xfer_timeout_jiffies;
 	unsigned long long start_time;
 
@@ -3410,7 +3410,7 @@ static int spi_geni_probe(struct platform_device *pdev)
 	#endif
 
 	platform_set_drvdata(pdev, spi);
-	geni_mas = spi_master_get_devdata(spi);
+	geni_mas = spi_controller_get_devdata(spi);
 	geni_mas->dev = dev;
 	geni_mas->spi_rsc.dev = dev;
 	geni_mas->spi_rsc.wrapper = dev_get_drvdata(dev->parent);
@@ -3560,7 +3560,7 @@ static int spi_geni_remove(struct platform_device *pdev)
 {
 	int ret;
 	struct spi_master *master = platform_get_drvdata(pdev);
-	struct spi_geni_master *geni_mas = spi_master_get_devdata(master);
+	struct spi_geni_master *geni_mas = spi_controller_get_devdata(master);
 
 	sysfs_remove_file(&pdev->dev.kobj, &dev_attr_spi_slave_state.attr);
 	device_remove_file(geni_mas->dev, &dev_attr_capture_kpi);
@@ -3670,7 +3670,7 @@ static int spi_geni_runtime_suspend(struct device *dev)
 {
 	int ret = 0;
 	struct spi_master *spi = get_spi_master(dev);
-	struct spi_geni_master *geni_mas = spi_master_get_devdata(spi);
+	struct spi_geni_master *geni_mas = spi_controller_get_devdata(spi);
 	unsigned long long start_time;
 
 	start_time = geni_capture_start_time(&geni_mas->spi_rsc, geni_mas->ipc_log_kpi, __func__,
@@ -3759,7 +3759,7 @@ static int spi_geni_runtime_resume(struct device *dev)
 {
 	int ret = 0;
 	struct spi_master *spi = get_spi_master(dev);
-	struct spi_geni_master *geni_mas = spi_master_get_devdata(spi);
+	struct spi_geni_master *geni_mas = spi_controller_get_devdata(spi);
 	unsigned long long start_time;
 
 	start_time = geni_capture_start_time(&geni_mas->spi_rsc, geni_mas->ipc_log_kpi, __func__,
@@ -3847,7 +3847,7 @@ exit_rt_resume:
 static int spi_geni_resume(struct device *dev)
 {
 	struct spi_master *spi = get_spi_master(dev);
-	struct spi_geni_master *geni_mas = spi_master_get_devdata(spi);
+	struct spi_geni_master *geni_mas = spi_controller_get_devdata(spi);
 
 	geni_se_ssc_clk_enable(&geni_mas->rsc, true);
 	return 0;
@@ -3887,7 +3887,7 @@ static int spi_geni_suspend(struct device *dev)
 {
 	int ret = 0;
 	struct spi_master *spi = get_spi_master(dev);
-	struct spi_geni_master *geni_mas = spi_master_get_devdata(spi);
+	struct spi_geni_master *geni_mas = spi_controller_get_devdata(spi);
 	unsigned long long start_time;
 
 	start_time = geni_capture_start_time(&geni_mas->spi_rsc, geni_mas->ipc_log_kpi, __func__,
@@ -3947,7 +3947,7 @@ static int spi_geni_hib_suspend(struct device *dev)
 {
 	int ret = 0;
 	struct spi_master *spi = get_spi_master(dev);
-	struct spi_geni_master *geni_mas = spi_master_get_devdata(spi);
+	struct spi_geni_master *geni_mas = spi_controller_get_devdata(spi);
 	unsigned long long start_time;
 
 	start_time = geni_capture_start_time(&geni_mas->spi_rsc, geni_mas->ipc_log_kpi, __func__,
@@ -3974,7 +3974,7 @@ static int spi_geni_hib_suspend(struct device *dev)
 
 	if (!pm_runtime_status_suspended(dev)) {
 		struct spi_master *spi = get_spi_master(dev);
-		struct spi_geni_master *geni_mas = spi_master_get_devdata(spi);
+		struct spi_geni_master *geni_mas = spi_controller_get_devdata(spi);
 
 		if (list_empty(&spi->queue) && !spi->cur_msg) {
 			SPI_LOG_ERR(geni_mas->ipc, true, dev,
@@ -4028,7 +4028,7 @@ static int spi_geni_hib_suspend(struct device *dev)
 static void ssr_spi_force_suspend(struct device *dev)
 {
 	struct spi_master *spi = get_spi_master(dev);
-	struct spi_geni_master *mas = spi_master_get_devdata(spi);
+	struct spi_geni_master *mas = spi_controller_get_devdata(spi);
 	int ret = 0;
 
 	mutex_lock(&mas->spi_ssr.ssr_lock);
@@ -4057,7 +4057,7 @@ static void ssr_spi_force_suspend(struct device *dev)
 static void ssr_spi_force_resume(struct device *dev)
 {
 	struct spi_master *spi = get_spi_master(dev);
-	struct spi_geni_master *mas = spi_master_get_devdata(spi);
+	struct spi_geni_master *mas = spi_controller_get_devdata(spi);
 	int ret = 0;
 
 	mutex_lock(&mas->spi_ssr.ssr_lock);

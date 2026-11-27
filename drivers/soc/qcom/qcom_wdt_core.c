@@ -442,7 +442,7 @@ static ssize_t qcom_wdt_user_pet_enabled_set(struct device *dev,
 	unsigned long delay_time = 0;
 	bool already_enabled = wdog_dd->user_pet_enabled;
 
-	ret = strtobool(buf, &wdog_dd->user_pet_enabled);
+	ret = kstrtobool(buf, &wdog_dd->user_pet_enabled);
 	if (ret) {
 		dev_err(wdog_dd->dev, "invalid user input\n");
 		return ret;

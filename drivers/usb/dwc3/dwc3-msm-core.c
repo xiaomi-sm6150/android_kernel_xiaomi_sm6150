@@ -5610,7 +5610,7 @@ static ssize_t dynamic_disable_store(struct device *dev, struct device_attribute
 	struct dwc3_msm *mdwc = dev_get_drvdata(dev);
 	bool disable;
 
-	strtobool(buf, &disable);
+	kstrtobool(buf, &disable);
 	if (disable) {
 		if (mdwc->dynamic_disable) {
 			dbg_log_string("USB already disabled\n");
