@@ -62,6 +62,7 @@ minidump-$(CONFIG_QCOM_MINIDUMP_VIRTIO) += minidump_virtio.o
 minidump-$(CONFIG_QCOM_MINIDUMP_PANIC_MEMORY_INFO) += minidump_memory.o
 obj-$(CONFIG_QCOM_RAMDUMP) += qcom_ramdump.o
 obj-$(CONFIG_QCOM_ICC_BWMON)	+= icc-bwmon.o
+obj-$(CONFIG_QCOM_DCVS) += dcvs/
 obj-$(CONFIG_MSM_PERFORMANCE) += msm_performance.o
 obj-$(CONFIG_QCOM_CDSP_RM) += cdsprm.o
 obj-$(CONFIG_QCOM_PANEL_EVENT_NOTIFIER) += panel_event_notifier.o

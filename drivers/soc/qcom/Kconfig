@@ -541,6 +541,8 @@ config K61_SUBSYS_SHIM
 	  Exposes /sys/bus/msm_subsys/devices/subsysN/{name,state,...} backed by
 	  remoteproc SSR notifications, as libmdmdetect/pd-mapper/per_mgr expect.
 
+source "drivers/soc/qcom/mem_buf/Kconfig"
+source "drivers/soc/qcom/dcvs/Kconfig"
 endmenu
 
 config QCOM_UBWC_CONFIG
