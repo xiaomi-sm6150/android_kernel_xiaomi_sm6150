@@ -159,6 +159,17 @@ config PREEMPTIRQ_TRACEPOINTS
 	  Create preempt/irq toggle tracepoints if needed, so that other parts
 	  of the kernel can use them to generate or add hooks to them.
 
+config IPC_LOGGING
+	tristate "Debug Logging for IPC Drivers"
+	depends on DEBUG_FS
+	help
+	  IPC Logging driver provides a logging option for IPC Drivers.
+	  This provides a cyclic buffer based logging support in a driver
+	  specific context. This driver also provides a debugfs interface
+	  to dump the logs in a live fashion.
+
+	  If in doubt, say no.
+
 # All tracer options should select GENERIC_TRACER. For those options that are
 # enabled by all tracers (context switch and event tracer) they select TRACING.
 # This allows those options to appear when no other tracer is selected. But the
@@ -957,7 +968,6 @@ config TRACEPOINT_BENCHMARK
 	      last=273 first=3672 max=632 min=273 avg=292 std=224 std^2=50411
 	      last=273 first=3672 max=632 min=273 avg=288 std=200 std^2=40389
 	      last=281 first=3672 max=632 min=273 avg=287 std=183 std^2=33666
-
 
 config RING_BUFFER_BENCHMARK
 	tristate "Ring buffer benchmark stress tester"
