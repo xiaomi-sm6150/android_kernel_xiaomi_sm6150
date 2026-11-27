@@ -96,7 +96,7 @@ static void ipa_server_init_complete(struct ipa_qmi *ipa_qmi)
 			"error %d sending init complete indication\n", ret);
 	else
 		ipa_qmi->indication_sent = true;
-	dev_info(&ipa->pdev->dev, "k61qmi: INIT_COMPLETE indication: %d\n", ret);
+	dev_info(ipa->dev, "k61qmi: INIT_COMPLETE indication: %d\n", ret);
 }
 
 /* If requested (and not already sent) send the INIT_COMPLETE indication */
@@ -148,7 +148,7 @@ static void ipa_qmi_ready(struct ipa_qmi *ipa_qmi)
 	/* We're ready.  Start up normal operation */
 	ipa = container_of(ipa_qmi, struct ipa, qmi);
 	ret = ipa_modem_start(ipa);
-	dev_info(&ipa->pdev->dev, "k61qmi: ipa_modem_start: %d\n", ret);
+	dev_info(ipa->dev, "k61qmi: ipa_modem_start: %d\n", ret);
 	if (ret)
 		dev_err(ipa->dev, "error %d starting modem\n", ret);
 }
@@ -198,7 +198,7 @@ static void ipa_server_indication_register(struct qmi_handle *qmi,
 	ret = qmi_send_response(qmi, sq, txn, IPA_QMI_INDICATION_REGISTER,
 				IPA_QMI_INDICATION_REGISTER_RSP_SZ,
 				ipa_indication_register_rsp_ei, &rsp);
-	dev_info(&ipa->pdev->dev, "k61qmi: modem INDICATION_REGISTER (resp %d)\n", ret);
+	dev_info(ipa->dev, "k61qmi: modem INDICATION_REGISTER (resp %d)\n", ret);
 	if (!ret) {
 		ipa_qmi->indication_requested = true;
 		ipa_qmi_ready(ipa_qmi);		/* We might be ready now */
@@ -228,7 +228,7 @@ static void ipa_server_driver_init_complete(struct qmi_handle *qmi,
 	ret = qmi_send_response(qmi, sq, txn, IPA_QMI_DRIVER_INIT_COMPLETE,
 				IPA_QMI_DRIVER_INIT_COMPLETE_RSP_SZ,
 				ipa_driver_init_complete_rsp_ei, &rsp);
-	dev_info(&ipa->pdev->dev, "k61qmi: modem sent DRIVER_INIT_COMPLETE (resp %d)\n", ret);
+	dev_info(ipa->dev, "k61qmi: modem sent DRIVER_INIT_COMPLETE (resp %d)\n", ret);
 	if (!ret) {
 		ipa_qmi->uc_ready = true;
 		ipa_qmi_ready(ipa_qmi);		/* We might be ready now */

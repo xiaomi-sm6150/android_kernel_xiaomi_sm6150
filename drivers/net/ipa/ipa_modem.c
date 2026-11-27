@@ -319,7 +319,7 @@ static int ipa_siocdevprivate(struct net_device *netdev, struct ifreq *ifr,
 	if (copy_from_user(&ext, data, sizeof(ext)))
 		return -EFAULT;
 
-	dev_dbg(&ipa->pdev->dev, "rmnet extended ioctl %u\n", ext.extended_ioctl);
+	dev_dbg(ipa->dev, "rmnet extended ioctl %u\n", ext.extended_ioctl);
 
 	switch (ext.extended_ioctl) {
 	case IPA_RMNET_EXT_GET_SUPPORTED_FEATURES:
@@ -348,7 +348,7 @@ static int ipa_siocdevprivate(struct net_device *netdev, struct ifreq *ifr,
 		break;
 	case IPA_RMNET_EXT_ADD_MUX_CHANNEL:
 		ext.u.mux.vchannel_name[IFNAMSIZ - 1] = '\0';
-		dev_info(&ipa->pdev->dev, "rmnet mux channel %u (%s)\n",
+		dev_info(ipa->dev, "rmnet mux channel %u (%s)\n",
 			 ext.u.mux.mux_id, ext.u.mux.vchannel_name);
 		return 0;
 	case IPA_RMNET_EXT_SET_MRU:

@@ -184,7 +184,7 @@ void ipa_uc_k61_dump(struct ipa *ipa, const char *tag)
 {
 	struct ipa_uc_mem_area *shared = ipa_uc_shared(ipa);
 
-	dev_info(&ipa->pdev->dev,
+	dev_info(ipa->dev,
 		 "k61uc[%s]: cmd %u resp %u resp_param %08x event %u event_param %08x first_err %08x hw_state %u warn %u if_ver %04x uc_loaded %d uc_powered %d\n",
 		 tag, shared->command, shared->response,
 		 le32_to_cpu(shared->response_param), shared->event,
@@ -218,7 +218,7 @@ void ipa_uc_config(struct ipa *ipa)
 	if (!ipa->uc_loaded &&
 	    ipa_uc_shared(ipa)->response == IPA_UC_RESPONSE_INIT_COMPLETED &&
 	    ipa_uc_shared(ipa)->interface_version) {
-		dev_info(&ipa->pdev->dev, "microcontroller already running\n");
+		dev_info(ipa->dev, "microcontroller already running\n");
 		ipa->uc_loaded = true;
 		ipa_power_retention(ipa, true);
 	}
