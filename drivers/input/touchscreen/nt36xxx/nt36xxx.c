@@ -824,10 +824,10 @@ static void nvt_parse_dt(struct device *dev)
 	struct device_node *np = dev->of_node;
 
 #if NVT_TOUCH_SUPPORT_HW_RST
-	ts->reset_gpio = of_get_named_gpio_flags(np, "novatek,reset-gpio", 0, &ts->reset_flags);
+	ts->reset_gpio = of_get_named_gpio(np, "novatek,reset-gpio", 0);
 	NVT_LOG("novatek,reset-gpio=%d\n", ts->reset_gpio);
 #endif
-	ts->irq_gpio = of_get_named_gpio_flags(np, "novatek,irq-gpio", 0, &ts->irq_flags);
+	ts->irq_gpio = of_get_named_gpio(np, "novatek,irq-gpio", 0);
 	NVT_LOG("novatek,irq-gpio=%d\n", ts->irq_gpio);
 
 }
@@ -1797,9 +1797,10 @@ static inline void nvt_xiaomi_touch_register(void) { }
  * return:
  *     Executive outcomes. 0---succeed. negative---failed
  *******************************************************/
-static int32_t nvt_ts_probe(struct i2c_client *client,
-	const struct i2c_device_id *id)
+static int32_t nvt_ts_probe(struct i2c_client *client)
 {
+	const struct i2c_device_id *id __maybe_unused =
+		i2c_client_get_device_id(client);
 	int32_t ret = 0;
 #if defined(CONFIG_DRM)
 	struct device_node *dp = client->dev.of_node;
@@ -3360,10 +3361,10 @@ static int32_t nvt_spi_parse_dt(struct device *dev)
 	struct nvt_spi_data_t *ts = nvt_spi_data;
 
 #if NVT_SPI_TOUCH_SUPPORT_HW_RST
-	ts->reset_gpio = of_get_named_gpio_flags(np, "novatek,reset-gpio", 0, &ts->reset_flags);
+	ts->reset_gpio = of_get_named_gpio(np, "novatek,reset-gpio", 0);
 	NVT_LOG("novatek,reset-gpio=%d\n", ts->reset_gpio);
 #endif
-	ts->irq_gpio = of_get_named_gpio_flags(np, "novatek,irq-gpio", 0, &ts->irq_flags);
+	ts->irq_gpio = of_get_named_gpio(np, "novatek,irq-gpio", 0);
 	NVT_LOG("novatek,irq-gpio=%d\n", ts->irq_gpio);
 
 	ts->pen_support = of_property_read_bool(np, "novatek,pen-support");
