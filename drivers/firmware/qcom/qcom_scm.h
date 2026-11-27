@@ -192,4 +192,19 @@ static inline int qcom_scm_remap_error(int err)
 	return -EINVAL;
 }
 
+/* vendor calls */
+#define QCOM_SCM_BOOT_SEC_WDOG_DIS		0x07
+#define QCOM_SCM_CAMERA_PROTECT_PHY_LANES	0x07
+#define QCOM_SCM_ES_CLEAR_ICE_KEY		0x06
+#define QCOM_SCM_ES_CONFIG_SET_ICE_KEY_V2	0x05
+#define QCOM_SCM_ES_DERIVE_RAW_SECRET	0x07
+#define QCOM_SCM_ES_HIBERNATE_EXIT	0xB
+#define QCOM_SCM_QUSB2PHY_LVL_SHIFTER_CMD_ID    0x1B
+#define QCOM_SCM_SMMU_SECURE_LUT		0x03
+#define QCOM_SCM_SVC_CAMERA			0x18
+#define QCOM_SCM_SVC_TSENS			0x1E
+#define QCOM_SCM_SVC_UTIL			0x03
+#define QCOM_SCM_TSENS_INIT_ID			0x5
+#define QCOM_SCM_UTIL_DUMP_TABLE_ASSIGN		0x13
+
 #endif

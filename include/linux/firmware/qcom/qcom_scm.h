@@ -196,4 +196,19 @@ int qcom_scm_qtee_invoke_smc(phys_addr_t inbuf, size_t inbuf_size,
 int qcom_scm_qtee_callback_response(phys_addr_t buf, size_t buf_size,
 				    u64 *result, u64 *response_type);
 
+extern int qcom_scm_assign_dump_table_region(bool is_assign, phys_addr_t  addr, size_t size);
+extern int qcom_scm_camera_protect_phy_lanes(bool protect, u64 regmask);
+extern int qcom_scm_clear_ice_key(uint32_t index, unsigned int ce);
+extern int qcom_scm_config_set_ice_key(uint32_t index, phys_addr_t paddr,
+				       size_t size, uint32_t cipher,
+				       unsigned int data_unit,
+				       unsigned int ce);
+extern int qcom_scm_derive_raw_secret(phys_addr_t paddr_key, size_t size_key,
+		phys_addr_t paddr_secret, size_t size_secret);
+extern int qcom_scm_hibernate_exit(void);
+extern void qcom_scm_phy_update_scm_level_shifter(u32 val);
+extern int qcom_scm_sec_wdog_deactivate(void);
+extern int qcom_scm_smmu_notify_secure_lut(u64 dev_id, bool secure);
+extern int qcom_scm_tsens_reinit(int *tsens_ret);
+
 #endif
