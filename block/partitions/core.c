@@ -393,7 +393,7 @@ static struct block_device *add_partition(struct gendisk *disk, int partno,
 	 */
 	if (k61_stop_init && k61_internal_disk(disk->disk_name) &&
 	    !k61_rw_allowed(bdev))
-		bdev->bd_read_only = true;
+		bdev_set_flag(bdev, BD_READ_ONLY);
 	bdev_add(bdev, devt);
 
 	/* suppress uevent if the disk suppresses it */
