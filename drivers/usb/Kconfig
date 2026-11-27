@@ -152,6 +152,7 @@ source "drivers/usb/atm/Kconfig"
 endif # USB
 
 source "drivers/usb/phy/Kconfig"
+source "drivers/usb/pd/Kconfig"
 
 source "drivers/usb/gadget/Kconfig"
 
