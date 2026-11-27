@@ -102,6 +102,18 @@ config PHY_QCOM_QMP_USB
 	  Enable this to support the QMP USB PHY transceiver that is used
 	  with USB3 controllers on Qualcomm chips.
 
+config PHY_QCOM_QMP_USB_LEGACY
+	tristate "Qualcomm QMP legacy USB PHY Driver"
+	select GENERIC_PHY
+	default n
+	help
+	  Enable this legacy driver to support the QMP USB+DisplayPort Combo
+	  PHY transceivers working only in USB3 mode on Qualcomm chips. This
+	  driver exists only for compatibility with older device trees,
+	  existing users have been migrated to PHY_QCOM_QMP_COMBO driver.
+
+endif # PHY_QCOM_QMP
+
 menuconfig PHY_QCOM_UFS
 	tristate "Qualcomm Technologies, Inc. UFS PHY driver"
 	depends on OF && ARCH_QCOM
@@ -112,6 +124,8 @@ menuconfig PHY_QCOM_UFS
 	  This driver together with the UFS PHY controller specific
 	  driver enables the UFS PHY support for Qualcomm Technologies, Inc.
 	  chips.
+
+if PHY_QCOM_UFS
 
 config PHY_QCOM_UFS_V3
 	tristate "Qualcomm Technologies, Inc. Sdmsteppe Phy Driver"
@@ -128,17 +142,7 @@ config PHY_QCOM_UFS_V4
 	help
 	  Support for 7nm UFS QMP phy present on QCOM chipsets.
 
-config PHY_QCOM_QMP_USB_LEGACY
-	tristate "Qualcomm QMP legacy USB PHY Driver"
-	select GENERIC_PHY
-	default n
-	help
-	  Enable this legacy driver to support the QMP USB+DisplayPort Combo
-	  PHY transceivers working only in USB3 mode on Qualcomm chips. This
-	  driver exists only for compatibility with older device trees,
-	  existing users have been migrated to PHY_QCOM_QMP_COMBO driver.
-
-endif # PHY_QCOM_QMP
+endif # PHY_QCOM_UFS
 
 config PHY_QCOM_QUSB2
 	tristate "Qualcomm QUSB2 PHY Driver"
