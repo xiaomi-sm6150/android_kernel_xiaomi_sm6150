@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* Copyright (c) 2017, The Linux Foundation. All rights reserved.
- */
+/* Copyright (c) 2017-2018, The Linux Foundation. All rights reserved. */
 
 #include <linux/bitops.h>
 #include <linux/cleanup.h>
@@ -204,6 +203,7 @@ static int spmi_pmic_clkdiv_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct device_node *of_node = dev->of_node;
 	struct clk_parent_data parent_data = { .index = 0, };
+	bool use_dt_name = false;
 	int nclks, i, ret, cxo_hz;
 	char name[20];
 	u32 start;
@@ -244,6 +244,13 @@ static int spmi_pmic_clkdiv_probe(struct platform_device *pdev)
 	}
 	cxo_hz = clk_get_rate(cxo);
 	clk_put(cxo);
+	if (cxo_hz <= 0) {
+		dev_err(dev, "invalid CXO rate: %d\n", cxo_hz);
+		return -EINVAL;
+	}
+
+	if (of_property_present(of_node, "clock-output-names"))
+		use_dt_name = true;
 
 	init.name = name;
 	init.parent_data = &parent_data;
@@ -251,7 +258,17 @@ static int spmi_pmic_clkdiv_probe(struct platform_device *pdev)
 	init.ops = &clk_spmi_pmic_div_ops;
 
 	for (i = 0, clkdiv = cc->clks; i < nclks; i++) {
-		snprintf(name, sizeof(name), "div_clk%d", i + 1);
+		if (use_dt_name) {
+			ret = of_property_read_string_index(of_node,
+				"clock-output-names", i, &init.name);
+			if (ret) {
+				dev_err(dev, "could not read clock-output-names %d, ret=%d\n",
+					i, ret);
+				return ret;
+			}
+		} else {
+			snprintf(name, sizeof(name), "div_clk%d", i + 1);
+		}
 
 		spin_lock_init(&clkdiv[i].lock);
 		clkdiv[i].base = start + i * 0x100;
