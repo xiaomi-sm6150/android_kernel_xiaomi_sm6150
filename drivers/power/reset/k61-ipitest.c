@@ -116,7 +116,7 @@ void k61_dump_all_cpus(void)
 	}
 	/* pseudo-NMI (irqchip.gicv3_pseudo_nmi=1): reaches cpus with irqs off */
 	pr_emerg("k61wdt: NMI backtrace of all other cpus\n");
-	trigger_allbutself_cpu_backtrace();
+	trigger_allbutcpu_cpu_backtrace(raw_smp_processor_id());
 }
 
 static int k61_worker(void *arg)
@@ -567,7 +567,7 @@ static enum hrtimer_restart k61gic_fn(struct hrtimer *h)
 	s->t = sched_clock();
 	s->pc = r ? r->pc : 0;
 	s->pstate = r ? r->pstate : 0;
-	s->pmr_save = r ? r->pmr_save : 0;
+	s->pmr_save = r ? r->pmr : 0;
 	s->pmr_now = read_sysreg_s(SYS_ICC_PMR_EL1);
 	s->rpr = read_sysreg_s(SYS_ICC_RPR_EL1);
 	s->hppir = read_sysreg_s(SYS_ICC_HPPIR1_EL1);
@@ -606,8 +606,8 @@ static void k61gic_start(void *u)
 {
 	struct hrtimer *h = this_cpu_ptr(&k61gic_timer);
 
-	hrtimer_init(h, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_HARD);
-	h->function = k61gic_fn;
+	hrtimer_setup(h, k61gic_fn, CLOCK_MONOTONIC,
+		      HRTIMER_MODE_REL_PINNED_HARD);
 	hrtimer_start(h, ms_to_ktime(50), HRTIMER_MODE_REL_PINNED_HARD);
 }
 
@@ -661,8 +661,8 @@ static enum hrtimer_restart k61gic_dump_fn(struct hrtimer *h)
 }
 static void k61gic_dump_start(void *u)
 {
-	hrtimer_init(&k61gic_dump_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_HARD);
-	k61gic_dump_timer.function = k61gic_dump_fn;
+	hrtimer_setup(&k61gic_dump_timer, k61gic_dump_fn, CLOCK_MONOTONIC,
+		      HRTIMER_MODE_REL_PINNED_HARD);
 	hrtimer_start(&k61gic_dump_timer, ms_to_ktime(2000), HRTIMER_MODE_REL_PINNED_HARD);
 }
 static int __init k61gic_dump_init(void)
