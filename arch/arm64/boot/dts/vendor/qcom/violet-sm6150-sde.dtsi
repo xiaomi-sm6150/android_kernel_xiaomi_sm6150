@@ -14,8 +14,6 @@
 
 &soc {
 	mdss_mdp: qcom,mdss_mdp@ae00000 {
-		/* the splash takeover leaves the panel black on 6.1 */
-		qcom,sde-skip-splash-handoff;
 		compatible = "qcom,sde-kms";
 		reg = <0x0ae00000 0x84208>,
 		      <0x0aeb0000 0x2008>,
