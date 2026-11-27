@@ -35,6 +35,7 @@
 #include <asm/cputype.h>
 #include <linux/math64.h>
 #include <linux/qcom_scmi_vendor.h>
+#include <linux/of_platform.h>
 #include "trace-dcvs.h"
 
 #define MAX_MEMLAT_GRPS	NUM_DCVS_HW_TYPES

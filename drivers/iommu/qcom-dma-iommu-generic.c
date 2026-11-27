@@ -29,6 +29,7 @@
 #include <linux/qcom-iommu-util.h>
 #include <linux/workqueue.h>
 #include <linux/debugfs.h>
+#include <linux/vmalloc.h>
 #include "qcom-dma-iommu-generic.h"
 
 static bool probe_finished;

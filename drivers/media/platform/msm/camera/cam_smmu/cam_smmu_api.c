@@ -24,6 +24,7 @@
 #include <soc/qcom/secure_buffer.h>
 #include <uapi/media/cam_req_mgr.h>
 #include <linux/debugfs.h>
+#include <linux/platform_device.h>
 #include "cam_smmu_api.h"
 #include "cam_debug_util.h"
 

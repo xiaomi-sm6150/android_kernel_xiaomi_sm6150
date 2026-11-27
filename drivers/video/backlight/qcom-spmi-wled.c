@@ -25,6 +25,7 @@
 #include <linux/spinlock.h>
 #include <linux/leds-qpnp-flash.h>
 #include <linux/iio/consumer.h>
+#include <linux/platform_device.h>
 #include "../../leds/leds.h"
 
 /* General definitions */

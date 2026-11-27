@@ -21,6 +21,7 @@
 #include <linux/of_reserved_mem.h>
 #include <linux/firmware/qcom/qcom_scm.h>
 #include <linux/syscore_ops.h>
+#include <linux/platform_device.h>
 
 #define MSM_DUMP_TABLE_VERSION		MSM_DUMP_MAKE_VERSION(2, 0)
 

@@ -23,6 +23,7 @@
 #include <linux/pinctrl/consumer.h>
 #include <linux/suspend.h>
 #include <linux/bootmarker_kernel.h>
+#include <linux/platform_device.h>
 
 #define SPI_NUM_CHIPSELECT	(4)
 #define SPI_XFER_TIMEOUT_MS	(250)

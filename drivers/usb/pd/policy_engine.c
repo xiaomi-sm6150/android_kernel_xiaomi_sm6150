@@ -22,6 +22,7 @@
 #include <linux/extcon-provider.h>
 #include <linux/usb/typec.h>
 #include <linux/usb/usbpd.h>
+#include <linux/platform_device.h>
 
 #include "usbpd.h"
 

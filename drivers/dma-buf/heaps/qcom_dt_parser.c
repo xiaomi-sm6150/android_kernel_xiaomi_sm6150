@@ -12,6 +12,7 @@
 #include <linux/of_reserved_mem.h>
 
 #include <linux/qcom_dma_heap.h>
+#include <linux/of_device.h>
 #include "qcom_dt_parser.h"
 
 #ifdef CONFIG_PANIC_ON_QCOM_DMA_HEAPS_FAILURE

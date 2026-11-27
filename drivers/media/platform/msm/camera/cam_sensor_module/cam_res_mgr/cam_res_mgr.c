@@ -16,6 +16,7 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/gpio.h>
+#include <linux/pinctrl/consumer.h>
 #include "cam_debug_util.h"
 #include "cam_res_mgr_api.h"
 #include "cam_res_mgr_private.h"

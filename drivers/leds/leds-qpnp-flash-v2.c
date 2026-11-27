@@ -26,6 +26,7 @@
 #include <linux/leds-qpnp-flash-v2.h>
 #include <linux/iio/consumer.h>
 #include <linux/log2.h>
+#include <linux/pinctrl/consumer.h>
 #include "leds.h"
 
 #define FLASH_LED_REG_LED_STATUS1(base)		(base + 0x08)
