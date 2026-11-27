@@ -28,6 +28,7 @@
 #include <linux/atomic.h>
 #include <linux/delay.h>
 #include <linux/gpio.h>
+#include <linux/pinctrl/consumer.h>
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -543,7 +544,7 @@ static int fpc1020_request_named_gpio(struct fpc1020_data *fpc1020,
 	}
 	*gpio = rc;
 
-	rc = devm_gpio_request(dev, *gpio, label);
+	rc = devm_gpio_request_one(dev, *gpio, GPIOF_IN, label);
 	if (rc) {
 		dev_err(dev, "failed to request gpio %d\n", *gpio);
 		return rc;
@@ -749,7 +750,7 @@ exit:
 	return rc;
 }
 
-static int fpc1020_remove(struct platform_device *pdev)
+static void fpc1020_remove(struct platform_device *pdev)
 {
 	struct fpc1020_data *fpc1020 = platform_get_drvdata(pdev);
 	panel_event_notifier_unregister(fpc1020->panel_cookie);
@@ -762,8 +763,6 @@ static int fpc1020_remove(struct platform_device *pdev)
 	(void)vreg_setup(fpc1020, "vcc_spi", false);
 	remove_proc_entry(PROC_NAME,NULL);
 	dev_info(&pdev->dev, "%s\n", __func__);
-
-	return 0;
 }
 
 static struct of_device_id fpc1020_of_match[] = {
