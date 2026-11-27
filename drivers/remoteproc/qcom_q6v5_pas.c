@@ -29,6 +29,7 @@
 #include <linux/soc/qcom/mdt_loader.h>
 #include <linux/soc/qcom/smem.h>
 #include <linux/soc/qcom/smem_state.h>
+#include <trace/events/ipi.h>
 
 #include "qcom_common.h"
 #include "qcom_pil_info.h"
