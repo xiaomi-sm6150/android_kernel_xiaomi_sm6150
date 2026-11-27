@@ -125,7 +125,6 @@ static const struct file_operations xiaomitouch_dev_fops = {
 	.unlocked_ioctl = xiaomi_touch_dev_ioctl,
 	.compat_ioctl = xiaomi_touch_dev_ioctl,
 	.release = xiaomi_touch_dev_release,
-	.llseek	= no_llseek,
 };
 
 static struct xiaomi_touch xiaomi_touch_dev = {
@@ -496,7 +495,7 @@ static int xiaomi_touch_probe(struct platform_device *pdev)
 	}
 
 	if (!xiaomi_touch_dev.class)
-		xiaomi_touch_dev.class = class_create(THIS_MODULE, "touch");
+		xiaomi_touch_dev.class = class_create("touch");
 
 	if (IS_ERR_OR_NULL(xiaomi_touch_dev.class)) {
 		ret = xiaomi_touch_dev.class ? PTR_ERR(xiaomi_touch_dev.class) : -ENOMEM;
@@ -554,7 +553,7 @@ parse_dt_err:
 	return ret;
 }
 
-static int xiaomi_touch_remove(struct platform_device *pdev)
+static void xiaomi_touch_remove(struct platform_device *pdev)
 {
 	device_destroy(xiaomi_touch_dev.class, 'T');
 	class_destroy(xiaomi_touch_dev.class);
@@ -563,8 +562,6 @@ static int xiaomi_touch_remove(struct platform_device *pdev)
 		kfree(touch_pdata->touch_data);
 		touch_pdata->touch_data = NULL;
 	}
-
-	return 0;
 }
 
 static struct platform_driver xiaomi_touch_device_driver = {
