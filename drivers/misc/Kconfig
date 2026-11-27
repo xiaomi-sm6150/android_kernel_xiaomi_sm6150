@@ -568,6 +568,23 @@ config QSEECOM
 	  e.g. the Keymaster TA behind the stock Keymaster HAL. It also
 	  provides the qseecom kernel API through QSEECOM_PROXY.
 
+config QSEECOM_PROXY
+	tristate "To enable qseecom proxy driver for kernel client"
+	help
+	 qseecom proxy driver serves the kernel clients by providing
+	 required ops via call back functions with a minimal framework.
+	 These callback functions can be used to start, shutdown and
+	 send commands to the trusted apps.
+
+config BOOTMARKER_PROXY
+	tristate "To enable Bootmarker proxy driver for kernel client"
+	help
+	  Bootmarker proxy driver serves the kernel clients by providing
+	  required ops via call back functions with a minimal framework.
+	  These callback functions can be used to access the place marker.
+	  To compile this driver as a module, choose M here.
+	  If unsure, say N.
+
 config TMR_MANAGER
 	tristate "Select TMR Manager"
 	depends on MICROBLAZE && MB_MANAGER
@@ -722,7 +739,6 @@ config AKM09970
 	  The AK09970 3-axis Hall sensor that reports the position of the
 	  Xiaomi davinci pop-up front camera. The camera HAL reads it through
 	  /dev/akm09970.
-
 
 config SIMTRAY_STATUS
 	tristate "Xiaomi SIM tray status"
