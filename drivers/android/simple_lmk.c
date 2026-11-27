@@ -273,7 +273,7 @@ static void scan_and_kill(void)
 			victim->size << (PAGE_SHIFT - 10));
 
 		/* Make the victim reap anonymous memory first in exit_mmap() */
-		set_bit(MMF_OOM_VICTIM, &mm->flags);
+		mm_flags_set(MMF_OOM_VICTIM, mm);
 
 		/* Accelerate the victim's death by forcing the kill signal */
 		do_send_sig_info(SIGKILL, SEND_SIG_PRIV, vtsk, PIDTYPE_TGID);
@@ -359,7 +359,7 @@ static struct mm_struct *next_reap_victim(void)
 	for (i = 0; i < nr_victims; i++, mm = NULL) {
 		/* Check if this victim is alive and hasn't been reaped yet */
 		mm = victims[i].mm;
-		if (!mm || test_bit(MMF_OOM_SKIP, &mm->flags))
+		if (!mm || mm_flags_test(MMF_OOM_SKIP, mm))
 			continue;
 
 		/* Do a trylock so the reaper thread doesn't sleep */
@@ -384,7 +384,7 @@ static struct mm_struct *next_reap_victim(void)
 		 * victim mm can enter exit_mmap(). Therefore, an mmap read lock
 		 * is sufficient to keep the mm struct itself from being freed.
 		 */
-		if (!test_bit(MMF_OOM_SKIP, &mm->flags))
+		if (!mm_flags_test(MMF_OOM_SKIP, mm))
 			break;
 		mmap_read_unlock(mm);
 	}
@@ -422,8 +422,8 @@ static void reap_victims(void)
 		 * and mark it as reaped with MMF_OOM_SKIP.
 		 */
 		__oom_reap_task_mm(mm);
-		clear_bit(MMF_OOM_VICTIM, &mm->flags);
-		set_bit(MMF_OOM_SKIP, &mm->flags);
+		mm_flags_clear(MMF_OOM_VICTIM, mm);
+		mm_flags_set(MMF_OOM_SKIP, mm);
 		mmap_read_unlock(mm);
 	}
 }
@@ -451,7 +451,7 @@ void simple_lmk_mm_freed(struct mm_struct *mm)
 	 * Victims are guaranteed to have MMF_OOM_SKIP set after exit_mmap()
 	 * finishes. Use this to ignore unrelated dying processes.
 	 */
-	if (!test_bit(MMF_OOM_SKIP, &mm->flags))
+	if (!mm_flags_test(MMF_OOM_SKIP, mm))
 		return;
 
 	read_lock(&mm_free_lock);
