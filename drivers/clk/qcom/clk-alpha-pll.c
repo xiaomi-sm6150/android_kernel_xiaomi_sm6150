@@ -48,6 +48,7 @@
 # define PLL_VCO_MASK		0x3
 
 #define PLL_USER_CTL_U(p)	((p)->offset + (p)->regs[PLL_OFF_USER_CTL_U])
+# define PLL_LATCH_INTERFACE	BIT(11)
 #define PLL_USER_CTL_U1(p)	((p)->offset + (p)->regs[PLL_OFF_USER_CTL_U1])
 
 #define PLL_CONFIG_CTL(p)	((p)->offset + (p)->regs[PLL_OFF_CONFIG_CTL])
@@ -496,6 +497,11 @@ void clk_alpha_pll_configure(struct clk_alpha_pll *pll, struct regmap *regmap,
 
 	if (pll->flags & SUPPORTS_FSM_MODE)
 		qcom_pll_set_fsm_mode(regmap, PLL_MODE(pll), 6, 0);
+
+	/* Do not bypass the latch interface */
+	if (pll->flags & SUPPORTS_SLEW)
+		regmap_clear_bits(regmap, PLL_USER_CTL_U(pll),
+				  PLL_LATCH_INTERFACE);
 }
 EXPORT_SYMBOL_GPL(clk_alpha_pll_configure);
 

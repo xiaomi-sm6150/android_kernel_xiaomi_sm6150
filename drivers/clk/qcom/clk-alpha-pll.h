@@ -99,6 +99,7 @@ struct clk_alpha_pll {
 #define SUPPORTS_FSM_MODE		BIT(2)
 #define SUPPORTS_DYNAMIC_UPDATE	BIT(3)
 #define SUPPORTS_FSM_LEGACY_MODE	BIT(4)
+#define SUPPORTS_SLEW			BIT(6)
 	u8 flags;
 
 	struct clk_regmap clkr;
