@@ -536,10 +536,9 @@ error:
 	return ret;
 }
 
-static int qsee_ipc_irq_bridge_remove(struct platform_device *pdev)
+static void qsee_ipc_irq_bridge_remove(struct platform_device *pdev)
 {
 	qiib_cleanup();
-	return 0;
 }
 
 static const struct of_device_id qsee_ipc_irq_bridge_match_table[] = {

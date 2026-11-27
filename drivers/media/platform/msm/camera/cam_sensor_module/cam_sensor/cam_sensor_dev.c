@@ -208,7 +208,7 @@ free_s_ctrl:
 	return rc;
 }
 
-static int cam_sensor_platform_remove(struct platform_device *pdev)
+static void cam_sensor_platform_remove(struct platform_device *pdev)
 {
 	int                        i;
 	struct cam_sensor_ctrl_t  *s_ctrl;
@@ -217,7 +217,7 @@ static int cam_sensor_platform_remove(struct platform_device *pdev)
 	s_ctrl = platform_get_drvdata(pdev);
 	if (!s_ctrl) {
 		CAM_ERR(CAM_SENSOR, "sensor device is NULL");
-		return 0;
+		return;
 	}
 
 	CAM_INFO(CAM_SENSOR, "platform remove invoked");
@@ -233,8 +233,6 @@ static int cam_sensor_platform_remove(struct platform_device *pdev)
 	platform_set_drvdata(pdev, NULL);
 	v4l2_set_subdevdata(&(s_ctrl->v4l2_dev_str.sd), NULL);
 	devm_kfree(&pdev->dev, s_ctrl);
-
-	return 0;
 }
 
 static void cam_sensor_driver_i2c_remove(struct i2c_client *client)

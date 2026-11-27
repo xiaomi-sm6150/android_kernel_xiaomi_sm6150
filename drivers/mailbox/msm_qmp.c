@@ -1100,7 +1100,7 @@ static int qmp_edge_init(struct platform_device *pdev)
 	return 0;
 }
 
-static int qmp_mbox_remove(struct platform_device *pdev)
+static void qmp_mbox_remove(struct platform_device *pdev)
 {
 	struct qmp_device *mdev = platform_get_drvdata(pdev);
 	struct qmp_mbox *mbox = NULL;
@@ -1111,7 +1111,6 @@ static int qmp_mbox_remove(struct platform_device *pdev)
 		mbox_controller_unregister(&mbox->ctrl);
 		kfree(mbox->rx_pkt.data);
 	}
-	return 0;
 }
 
 static int qmp_mbox_probe(struct platform_device *pdev)

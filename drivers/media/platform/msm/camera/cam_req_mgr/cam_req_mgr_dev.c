@@ -692,7 +692,7 @@ int cam_unregister_subdev(struct cam_subdev *csd)
 }
 EXPORT_SYMBOL(cam_unregister_subdev);
 
-static int cam_req_mgr_remove(struct platform_device *pdev)
+static void cam_req_mgr_remove(struct platform_device *pdev)
 {
 	cam_req_mgr_core_device_deinit();
 	cam_req_mgr_util_deinit();
@@ -702,8 +702,6 @@ static int cam_req_mgr_remove(struct platform_device *pdev)
 	mutex_destroy(&g_dev.dev_lock);
 	g_dev.state = false;
 	g_dev.subdev_nodes_created = false;
-
-	return 0;
 }
 
 static int cam_req_mgr_probe(struct platform_device *pdev)

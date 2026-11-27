@@ -223,7 +223,7 @@ static int cpufreq_cdev_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int cpufreq_cdev_remove(struct platform_device *pdev)
+static void cpufreq_cdev_remove(struct platform_device *pdev)
 {
 	struct cpufreq_cdev_device *cdev_data;
 
@@ -243,7 +243,6 @@ static int cpufreq_cdev_remove(struct platform_device *pdev)
 		kfree(cdev_data->freq_table);
 	}
 	mutex_unlock(&qti_cpufreq_cdev_lock);
-	return 0;
 }
 
 static const struct of_device_id cpufreq_cdev_match[] = {

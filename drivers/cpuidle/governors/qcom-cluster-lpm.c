@@ -471,13 +471,13 @@ static void cleanup_cluster_attrs(struct lpm_cluster *cluster_gov, int max_idx)
 	}
 }
 
-static int lpm_cluster_gov_remove(struct platform_device *pdev)
+static void lpm_cluster_gov_remove(struct platform_device *pdev)
 {
 	struct generic_pm_domain *genpd = pd_to_genpd(pdev->dev.pm_domain);
 	struct lpm_cluster *cluster_gov = to_cluster(genpd);
 
 	if (!cluster_gov)
-		return -ENODEV;
+		return;
 
 	pm_runtime_disable(&pdev->dev);
 	cluster_gov->genpd->flags &= ~GENPD_FLAG_MIN_RESIDENCY;
@@ -486,8 +486,6 @@ static int lpm_cluster_gov_remove(struct platform_device *pdev)
 
 	remove_cluster_sysfs_nodes(cluster_gov);
 	dev_pm_genpd_remove_notifier(cluster_gov->dev);
-
-	return 0;
 }
 
 static ssize_t usage_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)

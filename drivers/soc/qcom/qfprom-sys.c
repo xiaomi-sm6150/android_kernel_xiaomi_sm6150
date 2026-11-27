@@ -122,7 +122,7 @@ remove_cells:
 	return ret;
 }
 
-static int qfprom_sys_remove(struct platform_device *pdev)
+static void qfprom_sys_remove(struct platform_device *pdev)
 {
 	struct qfprom_sys *priv;
 	int i;
@@ -132,8 +132,6 @@ static int qfprom_sys_remove(struct platform_device *pdev)
 		nvmem_cell_put(priv->cells[i]);
 		sysfs_remove_bin_file(&pdev->dev.kobj, priv->attrs[i]);
 	}
-
-	return 0;
 }
 
 static const struct of_device_id qfprom_sys_of_match[] = {

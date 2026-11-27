@@ -890,7 +890,7 @@ static int pdphy_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int pdphy_remove(struct platform_device *pdev)
+static void pdphy_remove(struct platform_device *pdev)
 {
 	struct usb_pdphy *pdphy = platform_get_drvdata(pdev);
 
@@ -901,8 +901,6 @@ static int pdphy_remove(struct platform_device *pdev)
 		pd_phy_close();
 
 	__pdphy = NULL;
-
-	return 0;
 }
 
 static void pdphy_shutdown(struct platform_device *pdev)

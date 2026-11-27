@@ -4978,7 +4978,7 @@ fail_device:
 	return rc;
 }
 
-static int qpnp_qg_remove(struct platform_device *pdev)
+static void qpnp_qg_remove(struct platform_device *pdev)
 {
 	struct qpnp_qg *chip = platform_get_drvdata(pdev);
 
@@ -4998,8 +4998,6 @@ static int qpnp_qg_remove(struct platform_device *pdev)
 	mutex_destroy(&chip->soc_lock);
 	if (chip->awake_votable)
 		destroy_votable(chip->awake_votable);
-
-	return 0;
 }
 
 static void qpnp_qg_shutdown(struct platform_device *pdev)

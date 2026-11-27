@@ -124,13 +124,11 @@ static int qcom_reboot_reason_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int qcom_reboot_reason_remove(struct platform_device *pdev)
+static void qcom_reboot_reason_remove(struct platform_device *pdev)
 {
 	struct qcom_reboot_reason *reboot = platform_get_drvdata(pdev);
 
 	unregister_reboot_notifier(&reboot->reboot_nb);
-
-	return 0;
 }
 
 

@@ -3137,7 +3137,7 @@ error_led_register:
 	return rc;
 }
 
-static int qpnp_flash_led_remove(struct platform_device *pdev)
+static void qpnp_flash_led_remove(struct platform_device *pdev)
 {
 	struct qpnp_flash_led *led = dev_get_drvdata(&pdev->dev);
 	int i, j;
@@ -3160,7 +3160,6 @@ static int qpnp_flash_led_remove(struct platform_device *pdev)
 		led_classdev_unregister(&led->fnode[--i].cdev);
 
 	power_supply_unreg_notifier(&led->nb);
-	return 0;
 }
 
 static int qpnp_flash_led_freeze(struct device *dev)

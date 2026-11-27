@@ -250,7 +250,7 @@ static int cpu_hot_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int cpu_hot_remove(struct platform_device *pdev)
+static void cpu_hot_remove(struct platform_device *pdev)
 {
 	struct cpu_hot_cdev *cpu_hot_cdev = NULL, *next = NULL;
 	int ret = 0;
@@ -276,8 +276,6 @@ loop_skip:
 		list_del(&cpu_hot_cdev->node);
 	}
 	mutex_unlock(&cpu_hot_lock);
-
-	return 0;
 }
 
 static const struct of_device_id cpu_hot_match[] = {

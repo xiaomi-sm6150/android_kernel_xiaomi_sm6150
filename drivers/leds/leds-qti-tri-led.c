@@ -618,7 +618,7 @@ destroy:
 	return rc;
 }
 
-static int qpnp_tri_led_remove(struct platform_device *pdev)
+static void qpnp_tri_led_remove(struct platform_device *pdev)
 {
 	int i;
 	struct qpnp_tri_led_chip *chip = dev_get_drvdata(&pdev->dev);
@@ -629,7 +629,6 @@ static int qpnp_tri_led_remove(struct platform_device *pdev)
 		mutex_destroy(&chip->leds[i].lock);
 	}
 	dev_set_drvdata(chip->dev, NULL);
-	return 0;
 }
 
 static const struct of_device_id qpnp_tri_led_of_match[] = {

@@ -2761,14 +2761,12 @@ static int qpnp_lcdb_regulator_probe(struct platform_device *pdev)
 	return rc;
 }
 
-static int qpnp_lcdb_regulator_remove(struct platform_device *pdev)
+static void qpnp_lcdb_regulator_remove(struct platform_device *pdev)
 {
 	struct qpnp_lcdb *lcdb = dev_get_drvdata(&pdev->dev);
 
 	mutex_destroy(&lcdb->lcdb_mutex);
 	mutex_destroy(&lcdb->read_write_mutex);
-
-	return 0;
 }
 
 static const struct of_device_id lcdb_match_table[] = {

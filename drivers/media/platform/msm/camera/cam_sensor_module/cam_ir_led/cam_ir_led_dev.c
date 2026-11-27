@@ -466,19 +466,17 @@ static long cam_ir_led_subdev_do_ioctl(struct v4l2_subdev *sd,
 }
 #endif
 
-static int cam_ir_led_platform_remove(struct platform_device *pdev)
+static void cam_ir_led_platform_remove(struct platform_device *pdev)
 {
 	struct cam_ir_led_ctrl *ictrl;
 
 	ictrl = platform_get_drvdata(pdev);
 	if (!ictrl) {
 		CAM_ERR(CAM_IR_LED, " Ir_led device is NULL");
-		return 0;
+		return;
 	}
 
 	kfree(ictrl);
-
-	return 0;
 }
 
 static int cam_ir_led_subdev_close(struct v4l2_subdev *sd,

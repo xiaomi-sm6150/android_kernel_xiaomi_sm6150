@@ -357,7 +357,7 @@ out_put_kobj:
 	return ret;
 }
 
-static int msm_hang_detect_remove(struct platform_device *pdev)
+static void msm_hang_detect_remove(struct platform_device *pdev)
 {
 	struct hang_detect *hang_det = platform_get_drvdata(pdev);
 
@@ -365,7 +365,6 @@ static int msm_hang_detect_remove(struct platform_device *pdev)
 	sysfs_remove_group(&hang_det->kobj, &hang_attr_group);
 	kobject_del(&hang_det->kobj);
 	kobject_put(&hang_det->kobj);
-	return 0;
 }
 
 static struct platform_driver msm_hang_detect_driver = {

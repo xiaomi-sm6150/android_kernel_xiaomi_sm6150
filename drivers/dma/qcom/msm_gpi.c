@@ -4419,7 +4419,7 @@ static int gpi_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int gpi_remove(struct platform_device *pdev)
+static void gpi_remove(struct platform_device *pdev)
 {
 	struct gpi_dev *gpi_dev = platform_get_drvdata(pdev);
 	int i;
@@ -4453,7 +4453,6 @@ static int gpi_remove(struct platform_device *pdev)
 		ipc_log_context_destroy(gpi_dev->ilctxt);
 
 	debugfs_remove(pdentry);
-	return 0;
 }
 
 static const struct of_device_id gpi_of_match[] = {

@@ -1011,7 +1011,7 @@ free_pdata:
 	return ret;
 }
 
-static int bt_power_remove(struct platform_device *pdev)
+static void bt_power_remove(struct platform_device *pdev)
 {
 	dev_dbg(&pdev->dev, "bt power remove\n");
 
@@ -1019,8 +1019,6 @@ static int bt_power_remove(struct platform_device *pdev)
 	bt_power_vreg_put();
 
 	kfree(bt_power_pdata);
-
-	return 0;
 }
 
 int btpower_register_slimdev(struct device *dev)

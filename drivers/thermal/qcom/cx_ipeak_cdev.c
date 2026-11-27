@@ -116,7 +116,7 @@ static struct thermal_cooling_device_ops cxip_lm_device_ops = {
 	.set_cur_state = cxip_lm_set_cur_state,
 };
 
-static int cxip_lm_cdev_remove(struct platform_device *pdev)
+static void cxip_lm_cdev_remove(struct platform_device *pdev)
 {
 	struct cxip_lm_cooling_device *cxip_dev =
 		(struct cxip_lm_cooling_device *)dev_get_drvdata(&pdev->dev);
@@ -131,8 +131,6 @@ static int cxip_lm_cdev_remove(struct platform_device *pdev)
 			cxip_lm_therm_vote_apply(cxip_dev->cx_ip_reg_base,
 							false);
 	}
-
-	return 0;
 }
 
 static int cxip_lm_get_devicetree_data(struct platform_device *pdev,

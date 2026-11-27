@@ -590,11 +590,9 @@ probe_err:
 	return ret;
 }
 
-static int qmi_device_remove(struct platform_device *pdev)
+static void qmi_device_remove(struct platform_device *pdev)
 {
 	qmi_tmd_cleanup();
-
-	return 0;
 }
 
 static const struct of_device_id qmi_device_match[] = {

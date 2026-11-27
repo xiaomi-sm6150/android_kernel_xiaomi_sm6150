@@ -782,10 +782,9 @@ bool qcom_dma_iommu_is_ready(void)
 }
 EXPORT_SYMBOL(qcom_dma_iommu_is_ready);
 
-static int qcom_dma_iommu_remove(struct platform_device *pdev)
+static void qcom_dma_iommu_remove(struct platform_device *pdev)
 {
 	qcom_dma_atomic_pool_exit(&pdev->dev);
-	return 0;
 }
 
 static const struct of_device_id qcom_dma_iommu_of_match[] = {

@@ -64,7 +64,7 @@ static int cam_jpeg_dma_unregister_cpas(
 	return rc;
 }
 
-static int cam_jpeg_dma_remove(struct platform_device *pdev)
+static void cam_jpeg_dma_remove(struct platform_device *pdev)
 {
 	struct cam_hw_info *jpeg_dma_dev = NULL;
 	struct cam_hw_intf *jpeg_dma_dev_intf = NULL;
@@ -74,7 +74,7 @@ static int cam_jpeg_dma_remove(struct platform_device *pdev)
 	jpeg_dma_dev_intf = platform_get_drvdata(pdev);
 	if (!jpeg_dma_dev_intf) {
 		CAM_ERR(CAM_JPEG, "error No data in pdev");
-		return -EINVAL;
+		return;
 	}
 
 	jpeg_dma_dev = jpeg_dma_dev_intf->hw_priv;
@@ -108,7 +108,6 @@ deinit_soc:
 
 free_jpeg_hw_intf:
 	kfree(jpeg_dma_dev_intf);
-	return rc;
 }
 
 static int cam_jpeg_dma_probe(struct platform_device *pdev)

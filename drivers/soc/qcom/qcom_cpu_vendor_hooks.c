@@ -181,13 +181,12 @@ static int cpu_vendor_hooks_driver_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int cpu_vendor_hooks_driver_remove(struct platform_device *pdev)
+static void cpu_vendor_hooks_driver_remove(struct platform_device *pdev)
 {
 	/* Reset all initialized global variables and unregister callbacks. */
 	unregister_trace_android_vh_ipi_stop(trace_ipi_stop, NULL);
 	unregister_trace_android_vh_printk_hotplug(printk_hotplug, NULL);
 	unregister_trace_android_vh_timer_calc_index(timer_recalc_index, NULL);
-	return 0;
 }
 
 static const struct of_device_id cpu_vendor_hooks_of_match[] = {

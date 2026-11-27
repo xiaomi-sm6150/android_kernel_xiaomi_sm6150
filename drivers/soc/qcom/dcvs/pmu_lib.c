@@ -1257,12 +1257,10 @@ skip_pmu:
 	return ret;
 }
 
-static int qcom_pmu_driver_remove(struct platform_device *pdev)
+static void qcom_pmu_driver_remove(struct platform_device *pdev)
 {
 	qcom_pmu_inited = false;
 	delete_events();
-
-	return 0;
 }
 
 static const struct of_device_id pmu_match_table[] = {

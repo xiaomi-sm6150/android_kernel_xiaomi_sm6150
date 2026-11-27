@@ -3365,7 +3365,7 @@ cleanup:
 	return rc;
 }
 
-static int smb5_remove(struct platform_device *pdev)
+static void smb5_remove(struct platform_device *pdev)
 {
 	struct smb5 *chip = platform_get_drvdata(pdev);
 	struct smb_charger *chg = &chip->chg;
@@ -3381,8 +3381,6 @@ static int smb5_remove(struct platform_device *pdev)
 	smblib_deinit(chg);
 	sysfs_remove_groups(&chg->dev->kobj, smb5_groups);
 	platform_set_drvdata(pdev, NULL);
-
-	return 0;
 }
 
 static void smb5_shutdown(struct platform_device *pdev)
