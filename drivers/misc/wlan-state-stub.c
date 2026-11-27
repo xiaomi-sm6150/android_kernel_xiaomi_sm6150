@@ -32,7 +32,6 @@ static const struct file_operations wlan_state_fops = {
 	.owner = THIS_MODULE,
 	.open = nonseekable_open,
 	.write = wlan_state_write,
-	.llseek = no_llseek,
 };
 
 static struct miscdevice wlan_state_dev = {

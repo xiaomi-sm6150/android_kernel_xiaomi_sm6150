@@ -36,7 +36,6 @@ struct k61_subsys {
 static const struct file_operations k61_subsys_fops = {
 	.owner = THIS_MODULE,
 	.open = nonseekable_open,
-	.llseek = no_llseek,
 };
 
 static struct k61_subsys k61_subsystems[] = {
