@@ -707,7 +707,7 @@ static void k61_dump_cb(struct arm_smmu_device *smmu, int cb, const char *who)
 		dev_info(smmu->dev, "k61cb:   cb %d still routed from SMR %d id 0x%x mask 0x%x used=%d\n",
 			 cb, i, (u32)FIELD_GET(ARM_SMMU_SMR_ID, smr),
 			 (u32)FIELD_GET(ARM_SMMU_SMR_MASK, smr & ~ARM_SMMU_SMR_VALID),
-			 smmu->smrs ? smmu->smrs[i].used : -1);
+			 smmu->smrs ? smmu->smrs[i].valid : -1);
 	}
 }
 
@@ -1249,7 +1249,7 @@ static void arm_smmu_k61_claim_stream(struct arm_smmu_device *smmu, int owner,
 	for (i = 0; i < smmu->num_mapping_groups; i++) {
 		u32 smr, hid, hmask;
 
-		if (i == owner || smmu->smrs[i].used)
+		if (i == owner || smmu->smrs[i].valid)
 			continue;
 
 		smr = arm_smmu_gr0_read(smmu, ARM_SMMU_GR0_SMR(i));
@@ -2520,8 +2520,8 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 		if (pm_runtime_enabled(dev))
 			pm_runtime_disable(dev);
 		iommu_device_unregister(&smmu->iommu);
-		err = -ENODEV;
-		goto remove_iommu_sysfs_node;
+		iommu_device_sysfs_remove(&smmu->iommu);
+		return -ENODEV;
 	}
 
 	return 0;
