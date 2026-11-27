@@ -272,7 +272,7 @@ static int ramdump_devnode_init(void)
 {
 	int ret;
 
-	ramdump_class = class_create(THIS_MODULE, RAMDUMP_NAME);
+	ramdump_class = class_create(RAMDUMP_NAME);
 	ret = alloc_chrdev_region(&ramdump_dev, 0, RAMDUMP_NUM_DEVICES,
 				  RAMDUMP_NAME);
 	if (ret) {

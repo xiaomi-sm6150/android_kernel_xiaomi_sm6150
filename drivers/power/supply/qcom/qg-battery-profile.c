@@ -459,8 +459,7 @@ int qg_batterydata_init(struct device_node *profile_node)
 			goto unregister_chrdev;
 		}
 
-		battery->battery_class = class_create(THIS_MODULE,
-							"qg_battery");
+		battery->battery_class = class_create("qg_battery");
 		if (IS_ERR_OR_NULL(battery->battery_class)) {
 			pr_err("Failed to create qg-battery class\n");
 			rc = -ENODEV;

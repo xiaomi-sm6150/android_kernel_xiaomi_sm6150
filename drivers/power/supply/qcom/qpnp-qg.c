@@ -2977,7 +2977,7 @@ static int qg_register_device(struct qpnp_qg *chip)
 		goto unregister_chrdev;
 	}
 
-	chip->qg_class = class_create(THIS_MODULE, "qg");
+	chip->qg_class = class_create("qg");
 	if (IS_ERR_OR_NULL(chip->qg_class)) {
 		pr_err("Failed to create qg class\n");
 		rc = -EINVAL;

@@ -465,7 +465,7 @@ static int qiib_alloc_chrdev_region(void)
 		return ret;
 	}
 
-	qiib_info->classp = class_create(THIS_MODULE, DEVICE_NAME);
+	qiib_info->classp = class_create(DEVICE_NAME);
 	if (IS_ERR(qiib_info->classp)) {
 		QIIB_ERR("%s: class_create() failed ENOMEM\n", __func__);
 		ret = -ENOMEM;

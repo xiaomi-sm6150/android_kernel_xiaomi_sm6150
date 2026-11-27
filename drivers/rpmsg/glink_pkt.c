@@ -1291,7 +1291,7 @@ static int glink_pkt_probe(struct platform_device *pdev)
 		GLINK_PKT_ERR("alloc_chrdev_region failed ret:%d\n", ret);
 		return ret;
 	}
-	glink_pkt_class = class_create(THIS_MODULE, "glinkpkt");
+	glink_pkt_class = class_create("glinkpkt");
 	if (IS_ERR(glink_pkt_class)) {
 		ret = PTR_ERR(glink_pkt_class);
 		GLINK_PKT_ERR("class_create failed ret:%d\n", ret);

@@ -1821,7 +1821,6 @@ static const struct file_operations dcc_sram_fops = {
 	.owner		= THIS_MODULE,
 	.open		= dcc_sram_open,
 	.read		= dcc_sram_read,
-	.llseek		= no_llseek,
 };
 
 static int dcc_sram_dev_register(struct dcc_drvdata *drvdata)
@@ -1841,8 +1840,7 @@ static int dcc_sram_dev_register(struct dcc_drvdata *drvdata)
 	if (ret)
 		goto err_cdev_add;
 
-	drvdata->sram_class = class_create(THIS_MODULE,
-					   drvdata->sram_node);
+	drvdata->sram_class = class_create(drvdata->sram_node);
 	if (IS_ERR(drvdata->sram_class)) {
 		ret = PTR_ERR(drvdata->sram_class);
 		goto err_class_create;

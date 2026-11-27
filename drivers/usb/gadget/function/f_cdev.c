@@ -1803,7 +1803,7 @@ static int usb_cser_alloc_chardev_region(void)
 	major = MAJOR(dev);
 	minors = NUM_INSTANCE;
 
-	fcdev_classp = class_create(THIS_MODULE, MODULE_NAME);
+	fcdev_classp = class_create(MODULE_NAME);
 	if (IS_ERR(fcdev_classp)) {
 		pr_err("class_create() failed ENOMEM\n");
 		ret = -ENOMEM;
