@@ -42,7 +42,7 @@ int cam_sync_init_row(struct sync_table_row *table,
 	memset(row, 0, sizeof(*row));
 
 	if (name)
-		strlcpy(row->name, name, SYNC_DEBUG_NAME_LEN);
+		strscpy(row->name, name, SYNC_DEBUG_NAME_LEN);
 	INIT_LIST_HEAD(&row->parents_list);
 	INIT_LIST_HEAD(&row->children_list);
 	row->type = type;

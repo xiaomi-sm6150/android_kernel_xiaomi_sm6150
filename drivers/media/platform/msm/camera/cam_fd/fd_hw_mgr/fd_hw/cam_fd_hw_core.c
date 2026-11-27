@@ -1086,7 +1086,7 @@ int cam_fd_hw_reserve(void *hw_priv, void *hw_reserve_args, uint32_t arg_size)
 	}
 
 	memset(&cdm_acquire, 0, sizeof(cdm_acquire));
-	strlcpy(cdm_acquire.identifier, "fd", sizeof("fd"));
+	strscpy(cdm_acquire.identifier, "fd", sizeof("fd"));
 	cdm_acquire.cell_index = fd_hw->soc_info.index;
 	cdm_acquire.handle = 0;
 	cdm_acquire.userdata = ctx_hw_private;

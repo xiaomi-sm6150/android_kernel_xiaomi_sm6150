@@ -51,7 +51,7 @@ static bool is_sched_lib_based_app(pid_t pid)
 				if (IS_ERR(name))
 					goto release_sem;
 
-				strlcpy(tmp_lib_name, sched_lib_name, LIB_PATH_LENGTH);
+				strscpy(tmp_lib_name, sched_lib_name, LIB_PATH_LENGTH);
 				lib_list = tmp_lib_name;
 				while ((libname = strsep(&lib_list, ","))) {
 					libname = skip_spaces(libname);

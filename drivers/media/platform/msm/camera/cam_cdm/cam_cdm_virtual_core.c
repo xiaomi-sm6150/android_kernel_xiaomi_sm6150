@@ -295,7 +295,7 @@ int cam_virtual_cdm_probe(struct platform_device *pdev)
 	cpas_parms.cell_index = cdm_hw->soc_info.index;
 	cpas_parms.dev = &pdev->dev;
 	cpas_parms.userdata = cdm_hw_intf;
-	strlcpy(cpas_parms.identifier, "cam-cdm-intf",
+	strscpy(cpas_parms.identifier, "cam-cdm-intf",
 		CAM_HW_IDENTIFIER_LENGTH);
 	rc = cam_cpas_register_client(&cpas_parms);
 	if (rc) {

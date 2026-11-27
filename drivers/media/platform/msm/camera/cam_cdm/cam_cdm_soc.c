@@ -180,7 +180,7 @@ int cam_hw_cdm_soc_get_dt_properties(struct cam_hw_info *cdm_hw,
 		CAM_DBG(CAM_CDM, "CDM Hw Id compatible =%s", id->compatible);
 		((struct cam_cdm *)cdm_hw->core_info)->offset_tbl =
 			(struct cam_cdm_reg_offset_table *)id->data;
-		strlcpy(((struct cam_cdm *)cdm_hw->core_info)->name,
+		strscpy(((struct cam_cdm *)cdm_hw->core_info)->name,
 			id->compatible,
 			sizeof(((struct cam_cdm *)cdm_hw->core_info)->name));
 	}

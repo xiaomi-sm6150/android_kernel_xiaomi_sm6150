@@ -937,7 +937,7 @@ int qcom_wdt_register(struct platform_device *pdev,
 	}
 
 	/* Add wdog info to minidump table */
-	strlcpy(md_entry.name, "KWDOGDATA", sizeof(md_entry.name));
+	strscpy(md_entry.name, "KWDOGDATA", sizeof(md_entry.name));
 	md_entry.virt_addr = (uintptr_t)wdog_dd;
 	md_entry.phys_addr = virt_to_phys(wdog_dd);
 	md_entry.size = sizeof(*wdog_dd);

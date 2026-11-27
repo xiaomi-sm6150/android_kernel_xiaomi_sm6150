@@ -53,7 +53,7 @@ static int cam_lrme_hw_dev_util_cdm_acquire(struct cam_lrme_core *lrme_core,
 	}
 
 	memset(&cdm_acquire, 0, sizeof(cdm_acquire));
-	strlcpy(cdm_acquire.identifier, "lrmecdm", sizeof("lrmecdm"));
+	strscpy(cdm_acquire.identifier, "lrmecdm", sizeof("lrmecdm"));
 	cdm_acquire.cell_index = lrme_hw->soc_info.index;
 	cdm_acquire.handle = 0;
 	cdm_acquire.userdata = hw_cdm_info;
