@@ -108,6 +108,14 @@ config QCOM_PDR_HELPERS
 	select QCOM_PDR_MSG
 	depends on NET
 
+config PDR_INDICATION_NOTIF_TIMEOUT
+	int "Pdr notifications timeout in ms"
+	default 3000
+	help
+	  The amount of time, in milliseconds, that should elapse between
+	  the start and end of notifications, before a warning
+	  is emitted.
+
 config QCOM_PDR_MSG
 	tristate
 
@@ -205,6 +213,15 @@ config QCOM_RPMH
 	  internal bus to transmit state requests for shared resources. A set
 	  of hardware components aggregate requests for these resources and
 	  help apply the aggregated state on the resource.
+
+config QCOM_RPMH_TIMEOUT
+	int "Timeout for RPMH and CRM communication"
+	default 5000
+	depends on QCOM_RPMH
+	help
+	  The amount of time, in milliseconds, that should be sufficient to
+	  receive a response from RPMh for the resource request from APSS.
+	  Wait for this duration before emitting a warning.
 
 config QCOM_RUN_QUEUE_STATS
        tristate "Enable collection and exporting of QTI Run Queue stats to userspace"
@@ -367,6 +384,25 @@ config QCOM_IRQ_STAT
 	  This provides additional debug information
 	  for irq counts.
 
+config QCOM_WATCHDOG_BARK_TIME
+	depends on QCOM_WDT_CORE
+	int "Qualcomm Technologies, Inc. Watchdog bark time in ms"
+	default 11000
+	range 11000 11000
+	help
+	  The amount of time, in milliseconds, that should elapse after
+	  a watchdog timer reset before a bark interrupt is sent from the
+	  watchdog.
+
+config QCOM_WATCHDOG_PET_TIME
+	depends on QCOM_WDT_CORE
+	int "Qualcomm Technologies, Inc. Watchdog pet time in ms"
+	default 9360
+	range 9360 9360
+	help
+	  The amount of time, in milliseconds, that should elapse before
+	  a watchdog pet is initiated to reset the watchdog timer to 0.
+
 config QCOM_WATCHDOG_IPI_PING
 	depends on QCOM_WDT_CORE
 	bool "Qualcomm Technologies, Inc. Watchdog ipi ping"
@@ -462,6 +498,14 @@ config QCOM_CDSP_RM
 	  to improve RPC latency. The driver also registers cooling devices for
 	  CDSP subsystem and implements Cx ipeak limit management.
 
+config MINIDUMP_MAX_ENTRIES
+	int "Minidump Maximum num of entries"
+	default 200
+	depends on QCOM_MINIDUMP
+	help
+	  This defines maximum number of entries to be allocated for application
+	  subsytem in Minidump table.
+
 config QCOM_RAMDUMP
 	tristate "Qualcomm Technologies, Inc. Ramdump driver"
 	default n
@@ -543,6 +587,7 @@ config K61_SUBSYS_SHIM
 
 source "drivers/soc/qcom/mem_buf/Kconfig"
 source "drivers/soc/qcom/dcvs/Kconfig"
+source "drivers/soc/qcom/hab/Kconfig"
 endmenu
 
 config QCOM_UBWC_CONFIG

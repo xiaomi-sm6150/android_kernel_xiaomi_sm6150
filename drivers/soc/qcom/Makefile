@@ -54,6 +54,7 @@ crypto-qti-y += crypto-qti-common.o
 crypto-qti-$(CONFIG_QTI_CRYPTO_TZ) += crypto-qti-tz.o
 crypto-qti-$(CONFIG_QTI_HW_KEY_MANAGER) += crypto-qti-hwkm.o
 crypto-qti-$(CONFIG_QTI_HW_KEY_MANAGER_V1) += crypto-qti-hwkm.o
+obj-$(CONFIG_MSM_HAB) += hab/
 obj-$(CONFIG_QCOM_MINIDUMP) += minidump.o
 minidump-y   += msm_minidump.o minidump_log.o
 minidump-$(CONFIG_QCOM_MINIDUMP_RM) += minidump_rm.o
