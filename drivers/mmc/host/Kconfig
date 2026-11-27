@@ -891,7 +891,6 @@ config MMC_SH_MMCIF
 	  This selects the MMC Host Interface controller (MMCIF) found in various
 	  Renesas SoCs for SH and ARM architectures.
 
-
 config MMC_JZ4740
 	tristate "Ingenic JZ47xx SD/Multimedia Card Interface support"
 	depends on MIPS
@@ -1128,6 +1127,18 @@ config MMC_LOONGSON2
 
 config MMC_SDHCI_EXTERNAL_DMA
 	bool
+
+config MMC_CRYPTO_QTI
+	tristate "Vendor specific CQHCI Crypto Engine Support"
+	depends on MMC_CRYPTO
+	help
+	  Enable Vendor Crypto Engine Support in CQHCI
+	  Enabling this allows kernel to use CQHCI crypto operations defined
+	  and implemented by QTI.
+
+	  If you have a controller with this interface, say Y or M here.
+
+	  If unsure, say N
 
 config MMC_LITEX
 	tristate "LiteX MMC Host Controller support"

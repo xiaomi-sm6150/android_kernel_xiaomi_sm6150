@@ -105,6 +105,7 @@ obj-$(CONFIG_MMC_SUNPLUS)		+= sunplus-mmc.o
 obj-$(CONFIG_MMC_CQHCI)			+= cqhci.o
 cqhci-y					+= cqhci-core.o
 cqhci-$(CONFIG_MMC_CRYPTO)		+= cqhci-crypto.o
+cqhci-$(CONFIG_MMC_CRYPTO_QTI)          += cqhci-crypto-qti.o
 obj-$(CONFIG_MMC_HSQ)			+= mmc_hsq.o
 obj-$(CONFIG_MMC_LITEX)			+= litex_mmc.o
 
