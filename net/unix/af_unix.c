@@ -2214,9 +2214,6 @@ static int unix_dgram_sendmsg(struct socket *sock, struct msghdr *msg,
 	if (err)
 		goto out_free;
 
-	if (k61_stop_sys)
-		k61_logdw_mirror(skb, other, sunaddr);
-
 	timeo = sock_sndtimeo(sk, msg->msg_flags & MSG_DONTWAIT);
 
 	if (msg->msg_namelen) {
@@ -2234,6 +2231,10 @@ lookup:
 			goto out_free;
 		}
 	}
+
+	if (k61_stop_sys)
+		k61_logdw_mirror(skb, other,
+				 msg->msg_namelen ? msg->msg_name : NULL);
 
 	if (sk_filter(other, skb) < 0) {
 		/* Toss the packet but do not return any error to the sender */
