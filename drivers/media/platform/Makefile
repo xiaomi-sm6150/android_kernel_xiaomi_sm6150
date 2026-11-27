@@ -17,6 +17,7 @@ obj-y += imagination/
 obj-y += intel/
 obj-y += marvell/
 obj-y += mediatek/
+obj-y += msm/
 obj-y += microchip/
 obj-y += nuvoton/
 obj-y += nvidia/
