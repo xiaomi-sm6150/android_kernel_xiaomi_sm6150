@@ -298,7 +298,6 @@ config BT_HCIBCM203X
 	  Say Y here to compile support for HCI BCM203x devices into the
 	  kernel or say M to compile it as module (bcm203x).
 
-
 config BT_HCIBCM4377
 	tristate "HCI BCM4377/4378/4387/4388 PCIe driver"
 	depends on PCI
@@ -436,6 +435,18 @@ config BT_MTKSDIO
 
 	  Say Y here to compile support for MediaTek Bluetooth SDIO devices
 	  into the kernel or say M to compile it as module (btmtksdio).
+
+config MSM_BT_POWER
+        tristate "MSM Bluetooth Power Control"
+        depends on ARCH_QCOM
+        help
+                MSM Bluetooth Power control driver.
+                This provides a parameter to switch on/off power from PMIC
+                to Bluetooth device. This will control LDOs/Clock/GPIOs to
+                control Bluetooth Chipset based on power on/off sequence.
+
+                Say Y here to compile support for Bluetooth Power driver
+                into the kernel or say M to compile as a module.
 
 config BT_MTKUART
 	tristate "MediaTek HCI UART driver"
