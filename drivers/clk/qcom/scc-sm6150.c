@@ -561,7 +561,7 @@ static int scc_sm6150_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	ret = qcom_cc_really_probe(pdev, &scc_sm6150_desc, regmap);
+	ret = qcom_cc_really_probe(&pdev->dev, &scc_sm6150_desc, regmap);
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to register SCC clocks\n");
 		return ret;

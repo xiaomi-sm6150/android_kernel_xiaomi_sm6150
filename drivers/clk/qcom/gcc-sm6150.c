@@ -3522,7 +3522,7 @@ static int gcc_sm6150_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	ret = qcom_cc_really_probe(pdev, &gcc_sm6150_desc, regmap);
+	ret = qcom_cc_really_probe(&pdev->dev, &gcc_sm6150_desc, regmap);
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to register GCC clocks\n");
 		return ret;

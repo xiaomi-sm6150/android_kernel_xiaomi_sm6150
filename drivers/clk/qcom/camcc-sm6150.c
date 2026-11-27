@@ -1756,7 +1756,7 @@ static int cam_cc_sm6150_probe(struct platform_device *pdev)
 	clk_alpha_pll_configure(&cam_cc_pll2, regmap, cam_cc_pll2.config);
 	clk_alpha_pll_configure(&cam_cc_pll3, regmap, cam_cc_pll3.config);
 
-	ret = qcom_cc_really_probe(pdev, &cam_cc_sm6150_desc, regmap);
+	ret = qcom_cc_really_probe(&pdev->dev, &cam_cc_sm6150_desc, regmap);
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to register CAM CC clocks\n");
 		return ret;
