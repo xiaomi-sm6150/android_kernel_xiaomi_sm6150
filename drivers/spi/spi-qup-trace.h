@@ -26,7 +26,7 @@ TRACE_EVENT(spi_log_info,
 		),
 
 		TP_fast_assign(
-			__assign_str(name, name);
+			__assign_str(name);
 			WARN_ON_ONCE(vsnprintf(__get_dynamic_array(msg),
 									MAX_MSG_LEN, vaf->fmt,
 									*vaf->va) >= MAX_MSG_LEN);

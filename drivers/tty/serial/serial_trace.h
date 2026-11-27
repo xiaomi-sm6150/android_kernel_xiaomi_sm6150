@@ -23,7 +23,7 @@ TRACE_EVENT(serial_info,
 		__dynamic_array(char, msg, MAX_MSG_LEN)
 	),
 	TP_fast_assign(
-		__assign_str(name, name);
+		__assign_str(name);
 		WARN_ON_ONCE(vsnprintf(__get_dynamic_array(msg),
 					MAX_MSG_LEN, vaf->fmt,
 					*vaf->va) >= MAX_MSG_LEN);

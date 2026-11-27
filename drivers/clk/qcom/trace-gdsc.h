@@ -25,7 +25,7 @@ TRACE_EVENT(gdsc_time,
 	),
 
 	TP_fast_assign(
-		__assign_str(name, name);
+		__assign_str(name);
 		__entry->enabling = enabling;
 		__entry->time_us = time_us;
 		__entry->timed_out = timed_out;
