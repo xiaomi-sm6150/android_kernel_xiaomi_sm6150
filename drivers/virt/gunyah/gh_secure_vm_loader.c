@@ -12,7 +12,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/dma-direct.h>
 #include <linux/of_address.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 #include <linux/firmware.h>
 #include <linux/module.h>
 #include <linux/kernel.h>

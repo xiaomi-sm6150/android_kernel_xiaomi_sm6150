@@ -24,7 +24,7 @@
 #include <linux/usb/dwc3-msm.h>
 #include <linux/reset.h>
 #include <linux/debugfs.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 #include <linux/types.h>
 
 #define USB2_PHY_USB_PHY_UTMI_CTRL0		(0x3c)

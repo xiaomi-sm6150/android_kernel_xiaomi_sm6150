@@ -9,7 +9,7 @@
 #include <linux/device.h>
 #include "arm-smmu.h"
 #include "arm-smmu-debug.h"
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 
 u32 arm_smmu_debug_qtb_debugchain_load(void __iomem *debugchain_base)
 {

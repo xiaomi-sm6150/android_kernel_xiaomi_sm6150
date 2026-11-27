@@ -7,7 +7,7 @@
 
 #include <linux/module.h>
 #include <linux/habmm.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 #include <linux/spinlock.h>
 #include <soc/qcom/qseecom_scm.h>
 

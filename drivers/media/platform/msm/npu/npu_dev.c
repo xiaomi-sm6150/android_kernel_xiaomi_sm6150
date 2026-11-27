@@ -23,7 +23,7 @@
 #include <linux/soc/qcom/cdsprm_cxlimit.h>
 #include <linux/devfreq.h>
 #include <linux/interconnect.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 #include "npu_common.h"
 #include "npu_hw.h"
 

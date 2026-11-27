@@ -6,7 +6,7 @@
 #include <linux/module.h>
 #include <linux/shrinker.h>
 #include <linux/slab.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 
 #include <soc/qcom/secure_buffer.h>
 

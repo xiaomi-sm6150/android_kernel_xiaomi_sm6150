@@ -16,7 +16,7 @@
 #include <linux/debugfs.h>
 #include <linux/regulator/consumer.h>
 #include <linux/dma-direction.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 #include <soc/qcom/secure_buffer.h>
 #include <asm/cacheflush.h>
 #include <uapi/linux/sched/types.h>

@@ -25,7 +25,7 @@
 #include <linux/clk.h>
 #include <linux/workqueue.h>
 #include <linux/power_supply.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 #include <linux/delay.h>
 
 #define EUD_ENABLE_CMD 1

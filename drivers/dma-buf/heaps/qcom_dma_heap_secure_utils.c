@@ -7,7 +7,7 @@
 #include <linux/slab.h>
 #include <soc/qcom/secure_buffer.h>
 #include <linux/qcom_dma_heap.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 
 int get_secure_vmid(unsigned long flags)
 {

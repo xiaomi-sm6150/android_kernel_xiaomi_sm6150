@@ -13,7 +13,7 @@
 #include <linux/err.h>
 #include <linux/of.h>
 #include <linux/dma-mapping.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 #include <linux/of_reserved_mem.h>
 
 #include <soc/qcom/secure_buffer.h>

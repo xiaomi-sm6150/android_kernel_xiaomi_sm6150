@@ -11,7 +11,7 @@
 #include <linux/of.h>
 #include <linux/vmalloc.h>
 #include "tsens2xxx.h"
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 #include "../thermal_core.h"
 
 #define TSENS_TM_INT_EN(n)			((n) + 0x4)

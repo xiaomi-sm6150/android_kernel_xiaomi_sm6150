@@ -18,7 +18,7 @@
 #include <linux/gunyah/gh_dbl.h>
 #include <linux/gunyah/gh_panic_notifier.h>
 #include <linux/gunyah/gh_rm_drv.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 #include <soc/qcom/secure_buffer.h>
 #include <linux/devcoredump.h>
 #include <linux/gunyah/gh_vm.h>

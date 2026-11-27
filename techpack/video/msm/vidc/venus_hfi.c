@@ -25,7 +25,7 @@
 #include <linux/of_address.h>
 #include <linux/pm_opp.h>
 #include <linux/pm_qos.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 #include <linux/regulator/consumer.h>
 #include <linux/slab.h>
 #include <linux/workqueue.h>

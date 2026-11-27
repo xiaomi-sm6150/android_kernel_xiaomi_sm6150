@@ -23,7 +23,7 @@
 #include <dsp/msm_audio_ion.h>
 #include <soc/qcom/secure_buffer.h>
 #include <linux/of_reserved_mem.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 
 MODULE_IMPORT_NS(DMA_BUF);
 

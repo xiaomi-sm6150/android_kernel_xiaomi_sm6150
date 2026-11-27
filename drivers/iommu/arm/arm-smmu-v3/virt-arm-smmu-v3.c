@@ -31,7 +31,7 @@
 #include <linux/pci.h>
 #include <linux/pci-ats.h>
 #include <linux/platform_device.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 #include <linux/amba/bus.h>
 #include <linux/qcom-iommu-util.h>
 #include <trace/hooks/iommu.h>

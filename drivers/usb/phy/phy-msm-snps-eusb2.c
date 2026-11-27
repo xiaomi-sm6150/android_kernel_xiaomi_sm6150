@@ -17,7 +17,7 @@
 #include <linux/platform_device.h>
 #include <linux/pm_domain.h>
 #include <linux/power_supply.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 #include <linux/reset.h>
 #include <linux/slab.h>
 #include <linux/types.h>

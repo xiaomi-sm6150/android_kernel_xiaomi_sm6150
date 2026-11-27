@@ -5,7 +5,7 @@
  */
 
 #include <linux/sysfs.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 
 #include "adreno.h"
 #include "adreno_sysfs.h"

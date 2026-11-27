@@ -15,7 +15,7 @@
 #include <linux/reboot.h>
 #include <linux/pm.h>
 #include <linux/panic_notifier.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 #include <soc/qcom/minidump.h>
 #include <linux/regulator/consumer.h>
 

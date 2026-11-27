@@ -8,7 +8,7 @@
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/qcom-geni-se-common.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 #include <linux/remoteproc/qcom_rproc.h>
 
 #define SCM_LOAD_QUP_FW_ARG	0x7E7E7E7E

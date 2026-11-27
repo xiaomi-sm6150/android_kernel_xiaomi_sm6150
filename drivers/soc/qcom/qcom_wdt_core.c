@@ -19,7 +19,7 @@
 #include <linux/wait.h>
 #include <linux/reboot.h>
 #include <linux/panic_notifier.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 #include <soc/qcom/minidump.h>
 #include <soc/qcom/watchdog.h>
 #include <linux/cpumask.h>

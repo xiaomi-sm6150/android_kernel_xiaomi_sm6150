@@ -19,7 +19,7 @@
 #include "cam_packet_util.h"
 
 
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 #include <cam_mem_mgr.h>
 
 #define SECURE_SYSCALL_ID 0x6

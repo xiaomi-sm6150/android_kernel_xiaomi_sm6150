@@ -11,7 +11,7 @@
 #include <linux/sysfs.h>
 #include <linux/kobject.h>
 #include <linux/slab.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 #include <linux/platform_device.h>
 
 /* pmu event max value */

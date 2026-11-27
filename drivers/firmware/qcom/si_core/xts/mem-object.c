@@ -11,7 +11,7 @@
 #include <linux/dma-buf.h>
 #include <linux/mem-buf.h>
 #include <linux/of_platform.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 #include <linux/qtee_shmbridge.h>
 #include <linux/firmware/qcom/si_core_xts.h>
 

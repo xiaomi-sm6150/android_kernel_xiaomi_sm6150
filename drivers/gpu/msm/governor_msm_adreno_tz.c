@@ -13,7 +13,7 @@
 #include <linux/io.h>
 #include <linux/ftrace.h>
 #include <linux/mm.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 #include <asm/cacheflush.h>
 #include <linux/qtee_shmbridge.h>
 

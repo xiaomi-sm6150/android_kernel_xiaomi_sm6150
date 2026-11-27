@@ -24,7 +24,7 @@
 #include <linux/ipc_logging.h>
 #include <linux/of_platform.h>
 #include <linux/ratelimit.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 #include <linux/bootmarker_kernel.h>
 #include <soc/snd_event.h>
 #include <dsp/apr_audio-v2.h>

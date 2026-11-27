@@ -35,7 +35,7 @@
 #include <soc/qcom/secure_buffer.h>
 #include "gh_secure_vm_virtio_backend.h"
 #include "hcall_virtio.h"
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/gh_virtio_backend.h>

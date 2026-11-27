@@ -32,7 +32,7 @@
 #include <linux/platform_device.h>
 #include <linux/of_platform.h>
 #include <linux/of_address.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 #include <linux/uaccess.h>
 #include <linux/dma-mapping.h>
 #include <soc/qcom/spm.h>

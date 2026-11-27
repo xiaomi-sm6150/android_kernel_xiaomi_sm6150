@@ -13,7 +13,7 @@
 #include <linux/slab.h>
 #include <linux/file.h>
 #include <linux/fs.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 
 #include <linux/gunyah/gh_msgq.h>
 #include <soc/qcom/secure_buffer.h>

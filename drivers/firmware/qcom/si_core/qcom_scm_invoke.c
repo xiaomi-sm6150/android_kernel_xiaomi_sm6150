@@ -4,7 +4,7 @@
  */
 
 #include <linux/delay.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 
 #include "si_core.h"
 

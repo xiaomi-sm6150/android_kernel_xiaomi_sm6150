@@ -15,7 +15,7 @@
 #include <linux/of_device.h>
 #include <linux/io.h>
 #include <linux/platform_device.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 #include <linux/regulator/consumer.h>
 #include <linux/remoteproc.h>
 #include <linux/remoteproc/qcom_spss.h>

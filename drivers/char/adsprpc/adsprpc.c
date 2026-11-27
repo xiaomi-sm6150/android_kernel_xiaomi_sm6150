@@ -25,7 +25,7 @@
 #include <linux/arch_topology.h>
 #include <linux/hash.h>
 #include <linux/msm_ion.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 #include <linux/ipc_logging.h>
 #include <linux/remoteproc/qcom_rproc.h>
 #include <linux/scatterlist.h>

@@ -9,7 +9,7 @@
 #include <linux/cacheflush.h>
 #include <asm/cputype.h>
 #include <asm/smp_plat.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 #include "pm-boot.h"
 #include "idle.h"
 

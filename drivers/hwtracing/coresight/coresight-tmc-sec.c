@@ -17,7 +17,7 @@
 #include <linux/mutex.h>
 #include <linux/cdev.h>
 #include <linux/of_address.h>
-#include <linux/qcom_scm.h>
+#include <linux/firmware/qcom/qcom_scm.h>
 #include <linux/dma-mapping.h>
 #include <linux/of_reserved_mem.h>
 
