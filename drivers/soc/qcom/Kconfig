@@ -103,7 +103,7 @@ config QCOM_PD_MAPPER
 	  userspace daemon.
 
 config QCOM_PDR_HELPERS
-	tristate
+	tristate "Qualcomm Protection Domain Restart (PDR) helpers"
 	select QCOM_QMI_HELPERS
 	select QCOM_PDR_MSG
 	depends on NET
