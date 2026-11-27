@@ -937,6 +937,11 @@ config SERIAL_QCOM_GENI_CONSOLE
 	  Serial console driver for Qualcomm Technologies Inc's GENI based
 	  QUP hardware.
 
+config SERIAL_MSM_GENI
+    tristate "MSM on-chip GENI HW based serial port support"
+    depends on ARCH_QCOM
+    depends on QCOM_GENI_SE
+
 config SERIAL_QCOM_GENI_UART_PORTS
 	int "Maximum number of GENI UART ports"
 	depends on SERIAL_QCOM_GENI
