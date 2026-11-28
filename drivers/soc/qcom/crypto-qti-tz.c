@@ -47,7 +47,7 @@ static int crypto_qti_program_key_legacy(const struct blk_crypto_key *key,
 	if (key->size > sizeof(k.bytes))
 		return -EINVAL;
 
-	memcpy(k.bytes, key->raw, key->size);
+	memcpy(k.bytes, key->bytes, key->size);
 	/* the legacy call takes a standard key as big endian words (4.14) */
 	if (key->crypto_cfg.key_type != BLK_CRYPTO_KEY_TYPE_HW_WRAPPED)
 		for (i = 0; i < DIV_ROUND_UP(key->size, sizeof(u32)); i++)
@@ -77,7 +77,7 @@ int crypto_qti_program_key(const struct ice_mmio_data *mmio_data,
 	if (err)
 		return -ENOMEM;
 
-	memcpy(shm.vaddr, key->raw, key->size);
+	memcpy(shm.vaddr, key->bytes, key->size);
 	qtee_shmbridge_flush_shm_buf(&shm);
 
 	err = qcom_scm_config_set_ice_key(slot, shm.paddr, key->size,
