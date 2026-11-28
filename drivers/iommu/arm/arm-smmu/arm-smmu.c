@@ -2107,6 +2107,13 @@ static int arm_smmu_device_cfg_probe(struct arm_smmu_device *smmu)
 			smmu->features |= ARM_SMMU_FEAT_FMT_AARCH64_64K;
 	}
 
+	/*
+	 * The vendor per-TBU handling of qsmmu-v500 is not here, and some of
+	 * its TBUs decode only 32 address bits: higher IOVAs fault.
+	 */
+	if (of_device_is_compatible(smmu->dev->of_node, "qcom,qsmmu-v500"))
+		smmu->va_size = min(smmu->va_size, 32UL);
+
 	if (smmu->impl && smmu->impl->cfg_probe) {
 		ret = smmu->impl->cfg_probe(smmu);
 		if (ret)
