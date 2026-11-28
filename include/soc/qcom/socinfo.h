@@ -9,6 +9,8 @@
 
 #include <linux/types.h>
 
+/* <linux/soc/qcom/socinfo.h> defines these feature codes under the same names */
+#ifndef __QCOM_SOCINFO_H__
 enum feature_code {
 	/* External feature code */
 	SOCINFO_FC_UNKNOWN = 0x0,
@@ -74,6 +76,7 @@ enum pcode {
 	SOCINFO_PCODE_8,
 	SOCINFO_PCODE_RESERVE = 0x7fffffff
 };
+#endif /* !__QCOM_SOCINFO_H__ */
 
 enum socinfo_parttype {
 	SOCINFO_PART_GPU = 1,

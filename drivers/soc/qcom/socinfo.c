@@ -19,6 +19,8 @@
 
 #include <linux/unaligned.h>
 
+#include <soc/qcom/socinfo.h>
+
 #include <dt-bindings/arm/qcom,ids.h>
 
 /* Helper macros to create soc_id table */
@@ -786,6 +788,35 @@ static void socinfo_debugfs_init(struct qcom_socinfo *qcom_socinfo,
 static void socinfo_debugfs_exit(struct qcom_socinfo *qcom_socinfo) {  }
 #endif /* CONFIG_DEBUG_FS */
 
+/* kept for socinfo_get_part_info(), which vendor drivers call */
+static struct socinfo *socinfo_smem;
+static size_t socinfo_smem_size;
+
+/*
+ * Return true if the firmware lists @part as a disabled subset part. Firmware
+ * older than socinfo 0.14 has no such list.
+ */
+bool socinfo_get_part_info(enum subset_part_type part)
+{
+	u32 num_parts, offset;
+
+	if (!socinfo_smem ||
+	    le32_to_cpu(socinfo_smem->fmt) < SOCINFO_VERSION(0, 14))
+		return false;
+
+	num_parts = le32_to_cpu(socinfo_smem->num_subset_parts);
+	if (part <= PART_UNKNOWN || part >= NUM_PARTS_MAX || part >= num_parts)
+		return false;
+
+	offset = le32_to_cpu(socinfo_smem->nsubset_parts_array_offset);
+	if (!offset || offset + (part + 1) * sizeof(u32) > socinfo_smem_size)
+		return false;
+
+	return get_unaligned_le32((u8 *)socinfo_smem + offset +
+				  part * sizeof(u32)) & 1;
+}
+EXPORT_SYMBOL(socinfo_get_part_info);
+
 static int qcom_socinfo_probe(struct platform_device *pdev)
 {
 	struct qcom_socinfo *qs;
@@ -798,6 +829,9 @@ static int qcom_socinfo_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Couldn't find socinfo\n");
 		return PTR_ERR(info);
 	}
+
+	socinfo_smem = info;
+	socinfo_smem_size = item_size;
 
 	qs = devm_kzalloc(&pdev->dev, sizeof(*qs), GFP_KERNEL);
 	if (!qs)
