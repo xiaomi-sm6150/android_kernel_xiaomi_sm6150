@@ -28,7 +28,7 @@ DECLARE_EVENT_CLASS(clk_state_dump,
 	),
 
 	TP_fast_assign(
-		__assign_str(name, name);
+		__assign_str(name);
 		__entry->prepare_count = prepare_count;
 		__entry->enable_count = enable_count;
 		__entry->rate = rate;
@@ -60,7 +60,7 @@ DECLARE_EVENT_CLASS(clk_measure_support,
 	),
 
 	TP_fast_assign(
-		__assign_str(name, name);
+		__assign_str(name);
 		__entry->rate = rate;
 	),
 
