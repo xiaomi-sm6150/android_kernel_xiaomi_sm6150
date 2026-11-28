@@ -18,6 +18,7 @@
 #include <linux/pinctrl/consumer.h>
 #include <linux/reset.h>
 
+#include <linux/firmware/qcom/qcom_scm.h>
 #include <soc/qcom/ice.h>
 
 #include "sdhci-cqhci.h"
@@ -272,10 +273,11 @@ struct sdhci_msm_host {
 	int pwr_irq;		/* power irq */
 	struct clk *bus_clk;	/* SDHC bus voter clock */
 	struct clk *xo_clk;	/* TCXO clk needed for FLL feature of cm_dll*/
-	/* core, iface, cal and sleep clocks */
-	struct clk_bulk_data bulk_clks[4];
+	/* core, iface, cal, sleep and ICE clocks */
+	struct clk_bulk_data bulk_clks[5];
 #ifdef CONFIG_MMC_CRYPTO
 	struct qcom_ice *ice;
+	void __iomem *ice_mem;	/* used with CONFIG_MMC_CRYPTO_QTI */
 #endif
 	unsigned long clk_rate;
 	struct mmc_host *mmc;
@@ -1887,6 +1889,180 @@ out:
 \*****************************************************************************/
 
 #ifdef CONFIG_MMC_CRYPTO
+#if IS_ENABLED(CONFIG_MMC_CRYPTO_QTI)
+
+/*
+ * The TrustZone of older SoCs such as SM6150 works with hardware wrapped keys,
+ * which the common ICE driver does not offer on eMMC. Only set up and enable
+ * the engine here: cqhci-crypto-qti owns the keyslots.
+ */
+#define QCOM_ICE_REG_VERSION			0x0008
+
+#define QCOM_ICE_REG_FUSE_SETTING		0x0010
+#define QCOM_ICE_FUSE_SETTING_MASK		0x1
+#define QCOM_ICE_FORCE_HW_KEY0_SETTING_MASK	0x2
+#define QCOM_ICE_FORCE_HW_KEY1_SETTING_MASK	0x4
+
+#define QCOM_ICE_REG_BIST_STATUS		0x0070
+#define QCOM_ICE_BIST_STATUS_MASK		0xF0000000
+
+#define QCOM_ICE_REG_ADVANCED_CONTROL		0x1000
+
+#define sdhci_msm_ice_writel(host, val, reg)	\
+	writel((val), (host)->ice_mem + (reg))
+#define sdhci_msm_ice_readl(host, reg)	\
+	readl((host)->ice_mem + (reg))
+
+static bool sdhci_msm_ice_supported(struct sdhci_msm_host *msm_host)
+{
+	struct device *dev = mmc_dev(msm_host->mmc);
+	u32 regval = sdhci_msm_ice_readl(msm_host, QCOM_ICE_REG_VERSION);
+	int major = regval >> 24;
+	int minor = (regval >> 16) & 0xFF;
+	int step = regval & 0xFFFF;
+
+	/* For now this driver only supports ICE version 3. */
+	if (major != 3) {
+		dev_warn(dev, "Unsupported ICE version: v%d.%d.%d\n",
+			 major, minor, step);
+		return false;
+	}
+
+	dev_info(dev, "Found QC Inline Crypto Engine (ICE) v%d.%d.%d\n",
+		 major, minor, step);
+
+	/* If fuses are blown, ICE might not work in the standard way. */
+	regval = sdhci_msm_ice_readl(msm_host, QCOM_ICE_REG_FUSE_SETTING);
+	if (regval & (QCOM_ICE_FUSE_SETTING_MASK |
+		      QCOM_ICE_FORCE_HW_KEY0_SETTING_MASK |
+		      QCOM_ICE_FORCE_HW_KEY1_SETTING_MASK)) {
+		dev_warn(dev, "Fuses are blown; ICE is unusable!\n");
+		return false;
+	}
+	return true;
+}
+
+static int sdhci_msm_ice_init(struct sdhci_msm_host *msm_host,
+			      struct cqhci_host *cq_host)
+{
+	struct mmc_host *mmc = msm_host->mmc;
+	struct device *dev = mmc_dev(mmc);
+	struct resource *ice_base_res;
+	int err;
+
+	if (!(cqhci_readl(cq_host, CQHCI_CAP) & CQHCI_CAP_CS))
+		return 0;
+
+	ice_base_res = platform_get_resource_byname(msm_host->pdev, IORESOURCE_MEM,
+					   "cqhci_ice");
+	if (!ice_base_res) {
+		dev_warn(dev, "ICE registers not found\n");
+		goto disable;
+	}
+
+	if (!qcom_scm_is_available())
+		return -EPROBE_DEFER;
+
+	if (!qcom_scm_ice_available()) {
+		dev_warn(dev, "ICE SCM interface not found\n");
+		goto disable;
+	}
+
+	msm_host->ice_mem = devm_ioremap_resource(dev, ice_base_res);
+	if (IS_ERR(msm_host->ice_mem)) {
+		err = PTR_ERR(msm_host->ice_mem);
+		dev_err(dev, "Failed to map ICE registers; err=%d\n", err);
+		return err;
+	}
+
+	cq_host->ice_mmio = msm_host->ice_mem;
+
+	if (!sdhci_msm_ice_supported(msm_host))
+		goto disable;
+
+	mmc->caps2 |= MMC_CAP2_CRYPTO;
+	return 0;
+
+disable:
+	dev_warn(dev, "Disabling inline encryption support\n");
+	return 0;
+}
+
+static void sdhci_msm_ice_low_power_mode_enable(struct sdhci_msm_host *msm_host)
+{
+	u32 regval;
+
+	regval = sdhci_msm_ice_readl(msm_host, QCOM_ICE_REG_ADVANCED_CONTROL);
+	/*
+	 * Enable low power mode sequence
+	 * [0]-0, [1]-0, [2]-0, [3]-E, [4]-0, [5]-0, [6]-0, [7]-0
+	 */
+	regval |= 0x7000;
+	sdhci_msm_ice_writel(msm_host, regval, QCOM_ICE_REG_ADVANCED_CONTROL);
+}
+
+static void sdhci_msm_ice_optimization_enable(struct sdhci_msm_host *msm_host)
+{
+	u32 regval;
+
+	/* ICE Optimizations Enable Sequence */
+	regval = sdhci_msm_ice_readl(msm_host, QCOM_ICE_REG_ADVANCED_CONTROL);
+	regval |= 0xD807100;
+	/* ICE HPG requires delay before writing */
+	udelay(5);
+	sdhci_msm_ice_writel(msm_host, regval, QCOM_ICE_REG_ADVANCED_CONTROL);
+	udelay(5);
+}
+
+/*
+ * Wait until the ICE BIST (built-in self-test) has completed.
+ *
+ * This may be necessary before ICE can be used.
+ *
+ * Note that we don't really care whether the BIST passed or failed; we really
+ * just want to make sure that it isn't still running.  This is because (a) the
+ * BIST is a FIPS compliance thing that never fails in practice, (b) ICE is
+ * documented to reject crypto requests if the BIST fails, so we needn't do it
+ * in software too, and (c) properly testing storage encryption requires testing
+ * the full storage stack anyway, and not relying on hardware-level self-tests.
+ */
+static int sdhci_msm_ice_wait_bist_status(struct sdhci_msm_host *msm_host)
+{
+	u32 regval;
+	int err;
+
+	err = readl_poll_timeout(msm_host->ice_mem + QCOM_ICE_REG_BIST_STATUS,
+				 regval, !(regval & QCOM_ICE_BIST_STATUS_MASK),
+				 50, 5000);
+	if (err)
+		dev_err(mmc_dev(msm_host->mmc),
+			"Timed out waiting for ICE self-test to complete\n");
+	return err;
+}
+
+static void sdhci_msm_ice_enable(struct sdhci_msm_host *msm_host)
+{
+	if (!(msm_host->mmc->caps2 & MMC_CAP2_CRYPTO))
+		return;
+	sdhci_msm_ice_low_power_mode_enable(msm_host);
+	sdhci_msm_ice_optimization_enable(msm_host);
+	sdhci_msm_ice_wait_bist_status(msm_host);
+}
+
+static int sdhci_msm_ice_resume(struct sdhci_msm_host *msm_host)
+{
+	if (!(msm_host->mmc->caps2 & MMC_CAP2_CRYPTO))
+		return 0;
+	return sdhci_msm_ice_wait_bist_status(msm_host);
+}
+
+static int sdhci_msm_ice_suspend(struct sdhci_msm_host *msm_host)
+{
+	return 0;
+}
+
+#else /* !CONFIG_MMC_CRYPTO_QTI */
+
 
 static const struct blk_crypto_ll_ops sdhci_msm_crypto_ops; /* forward decl */
 
@@ -2017,6 +2193,7 @@ static const struct blk_crypto_ll_ops sdhci_msm_crypto_ops = {
 	.keyslot_evict		= sdhci_msm_ice_keyslot_evict,
 };
 
+#endif /* CONFIG_MMC_CRYPTO_QTI */
 #else /* CONFIG_MMC_CRYPTO */
 
 static inline int sdhci_msm_ice_init(struct sdhci_msm_host *msm_host,
@@ -2642,6 +2819,24 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 	if (IS_ERR(clk))
 		clk = NULL;
 	msm_host->bulk_clks[3].clk = clk;
+
+	/* The common ICE driver handles this clock when it owns the engine */
+	if (IS_ENABLED(CONFIG_MMC_CRYPTO_QTI)) {
+		u32 ice_rate;
+
+		clk = devm_clk_get_optional(&pdev->dev, "ice_core");
+		if (IS_ERR(clk)) {
+			ret = PTR_ERR(clk);
+			goto bus_clk_disable;
+		}
+		if (clk && !of_property_read_u32(pdev->dev.of_node,
+						 "qcom,ice-clk-rates", &ice_rate)) {
+			ret = clk_set_rate(clk, ice_rate);
+			if (ret)
+				goto bus_clk_disable;
+		}
+		msm_host->bulk_clks[4].clk = clk;
+	}
 
 	ret = clk_bulk_prepare_enable(ARRAY_SIZE(msm_host->bulk_clks),
 				      msm_host->bulk_clks);
