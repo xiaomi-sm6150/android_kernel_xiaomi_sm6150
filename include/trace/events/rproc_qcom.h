@@ -24,9 +24,9 @@ TRACE_EVENT(rproc_qcom_event,
 	),
 
 	TP_fast_assign(
-		__assign_str(name, name);
-		__assign_str(event, event);
-		__assign_str(subevent, subevent);
+		__assign_str(name);
+		__assign_str(event);
+		__assign_str(subevent);
 	),
 
 	TP_printk("%s: %s: %s", __get_str(name), __get_str(event), __get_str(subevent))
