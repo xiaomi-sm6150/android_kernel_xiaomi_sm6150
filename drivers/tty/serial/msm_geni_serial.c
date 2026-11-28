@@ -6420,7 +6420,7 @@ static void msm_geni_serial_ssr_down(struct device *dev)
 	ret = pm_runtime_force_suspend(uport->dev);
 	if (ret) {
 		UART_LOG_DBG(port->ipc_log_misc, dev, "%s:force suspend failed %d\n",
-			     ret, __func__);
+			     __func__, ret);
 		goto exit;
 	}
 
