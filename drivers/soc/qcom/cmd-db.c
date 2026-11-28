@@ -21,6 +21,7 @@
 #define MAX_SLV_ID		8
 #define SLAVE_ID_MASK		0x7
 #define SLAVE_ID_SHIFT		16
+#define CMD_DB_STANDALONE_MASK BIT(0)
 #define SLAVE_ID(addr)		FIELD_GET(GENMASK(19, 16), addr)
 #define VRM_ADDR(addr)		FIELD_GET(GENMASK(19, 4), addr)
 
@@ -337,6 +338,19 @@ static const struct file_operations cmd_db_debugfs_ops = {
 	.llseek = seq_lseek,
 	.release = single_release,
 };
+
+/*
+ * Return true if the firmware runs without the RPMh hardware accelerators, as
+ * on emulators; the RPMh drivers then drop their requests.
+ */
+bool cmd_db_is_standalone(void)
+{
+	if (cmd_db_ready())
+		return false;
+
+	return le32_to_cpu(cmd_db_header->reserved) & CMD_DB_STANDALONE_MASK;
+}
+EXPORT_SYMBOL_GPL(cmd_db_is_standalone);
 
 static int cmd_db_dev_probe(struct platform_device *pdev)
 {
