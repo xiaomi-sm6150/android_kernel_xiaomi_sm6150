@@ -54,7 +54,7 @@ struct qos_config {
 #endif
 };
 
-struct qcom_icc_qosbox {
+struct qcom_noc_qosbox {
 	u32 num_ports;
 	const u8 *regs;
 	bool initialized;
@@ -67,7 +67,7 @@ struct qcom_icc_qosbox {
 		.prio = _prio,						\
 		.urg_fwd = _urg_fwd,					\
 	};								\
-		static struct qcom_icc_qosbox _name##_qos = {		\
+		static struct qcom_noc_qosbox _name##_qos = {		\
 		.num_ports = _num_ports,				\
 		.config = &_name##_qos_cfg,				\
 		.regs = icc_qnoc_qos_regs[ICC_QNOC_QOSGEN_TYPE_RPMH],	\

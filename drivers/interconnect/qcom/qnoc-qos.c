@@ -85,7 +85,7 @@ EXPORT_SYMBOL_GPL(icc_bimc_qos_regs);
  */
 static void qcom_icc_set_qos(struct qcom_icc_node *node)
 {
-	struct qcom_icc_qosbox *qos = node->qosbox;
+	struct qcom_noc_qosbox *qos = node->noc_qosbox;
 	int port;
 
 	if (!node->regmap)
@@ -121,7 +121,7 @@ EXPORT_SYMBOL_GPL(qcom_qnoc4_ops);
  */
 static void qcom_icc_set_qnoc2_qos(struct qcom_icc_node *node)
 {
-	struct qcom_icc_qosbox *qos = node->qosbox;
+	struct qcom_noc_qosbox *qos = node->noc_qosbox;
 	int port;
 
 	if (!node->regmap)
@@ -156,7 +156,7 @@ EXPORT_SYMBOL_GPL(qcom_qnoc2_ops);
  */
 static void qcom_icc_set_bimc_qos(struct qcom_icc_node *node)
 {
-	struct qcom_icc_qosbox *qos = node->qosbox;
+	struct qcom_noc_qosbox *qos = node->noc_qosbox;
 	int port, i;
 
 	if (!node->regmap)
