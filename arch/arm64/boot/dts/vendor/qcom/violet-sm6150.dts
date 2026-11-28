@@ -545,6 +545,11 @@
 
 /* attempt 42: no icc path on apps_smmu */
 &apps_smmu {
+	/*
+	 * Kernels without the vendor qsmmu-v500 support bind the common Arm
+	 * SMMU driver through the fallback. They must keep qcom,skip-init.
+	 */
+	compatible = "qcom,qsmmu-v500", "arm,mmu-500";
 	/delete-property/ interconnects;
 	/delete-property/ qcom,active-only;
 	/*
