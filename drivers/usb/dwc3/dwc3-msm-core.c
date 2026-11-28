@@ -1225,9 +1225,9 @@ static int dwc3_core_send_gadget_ep_cmd(struct dwc3_ep *dep, unsigned int cmd,
 			dwc3_msm_write_reg(mdwc->base, DWC3_GUSB2PHYCFG(0), reg);
 	}
 
-	dwc3_msm_ep_writel(dep->regs, DWC3_DEPCMDPAR0, params->param0);
-	dwc3_msm_ep_writel(dep->regs, DWC3_DEPCMDPAR1, params->param1);
-	dwc3_msm_ep_writel(dep->regs, DWC3_DEPCMDPAR2, params->param2);
+	dwc3_msm_ep_writel(dwc->regs, DWC3_DEPCMDPAR0(dep->number), params->param0);
+	dwc3_msm_ep_writel(dwc->regs, DWC3_DEPCMDPAR1(dep->number), params->param1);
+	dwc3_msm_ep_writel(dwc->regs, DWC3_DEPCMDPAR2(dep->number), params->param2);
 
 	/*
 	 * Synopsys Databook 2.60a states in section 6.3.2.5.6 of that if we're
@@ -1250,9 +1250,9 @@ static int dwc3_core_send_gadget_ep_cmd(struct dwc3_ep *dep, unsigned int cmd,
 	else
 		cmd |= DWC3_DEPCMD_CMDACT;
 
-	dwc3_msm_ep_writel(dep->regs, DWC3_DEPCMD, cmd);
+	dwc3_msm_ep_writel(dwc->regs, DWC3_DEPCMD(dep->number), cmd);
 	do {
-		reg = dwc3_msm_ep_readl(dep->regs, DWC3_DEPCMD);
+		reg = dwc3_msm_ep_readl(dwc->regs, DWC3_DEPCMD(dep->number));
 		if (!(reg & DWC3_DEPCMD_CMDACT)) {
 			cmd_status = DWC3_DEPCMD_STATUS(reg);
 
@@ -1300,7 +1300,7 @@ static int dwc3_core_send_gadget_ep_cmd(struct dwc3_ep *dep, unsigned int cmd,
 		if (ret != -ETIMEDOUT) {
 			u32 res_id;
 
-			res_id = dwc3_msm_ep_readl(dep->regs, DWC3_DEPCMD);
+			res_id = dwc3_msm_ep_readl(dwc->regs, DWC3_DEPCMD(dep->number));
 			dep->resource_index = DWC3_DEPCMD_GET_RSC_IDX(res_id);
 		}
 	}
@@ -2031,7 +2031,7 @@ static void gsi_get_channel_info(struct usb_ep *ep,
 
 	/* Provide physical USB addresses for DEPCMD and GEVENTCNT registers */
 	ch_info->depcmd_low_addr = (u32)(mdwc->reg_phys +
-				DWC3_DEP_BASE(dep->number) + DWC3_DEPCMD);
+				DWC3_DEPCMD(dep->number));
 
 	ch_info->depcmd_hi_addr = 0;
 
@@ -3860,7 +3860,7 @@ static bool dwc3_msm_orientation_gpio_init(struct dwc3_msm *mdwc)
 	struct device *dev = mdwc->dev;
 	int rc;
 
-	mdwc->orientation_gpio = of_get_gpio(dev->of_node, 0);
+	mdwc->orientation_gpio = of_get_named_gpio(dev->of_node, "gpios", 0);
 	/*
 	 * If the GPIO is not defined or invalid, simply disable the
 	 * orientation feature - this is not an error condition.
@@ -6855,7 +6855,7 @@ static int vbus_regulator_toggle(struct dwc3_msm *mdwc, bool on)
 	return regulator_enable(mdwc->vbus_reg);
 }
 
-static int dwc3_msm_remove(struct platform_device *pdev)
+static void dwc3_msm_remove(struct platform_device *pdev)
 {
 	struct dwc3_msm	*mdwc = platform_get_drvdata(pdev);
 	struct dwc3 *dwc = platform_get_drvdata(mdwc->dwc3);
@@ -6956,8 +6956,6 @@ static int dwc3_msm_remove(struct platform_device *pdev)
 
 	kfree(mdwc->xhci_pm_ops);
 	kfree(mdwc->dwc3_pm_ops);
-
-	return 0;
 }
 
 static int dwc3_msm_host_ss_powerdown(struct dwc3_msm *mdwc)
