@@ -203,6 +203,7 @@ extern int qcom_scm_config_set_ice_key(uint32_t index, phys_addr_t paddr,
 				       size_t size, uint32_t cipher,
 				       unsigned int data_unit,
 				       unsigned int ce);
+extern int qcom_scm_enable_shm_bridge(void);
 extern int qcom_scm_derive_raw_secret(phys_addr_t paddr_key, size_t size_key,
 		phys_addr_t paddr_secret, size_t size_secret);
 extern int qcom_scm_hibernate_exit(void);

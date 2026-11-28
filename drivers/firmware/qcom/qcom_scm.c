@@ -26,6 +26,7 @@
 #include <linux/of_platform.h>
 #include <linux/of_reserved_mem.h>
 #include <linux/platform_device.h>
+#include <linux/qtee_shmbridge.h>
 #include <linux/reset-controller.h>
 #include <linux/sizes.h>
 #include <linux/types.h>
@@ -33,6 +34,7 @@
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 
 #include "qcom_scm.h"
+#include "../qtee_shmbridge_internal.h"
 #include "qcom_tzmem.h"
 
 static u32 download_mode;
@@ -1705,6 +1707,16 @@ int qcom_scm_shm_bridge_enable(struct device *scm_dev)
 }
 EXPORT_SYMBOL_GPL(qcom_scm_shm_bridge_enable);
 
+/* for the vendor memory bridge driver, which has no SCM device at hand */
+int qcom_scm_enable_shm_bridge(void)
+{
+	if (!__scm)
+		return -ENODEV;
+
+	return qcom_scm_shm_bridge_enable(__scm->dev);
+}
+EXPORT_SYMBOL_GPL(qcom_scm_enable_shm_bridge);
+
 int qcom_scm_shm_bridge_create(u64 pfn_and_ns_perm_flags,
 			       u64 ipfn_and_s_perm_flags, u64 size_and_flags,
 			       u64 ns_vmids, u64 *handle)
@@ -2832,7 +2844,17 @@ static struct platform_driver qcom_scm_driver = {
 
 static int __init qcom_scm_init(void)
 {
-	return platform_driver_register(&qcom_scm_driver);
+	int ret;
+
+	ret = platform_driver_register(&qcom_scm_driver);
+	if (ret)
+		return ret;
+
+	/* the memory bridge driver needs SCM, so register it afterwards */
+	if (IS_ENABLED(CONFIG_QTEE_SHM_BRIDGE))
+		return qtee_shmbridge_driver_init();
+
+	return 0;
 }
 subsys_initcall(qcom_scm_init);
 

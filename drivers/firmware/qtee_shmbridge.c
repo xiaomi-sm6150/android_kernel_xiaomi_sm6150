@@ -19,7 +19,9 @@
 #include <linux/qtee_shmbridge.h>
 #include <linux/of_platform.h>
 
+#if IS_ENABLED(CONFIG_GH_RM_DRV)
 #include <linux/gunyah/gh_rm_drv.h>
+#endif
 
 #include "qtee_shmbridge_internal.h"
 
@@ -212,7 +214,7 @@ static int32_t qtee_shmbridge_list_dec_refcount_locked(uint64_t handle)
 
 				if (entry->ref_count == 0) {
 				// All valid reference are freed, it's time to delete the bridge
-					ret = qcom_scm_delete_shm_bridge(handle);
+					ret = qcom_scm_shm_bridge_delete(handle);
 					if (ret) {
 						pr_err(" %s: Failed to del bridge %lld, ret = %d\n"
 							, __func__, handle, ret);
@@ -309,7 +311,9 @@ int32_t qtee_shmbridge_register(
 	uint64_t ns_vmids = 0;
 	int i = 0;
 
+#if IS_ENABLED(CONFIG_GH_RM_DRV)
 	gh_vmid_t temp_vmid;
+#endif
 
 	if (!qtee_shmbridge_enabled)
 		return 0;
@@ -328,6 +332,7 @@ int32_t qtee_shmbridge_register(
 		goto bridge_exist;
 	}
 
+#if IS_ENABLED(CONFIG_GH_RM_DRV)
 	if (support_hyp) {
 
 		/* Calls to create SHMBridge from HLOS-VM is handled by QHEEBSP AC Layer while from
@@ -344,6 +349,7 @@ int32_t qtee_shmbridge_register(
 			}
 		}
 	}
+#endif
 
 	for (i = 0; i < ns_vmid_num; i++) {
 		ns_perms = UPDATE_NS_PERMS(ns_perms, ns_vm_perm_list[i]);
@@ -363,7 +369,7 @@ int32_t qtee_shmbridge_register(
 		__func__, pfn_and_ns_perm_flags, ipfn_and_s_perm_flags,
 		size_and_flags, ns_vmids);
 
-	ret = qcom_scm_create_shm_bridge(pfn_and_ns_perm_flags,
+	ret = qcom_scm_shm_bridge_create(pfn_and_ns_perm_flags,
 			ipfn_and_s_perm_flags, size_and_flags, ns_vmids,
 			handle);
 
@@ -492,7 +498,6 @@ EXPORT_SYMBOL(qtee_shmbridge_inv_shm_buf);
 static int qtee_shmbridge_register_v2(void)
 {
 	int ret = 0;
-	int mem_protection_enabled = 0;
 	uint32_t ns_vm_ids_hlos[] = {VMID_HLOS};
 	uint32_t ns_vm_ids_hyp[] = {};
 	uint32_t ns_vm_perms[] = {VM_PERM_R|VM_PERM_W};
@@ -525,10 +530,6 @@ static int qtee_shmbridge_register_v2(void)
 		pr_err("Failed to register default bridge, ret=%d\n", ret);
 		goto out;
 	}
-	mem_protection_enabled = scm_mem_protection_init_do();
-	pr_debug("MEM protection %s, %d\n",
-		(!mem_protection_enabled ? "Enabled" : "Not enabled"),
-		mem_protection_enabled);
 out:
 	return ret;
 }
@@ -637,7 +638,7 @@ static int qtee_shmbridge_probe(struct platform_device *pdev)
 	return qtee_shmbridge_init(pdev);
 }
 
-static int qtee_shmbridge_remove(struct platform_device *pdev)
+static void qtee_shmbridge_remove(struct platform_device *pdev)
 {
 	int ret = 0;
 
@@ -653,7 +654,6 @@ static int qtee_shmbridge_remove(struct platform_device *pdev)
 			DMA_TO_DEVICE);
 	free_pages((long)default_bridge.vaddr, get_order(default_bridge.size));
 	default_bridge.vaddr = NULL;
-	return 0;
 }
 
 #ifdef CONFIG_PM
