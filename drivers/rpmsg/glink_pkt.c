@@ -166,7 +166,7 @@ static void glink_pkt_kfree_skb(struct glink_pkt_device *gpdev, struct sk_buff *
 
 	if (gpdev->rx_done) {
 		GLINK_PKT_INFO("channel:%s\n", gpdev->ch_name);
-		ret = qcom_glink_rx_done(gpdev->rpdev->ept, skb->data);
+		ret = qcom_glink_ept_rx_done(gpdev->rpdev->ept, skb->data);
 		if (ret < 0)
 			GLINK_PKT_INFO("Failed channel:%s ret:%d\n", gpdev->ch_name, ret);
 		/*
