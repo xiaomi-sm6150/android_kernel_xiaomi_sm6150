@@ -39,6 +39,8 @@ struct qcom_glink *qcom_glink_native_probe(struct device *dev,
 void qcom_glink_native_remove(struct qcom_glink *glink);
 void qcom_glink_native_rx(struct qcom_glink *glink);
 
+extern const struct dev_pm_ops glink_native_pm_ops;
+
 /* Serial line signals (TIOCM_*) for the vendor packet driver */
 int qcom_glink_get_signals(struct rpmsg_endpoint *ept);
 int qcom_glink_set_signals(struct rpmsg_endpoint *ept, u32 set, u32 clear);

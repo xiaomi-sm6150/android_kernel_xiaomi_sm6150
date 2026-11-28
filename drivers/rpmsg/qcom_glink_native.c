@@ -16,6 +16,7 @@
 #include <linux/rpmsg.h>
 #include <linux/sizes.h>
 #include <linux/slab.h>
+#include <linux/suspend.h>
 #include <linux/termios.h>
 #include <linux/wait.h>
 #include <linux/workqueue.h>
@@ -1254,6 +1255,29 @@ static void qcom_glink_handle_signals(struct qcom_glink *glink,
 		channel->ept.flow_cb(channel->ept.rpdev, channel->ept.priv, enable);
 }
 
+/* set while suspended: the next message from a remote wakes the system */
+static bool should_wake;
+
+static int qcom_glink_suspend_noirq(struct device *dev)
+{
+	should_wake = true;
+
+	return 0;
+}
+
+static int qcom_glink_resume_noirq(struct device *dev)
+{
+	should_wake = false;
+
+	return 0;
+}
+
+const struct dev_pm_ops glink_native_pm_ops = {
+	.suspend_noirq = qcom_glink_suspend_noirq,
+	.resume_noirq = qcom_glink_resume_noirq,
+};
+EXPORT_SYMBOL_GPL(glink_native_pm_ops);
+
 void qcom_glink_native_rx(struct qcom_glink *glink)
 {
 	struct glink_msg msg;
@@ -1262,6 +1286,12 @@ void qcom_glink_native_rx(struct qcom_glink *glink)
 	unsigned int avail;
 	unsigned int cmd;
 	int ret = 0;
+
+	if (should_wake) {
+		should_wake = false;
+		dev_info(glink->dev, "wakeup message from %s\n", glink->label);
+		pm_system_wakeup();
+	}
 
 	/* To wakeup any blocking writers */
 	wake_up_all(&glink->tx_avail_notify);
