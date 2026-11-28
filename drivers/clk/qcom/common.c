@@ -326,13 +326,11 @@ static void qcom_cc_set_critical(struct device *dev, struct qcom_cc *cc)
 {
 	struct of_phandle_args args;
 	struct device_node *np;
-	struct property *prop;
-	const __be32 *p;
 	u32 clock_idx;
 	u32 i;
 	int cnt;
 
-	of_property_for_each_u32(dev->of_node, "qcom,critical-clocks", prop, p, i) {
+	of_property_for_each_u32(dev->of_node, "qcom,critical-clocks", i) {
 		if (i >= cc->num_rclks)
 			continue;
 
@@ -340,7 +338,7 @@ static void qcom_cc_set_critical(struct device *dev, struct qcom_cc *cc)
 			cc->rclks[i]->flags |= QCOM_CLK_IS_CRITICAL;
 	}
 
-	of_property_for_each_u32(dev->of_node, "qcom,critical-devices", prop, p, i) {
+	of_property_for_each_u32(dev->of_node, "qcom,critical-devices", i) {
 		for (np = of_find_node_by_phandle(i); np; np = of_get_parent(np)) {
 			if (!of_property_read_bool(np, "clocks")) {
 				of_node_put(np);
