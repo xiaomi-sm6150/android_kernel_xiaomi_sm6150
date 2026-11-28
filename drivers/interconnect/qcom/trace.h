@@ -26,7 +26,7 @@ TRACE_EVENT(bcm_voter_commit,
 	),
 
 	TP_fast_assign(
-		__assign_str(state_name, rpmh_state);
+		__assign_str(state_name);
 		__entry->addr = cmd->addr;
 		__entry->data = cmd->data;
 		__entry->wait = cmd->wait;
